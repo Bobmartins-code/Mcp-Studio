@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MCP Studio — Gerador de Roteiros</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0A0A0F; --surface: #111118; --surface2: #18181F;
+      --border: rgba(255,255,255,0.07); --border-hover: rgba(255,255,255,0.15);
+      --accent: #FF4D00; --accent2: #FF8A50; --gold: #F5C842;
+      --text: #F0EEE8; --muted: #6B6B7A; --muted2: #9B9BAA;
+      --success: #2DDE98; --radius: 14px; --radius-sm: 8px;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 4px; }
+    .app { display: flex; height: 100vh; overflow: hidden; }
+    .sidebar {
+      width: 260px; min-width: 260px; background: var(--surface);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      padding: 24px 0; overflow-y: auto;
+    }
+    .sidebar-logo { padding: 0 24px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+    .logo-mark { width: 34px; height: 34px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; color: #fff; flex-shrink: 0; }
+    .logo-text { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 17px; letter-spacing: -0.3px; }
+    .logo-text span { color: var(--accent); }
+    .sidebar-section { padding: 20px 16px 0; }
+    .sidebar-label { font-size: 10px; font-weight: 500; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); padding: 0 8px; margin-bottom: 8px; }
+    .sidebar-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); border: none; background: transparent; color: var(--muted2); font-family: 'DM Sans', sans-serif; font-size: 13.5px; cursor: pointer; transition: all 0.15s; text-align: left; }
+    .sidebar-btn:hover { background: var(--surface2); color: var(--text); }
+    .sidebar-btn.active { background: rgba(255,77,0,0.12); color: var(--accent2); }
+    .sidebar-btn .icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+    .sidebar-btn .badge { margin-left: auto; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 20px; }
+    .sidebar-new-btn { margin: 20px 16px 0; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; border-radius: var(--radius-sm); border: 1px dashed var(--border-hover); background: transparent; color: var(--muted2); font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+    .sidebar-new-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(255,77,0,0.05); }
+    .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid var(--border); }
+    .user-card { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--radius-sm); background: var(--surface2); }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--gold)); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-plan { font-size: 11px; color: var(--gold); }
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar { height: 60px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 28px; gap: 16px; flex-shrink: 0; }
+    .topbar-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; flex: 1; }
+    .topbar-pill { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; background: var(--surface2); border: 1px solid var(--border); font-size: 12px; color: var(--muted2); }
+    .topbar-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .content { flex: 1; overflow-y: auto; padding: 32px 28px; }
+    .welcome-hero { background: linear-gradient(135deg, #1A1008 0%, #0F0F18 60%, #0A0A0F 100%); border: 1px solid var(--border); border-radius: 20px; padding: 40px; margin-bottom: 28px; position: relative; overflow: hidden; }
+    .welcome-hero::before { content: ''; position: absolute; top: -60px; right: -60px; width: 240px; height: 240px; background: radial-gradient(circle, rgba(255,77,0,0.15) 0%, transparent 70%); pointer-events: none; }
+    .hero-tag { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,77,0,0.15); border: 1px solid rgba(255,77,0,0.3); border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 500; color: var(--accent2); margin-bottom: 16px; letter-spacing: 0.5px; }
+    .hero-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 32px; line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 12px; }
+    .hero-title span { color: var(--accent); }
+    .hero-sub { font-size: 15px; color: var(--muted2); line-height: 1.6; max-width: 480px; }
+    .hero-stats { display: flex; gap: 28px; margin-top: 28px; }
+    .stat-num { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 24px; }
+    .stat-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+    .feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; cursor: pointer; transition: all 0.2s; }
+    .feature-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+    .feature-card.primary { border-color: rgba(255,77,0,0.3); background: rgba(255,77,0,0.05); }
+    .card-icon { font-size: 24px; margin-bottom: 12px; }
+    .card-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+    .card-desc { font-size: 12.5px; color: var(--muted2); line-height: 1.5; }
+    .card-cta { margin-top: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--accent2); }
+    .form-wrapper { max-width: 720px; }
+    .form-header { margin-bottom: 28px; }
+    .form-header h2 { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 22px; margin-bottom: 6px; }
+    .form-header p { color: var(--muted2); font-size: 14px; }
+    .steps-bar { display: flex; gap: 8px; margin-bottom: 32px; }
+    .step-item { flex: 1; height: 3px; border-radius: 3px; background: var(--surface2); transition: 0.3s; }
+    .step-item.done { background: var(--accent); }
+    .step-item.active { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    .form-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+    .form-section-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .form-section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .form-field label { font-size: 12.5px; font-weight: 500; color: var(--muted2); }
+    .form-field input, .form-field textarea, .form-field select { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 10px 14px; transition: border-color 0.2s; resize: none; outline: none; }
+    .form-field input:focus, .form-field textarea:focus { border-color: rgba(255,77,0,0.5); }
+    .form-field textarea { min-height: 80px; }
+    .price-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
+    .price-option { padding: 10px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); text-align: center; cursor: pointer; transition: all 0.15s; font-size: 11px; color: var(--muted2); }
+    .price-option:hover { border-color: var(--border-hover); }
+    .price-option.selected { border-color: var(--accent); background: rgba(255,77,0,0.1); color: var(--accent2); }
+    .obj-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .obj-option { padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 10px; }
+    .obj-option:hover { border-color: var(--border-hover); }
+    .obj-option.selected { border-color: var(--accent); background: rgba(255,77,0,0.08); }
+    .obj-icon { font-size: 18px; }
+    .obj-label { font-size: 13px; font-weight: 500; }
+    .obj-desc { font-size: 11px; color: var(--muted); }
+    .generate-btn { width: 100%; padding: 16px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: #fff; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; }
+    .generate-btn:hover { background: #FF6520; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(255,77,0,0.3); }
+    .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+    .generating-overlay { position: fixed; inset: 0; background: rgba(10,10,15,0.92); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(8px); }
+    .generating-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 48px 56px; text-align: center; max-width: 440px; }
+    .gen-spinner { width: 64px; height: 64px; margin: 0 auto 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .gen-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 20px; margin-bottom: 8px; }
+    .gen-sub { color: var(--muted2); font-size: 14px; line-height: 1.6; }
+    .gen-steps { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; text-align: left; }
+    .gen-step { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); padding: 8px 12px; border-radius: var(--radius-sm); transition: all 0.3s; }
+    .gen-step.active { background: rgba(255,77,0,0.08); color: var(--text); }
+    .gen-step.done { color: var(--success); }
+    .gen-step .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .gen-step.active .step-dot { background: var(--accent); animation: pulse 1s infinite; }
+    .gen-step.done .step-dot { background: var(--success); }
+    .results-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; gap: 16px; }
+    .results-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; }
+    .results-meta { font-size: 13px; color: var(--muted2); margin-top: 4px; }
+    .results-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .action-btn { display: flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+    .action-btn:hover { border-color: var(--border-hover); }
+    .action-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .action-btn.primary:hover { background: #FF6520; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .tab-btn { padding: 8px 16px 12px; border: none; background: transparent; color: var(--muted2); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent); }
+    .scripts-grid { display: flex; flex-direction: column; gap: 16px; }
+    .script-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: border-color 0.2s; }
+    .script-card:hover { border-color: var(--border-hover); }
+    .script-card-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .script-num { width: 28px; height: 28px; border-radius: 6px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 12px; color: #fff; flex-shrink: 0; }
+    .script-title-area { flex: 1; }
+    .script-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; }
+    .script-pilar { font-size: 11.5px; color: var(--muted2); margin-top: 2px; }
+    .script-tags { display: flex; gap: 6px; }
+    .tag { padding: 3px 9px; border-radius: 20px; font-size: 10.5px; font-weight: 500; background: var(--surface2); border: 1px solid var(--border); color: var(--muted2); }
+    .tag.topo { background: rgba(45,222,152,0.1); border-color: rgba(45,222,152,0.2); color: var(--success); }
+    .tag.meio { background: rgba(245,200,66,0.1); border-color: rgba(245,200,66,0.2); color: var(--gold); }
+    .tag.fundo { background: rgba(255,77,0,0.1); border-color: rgba(255,77,0,0.2); color: var(--accent2); }
+    .script-body { padding: 20px; display: none; }
+    .script-body.open { display: block; }
+    .script-block { margin-bottom: 16px; }
+    .script-block-label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .script-block-label::before { content: ''; display: inline-block; width: 3px; height: 12px; background: var(--accent); border-radius: 2px; }
+    .script-block-label.body-label::before { background: var(--gold); }
+    .script-block-label.cta-label::before { background: var(--success); }
+    .script-block-text { font-size: 14px; line-height: 1.75; color: var(--text); background: var(--surface2); border-radius: var(--radius-sm); padding: 14px 16px; white-space: pre-wrap; }
+    .script-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .copy-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; color: var(--muted2); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+    .copy-btn:hover { border-color: var(--border-hover); color: var(--text); }
+    .copy-btn.copied { border-color: rgba(45,222,152,0.3); color: var(--success); }
+    .matrix-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .matrix-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+    .matrix-card-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 12px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
+    .matrix-item { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted2); }
+    .matrix-item:last-child { border-bottom: none; }
+    .history-list { display: flex; flex-direction: column; gap: 12px; }
+    .history-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; display: flex; align-items: center; gap: 16px; cursor: pointer; transition: border-color 0.15s; }
+    .history-item:hover { border-color: var(--border-hover); }
+    .history-info { flex: 1; }
+    .history-name { font-weight: 500; font-size: 14px; margin-bottom: 3px; }
+    .history-meta { font-size: 12px; color: var(--muted); }
+    .history-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; background: rgba(255,77,0,0.1); border: 1px solid rgba(255,77,0,0.2); color: var(--accent2); }
+    .empty-state { text-align: center; padding: 60px 20px; }
+    .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+    .empty-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px; margin-bottom: 8px; }
+    .empty-desc { color: var(--muted2); font-size: 14px; line-height: 1.6; }
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 200; animation: slideIn 0.3s ease; }
+    @keyframes slideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    .api-key-banner { background: rgba(255,77,0,0.08); border: 1px solid rgba(255,77,0,0.25); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 14px; }
+    .api-key-banner input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; padding: 8px 12px; outline: none; }
+    .api-key-banner input:focus { border-color: rgba(255,77,0,0.5); }
+    .api-save-btn { padding: 8px 16px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    @media (max-width: 900px) {
+      .sidebar { width: 200px; min-width: 200px; }
+      .cards-grid { grid-template-columns: 1fr 1fr; }
+      .matrix-grid { grid-template-columns: 1fr 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+      .price-grid { grid-template-columns: repeat(3,1fr); }
+    }
+    @media (max-width: 600px) {
+      .sidebar { display: none; }
+      .content { padding: 20px 16px; }
+      .cards-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const PRICE_OPTIONS = ["Até R$50","R$51–R$100","R$101–R$300","R$301–R$800","Acima de R$800"];
+const OBJECTIVES = [
+  { id:"vendas", icon:"💰", label:"Vendas diretas", desc:"Conversão no site" },
+  { id:"mensagens", icon:"💬", label:"Mensagens", desc:"WhatsApp / DM" },
+  { id:"leads", icon:"🎯", label:"Geração de leads", desc:"Captação de contatos" },
+  { id:"trafego", icon:"🌐", label:"Tráfego", desc:"Visitas ao site" },
+];
+const GEN_STEPS = [
+  "Analisando público-alvo e dores...",
+  "Construindo Inteligência do Público...",
+  "Montando Matriz MCP completa...",
+  "Gerando ângulos de comunicação...",
+  "Criando conceitos criativos...",
+  "Escrevendo 18 roteiros full funnel...",
+  "Finalizando e revisando roteiros...",
+];
+
+function buildPrompt(data) {
+  return `Você é um estrategista de criativos para performance em Meta Ads especializado em comportamento do consumidor, copywriting e narrativa aplicada a vídeos curtos (Reels).
+
+BRIEFING:
+- Produto: ${data.produto}
+- Público: ${data.publico}
+- Objetivo: ${data.objetivo}
+- Diferenciais: ${data.diferenciais}
+- Faixa de preço: ${data.preco}
+- Dores: ${data.dores || "Inferir com base no produto"}
+- Objeções: ${data.objecoes || "Inferir com base no produto"}
+
+Responda APENAS em JSON válido, sem markdown. Formato:
+{
+  "inteligencia": {
+    "dores": ["dor1","dor2","dor3"],
+    "desejos": ["desejo1","desejo2","desejo3"],
+    "beneficios": ["b1","b2"],
+    "objecoes": ["o1","o2"],
+    "gatilhos": ["g1","g2"],
+    "insight": "insight em 1 frase",
+    "bigIdea": "big idea em 1 frase",
+    "mecanismo": "mecanismo único em 1 frase",
+    "diferencial": "diferencial estratégico em 1 frase"
+  },
+  "roteiros": [
+    {"id":1,"titulo":"título","pilar":"Ângulo — Erro Comum","funil":"topo","gancho":"texto gancho","corpo":"texto corpo","cta":"texto cta"}
+  ]
+}
+
+Crie exatamente 18 roteiros:
+- 1-3: Ângulos (erro comum, alerta, comparação)
+- 4-6: Conceitos Criativos (história real, POV, bastidores)
+- 7-9: Full Funnel TOPO (funil: "topo")
+- 10-12: Full Funnel MEIO (funil: "meio")
+- 13-15: Full Funnel FUNDO (funil: "fundo")
+- 16-18: Estrutura DSB (funil: "fundo")
+
+Regras: 25-30 segundos, gancho forte nos 3 primeiros segundos, linguagem conversacional e natural, mostrar transformação, NUNCA usar "Você sabia que..." ou "Olá hoje vou falar sobre".`;
+}
+
+function App() {
+  const [view, setView] = useState("home");
+  const [activeProject, setActiveProject] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [generating, setGenerating] = useState(false);
+  const [genStep, setGenStep] = useState(0);
+  const [openScripts, setOpenScripts] = useState({});
+  const [activeTab, setActiveTab] = useState("roteiros");
+  const [copiedId, setCopiedId] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [apiKey, setApiKey] = useState(localStorage.getItem("mcp_api_key") || "");
+  const [apiInput, setApiInput] = useState("");
+  const [form, setForm] = useState({ produto:"", publico:"", objetivo:"", diferenciais:"", preco:"", dores:"", objecoes:"" });
+  const stepRef = useRef(null);
+
+  useEffect(() => {
+    if (!generating) return;
+    let i = 0; setGenStep(0);
+    stepRef.current = setInterval(() => { i++; if (i < GEN_STEPS.length) setGenStep(i); }, 900);
+    return () => clearInterval(stepRef.current);
+  }, [generating]);
+
+  function showToast(msg, type="success") {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  function saveApiKey() {
+    localStorage.setItem("mcp_api_key", apiInput);
+    setApiKey(apiInput);
+    showToast("Chave salva com sucesso! ✓");
+  }
+
+  async function handleGenerate() {
+    if (!form.produto || !form.publico || !form.objetivo) { showToast("Preencha produto, público e objetivo!", "error"); return; }
+    if (!apiKey) { showToast("Insira sua chave de API da Anthropic!", "error"); return; }
+    setGenerating(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "x-api-key": apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:8000, messages:[{ role:"user", content: buildPrompt(form) }] })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      const raw = data.content?.map(b => b.text||"").join("") || "";
+      const clean = raw.replace(/```json|```/g,"").trim();
+      const parsed = JSON.parse(clean);
+      const project = { id:Date.now(), name:form.produto, date:new Date().toLocaleDateString("pt-BR"), objetivo:form.objetivo, form:{...form}, result:parsed };
+      setProjects(prev => [project,...prev]);
+      setActiveProject(project);
+      setGenerating(false);
+      setView("results");
+      setActiveTab("roteiros");
+      setOpenScripts({});
+      showToast("18 roteiros gerados com sucesso! 🎉");
+    } catch(e) {
+      setGenerating(false);
+      showToast("Erro: " + (e.message || "Tente novamente."), "error");
+    }
+  }
+
+  function toggleScript(id) { setOpenScripts(prev => ({...prev, [id]:!prev[id]})); }
+
+  function copyScript(script) {
+    const text = `🎬 ${script.titulo}\n📌 Pilar: ${script.pilar}\n\n🎯 GANCHO\n${script.gancho}\n\n📝 CORPO\n${script.corpo}\n\n🔥 CTA\n${script.cta}`;
+    navigator.clipboard.writeText(text);
+    setCopiedId(script.id);
+    setTimeout(() => setCopiedId(null), 2000);
+    showToast("Roteiro copiado! ✓");
+  }
+
+  function copyAll() {
+    if (!activeProject?.result?.roteiros) return;
+    const text = activeProject.result.roteiros.map((s,i) =>
+      `━━━ ROTEIRO ${i+1} — ${s.pilar} ━━━\n🎯 GANCHO\n${s.gancho}\n\n📝 CORPO\n${s.corpo}\n\n🔥 CTA\n${s.cta}`
+    ).join("\n\n");
+    navigator.clipboard.writeText(text);
+    showToast("Todos os roteiros copiados! ✓");
+  }
+
+  function getFunnelTag(funil) {
+    if (!funil) return null;
+    const map = { topo:"TOPO", meio:"MEIO", fundo:"FUNDO" };
+    return React.createElement("span", { className:`tag ${funil}` }, map[funil] || funil.toUpperCase());
+  }
+
+  function getFilteredScripts() {
+    const r = activeProject?.result?.roteiros || [];
+    if (activeTab === "topo") return r.filter(s => s.funil==="topo");
+    if (activeTab === "meio") return r.filter(s => s.funil==="meio");
+    if (activeTab === "fundo") return r.filter(s => s.funil==="fundo");
+    return r;
+  }
+
+  const navItems = [
+    { id:"home", icon:"🏠", label:"Início" },
+    { id:"briefing", icon:"✏️", label:"Novo Projeto" },
+    { id:"history", icon:"📂", label:"Histórico", badge: projects.length > 0 ? projects.length : null },
+  ];
+
+  function ApiKeyBanner() {
+    if (apiKey) return null;
+    return (
+      <div className="api-key-banner">
+        <span style={{fontSize:18}}>🔑</span>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Cole sua chave de API da Anthropic</div>
+          <div style={{fontSize:12,color:"var(--muted2)"}}>Obtenha em <a href="https://console.anthropic.com" target="_blank" style={{color:"var(--accent2)"}}>console.anthropic.com</a></div>
+        </div>
+        <input placeholder="sk-ant-..." value={apiInput} onChange={e => setApiInput(e.target.value)} type="password" style={{width:260}} />
+        <button className="api-save-btn" onClick={saveApiKey}>Salvar</button>
+      </div>
+    );
+  }
+
+  function renderHome() {
+    return (
+      <div className="content">
+        <ApiKeyBanner />
+        <div className="welcome-hero">
+          <div className="hero-tag">✦ Método MCP — Matriz de Conteúdo de Performance</div>
+          <h1 className="hero-title">Roteiros que <span>convertem</span>,<br />gerados em segundos.</h1>
+          <p className="hero-sub">Preencha o briefing do seu negócio e a IA aplica o método MCP completo — gerando 18 roteiros prontos para Reels e Meta Ads.</p>
+          <div className="hero-stats">
+            <div className="stat"><div className="stat-num">18</div><div className="stat-label">Roteiros por projeto</div></div>
+            <div className="stat"><div className="stat-num">3</div><div className="stat-label">Etapas do funil</div></div>
+            <div className="stat"><div className="stat-num">30s</div><div className="stat-label">Duração otimizada</div></div>
+          </div>
+        </div>
+        <div className="cards-grid">
+          <div className="feature-card primary" onClick={() => setView("briefing")}>
+            <div className="card-icon">⚡</div>
+            <div className="card-title">Novo Projeto</div>
+            <div className="card-desc">Preencha o briefing e gere 18 roteiros com o método MCP completo.</div>
+            <div className="card-cta">Começar agora →</div>
+          </div>
+          <div className="feature-card"><div className="card-icon">🎯</div><div className="card-title">Full Funnel</div><div className="card-desc">Roteiros para Topo, Meio e Fundo — cobrindo toda a jornada do cliente.</div></div>
+          <div className="feature-card"><div className="card-icon">🧠</div><div className="card-title">Inteligência de Público</div><div className="card-desc">Dores, desejos, objeções e gatilhos mapeados automaticamente.</div></div>
+          <div className="feature-card"><div className="card-icon">🎬</div><div className="card-title">Formato Reels</div><div className="card-desc">Estrutura otimizada para os primeiros 3 segundos e retenção máxima.</div></div>
+          <div className="feature-card"><div className="card-icon">📋</div><div className="card-title">Matriz MCP Visual</div><div className="card-desc">Ângulos, conceitos e ganchos organizados em matriz estratégica.</div></div>
+          <div className="feature-card"><div className="card-icon">📂</div><div className="card-title">Histórico</div><div className="card-desc">Todos os seus projetos salvos e acessíveis a qualquer momento.</div></div>
+        </div>
+        {projects.length > 0 && <>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,marginBottom:14}}>Projetos recentes</div>
+          <div className="history-list">
+            {projects.slice(0,3).map(p => (
+              <div key={p.id} className="history-item" onClick={() => { setActiveProject(p); setView("results"); }}>
+                <div style={{fontSize:22}}>🎬</div>
+                <div className="history-info"><div className="history-name">{p.name}</div><div className="history-meta">{p.objetivo} · {p.date}</div></div>
+                <div className="history-badge">18 roteiros</div>
+              </div>
+            ))}
+          </div>
+        </>}
+      </div>
+    );
+  }
+
+  function renderBriefing() {
+    const steps = [form.produto?"done":"active", form.publico?"done":(form.produto?"active":""), form.objetivo?"done":(form.publico?"active":""), (form.diferenciais||form.dores)?"done":(form.objetivo?"active":"")];
+    return (
+      <div className="content">
+        <ApiKeyBanner />
+        <div className="form-wrapper">
+          <div className="form-header"><h2>Briefing do Projeto</h2><p>Preencha as informações para gerar 18 roteiros com o método MCP.</p></div>
+          <div className="steps-bar">{steps.map((s,i) => <div key={i} className={`step-item ${s}`} />)}</div>
+
+          <div className="form-section">
+            <div className="form-section-title">01 — Produto</div>
+            <div className="form-field">
+              <label>Qual é o produto ou serviço?</label>
+              <input placeholder="Ex: Curso de confeitaria online, Skincare anti-idade..." value={form.produto} onChange={e => setForm(f=>({...f,produto:e.target.value}))} />
+            </div>
+            <div className="form-row">
+              <div className="form-field">
+                <label>Público-alvo</label>
+                <input placeholder="Ex: Mulheres 25-40, empreendedoras..." value={form.publico} onChange={e => setForm(f=>({...f,publico:e.target.value}))} />
+              </div>
+              <div className="form-field">
+                <label>Diferenciais do produto</label>
+                <input placeholder="Ex: Entrega rápida, fórmula exclusiva..." value={form.diferenciais} onChange={e => setForm(f=>({...f,diferenciais:e.target.value}))} />
+              </div>
+            </div>
+          </div>
+
+          <div className="form-section">
+            <div className="form-section-title">02 — Objetivo da Campanha</div>
+            <div className="obj-grid">
+              {OBJECTIVES.map(o => (
+                <div key={o.id} className={`obj-option ${form.objetivo===o.id?"selected":""}`} onClick={() => setForm(f=>({...f,objetivo:o.id}))}>
+                  <div className="obj-icon">{o.icon}</div>
+                  <div><div className="obj-label">{o.label}</div><div className="obj-desc">{o.desc}</div></div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-section">
+            <div className="form-section-title">03 — Faixa de Preço</div>
+            <div className="price-grid">
+              {PRICE_OPTIONS.map(p => (
+                <div key={p} className={`price-option ${form.preco===p?"selected":""}`} onClick={() => setForm(f=>({...f,preco:p}))}>{p}</div>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-section">
+            <div className="form-section-title">04 — Contexto (opcional, mas recomendado)</div>
+            <div className="form-field">
+              <label>Principais dores do público</label>
+              <textarea placeholder="Ex: Não tem tempo, já tentou outros produtos sem resultado..." value={form.dores} onChange={e => setForm(f=>({...f,dores:e.target.value}))} />
+            </div>
+            <div className="form-field">
+              <label>Principais objeções de compra</label>
+              <textarea placeholder="Ex: É caro, não sei se funciona pra mim..." value={form.objecoes} onChange={e => setForm(f=>({...f,objecoes:e.target.value}))} />
+            </div>
+          </div>
+
+          <button className="generate-btn" onClick={handleGenerate} disabled={!form.produto||!form.publico||!form.objetivo}>
+            ⚡ Gerar 18 Roteiros com IA
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderResults() {
+    if (!activeProject) return null;
+    const { result, name, date, objetivo } = activeProject;
+    const scripts = getFilteredScripts();
+    return (
+      <div className="content">
+        <div className="results-header">
+          <div>
+            <div className="results-title">🎬 {name}</div>
+            <div className="results-meta">{objetivo} · {date} · {result?.roteiros?.length||0} roteiros</div>
+          </div>
+          <div className="results-actions">
+            <button className="action-btn" onClick={copyAll}>📋 Copiar todos</button>
+            <button className="action-btn primary" onClick={() => setView("briefing")}>+ Novo</button>
+          </div>
+        </div>
+        <div className="tabs">
+          {[{id:"roteiros",label:"Todos"},{id:"topo",label:"🟢 Topo"},{id:"meio",label:"🟡 Meio"},{id:"fundo",label:"🔴 Fundo"},{id:"matriz",label:"Matriz MCP"}].map(t => (
+            <button key={t.id} className={`tab-btn ${activeTab===t.id?"active":""}`} onClick={() => setActiveTab(t.id)}>{t.label}</button>
+          ))}
+        </div>
+        {activeTab === "matriz" ? renderMatrix(result?.inteligencia) : (
+          <div className="scripts-grid">
+            {scripts.map(script => (
+              <div key={script.id} className="script-card">
+                <div className="script-card-header" onClick={() => toggleScript(script.id)}>
+                  <div className="script-num">{script.id}</div>
+                  <div className="script-title-area">
+                    <div className="script-title">{script.titulo}</div>
+                    <div className="script-pilar">{script.pilar}</div>
+                  </div>
+                  <div className="script-tags">{getFunnelTag(script.funil)}<span className="tag">30s</span></div>
+                  <span style={{color:"var(--muted)",marginLeft:8}}>{openScripts[script.id]?"▲":"▼"}</span>
+                </div>
+                <div className={`script-body ${openScripts[script.id]?"open":""}`}>
+                  <div className="script-block"><div className="script-block-label">Gancho</div><div className="script-block-text">{script.gancho}</div></div>
+                  <div className="script-block"><div className="script-block-label body-label">Corpo</div><div className="script-block-text">{script.corpo}</div></div>
+                  <div className="script-block"><div className="script-block-label cta-label">CTA</div><div className="script-block-text">{script.cta}</div></div>
+                  <div className="script-footer">
+                    <button className={`copy-btn ${copiedId===script.id?"copied":""}`} onClick={() => copyScript(script)}>
+                      {copiedId===script.id?"✓ Copiado":"📋 Copiar roteiro"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderMatrix(intel) {
+    if (!intel) return <div className="empty-state"><div className="empty-icon">📊</div><div className="empty-title">Matriz não disponível</div></div>;
+    return (
+      <div>
+        <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius)",padding:20,marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:16}}>
+            {[{label:"Insight do Consumidor",value:intel.insight,color:"var(--accent2)"},{label:"Big Idea",value:intel.bigIdea,color:"var(--gold)"},{label:"Mecanismo Único",value:intel.mecanismo,color:"var(--success)"},{label:"Diferencial Estratégico",value:intel.diferencial,color:"#9B8EFF"}].map(item => (
+              <div key={item.label} style={{padding:16,background:"var(--surface2)",borderRadius:"var(--radius-sm)",borderLeft:`3px solid ${item.color}`}}>
+                <div style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:6}}>{item.label}</div>
+                <div style={{fontSize:14,lineHeight:1.6}}>{item.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="matrix-grid">
+          {[{title:"Dores",items:intel.dores},{title:"Desejos",items:intel.desejos},{title:"Benefícios",items:intel.beneficios},{title:"Objeções",items:intel.objecoes},{title:"Gatilhos",items:intel.gatilhos}].map(col => (
+            <div key={col.title} className="matrix-card">
+              <div className="matrix-card-title">{col.title}</div>
+              {(col.items||[]).map((item,i) => <div key={i} className="matrix-item">· {item}</div>)}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderHistory() {
+    if (projects.length === 0) return (
+      <div className="content"><div className="empty-state"><div className="empty-icon">📂</div><div className="empty-title">Nenhum projeto ainda</div><div className="empty-desc">Crie seu primeiro projeto para ver o histórico aqui.</div></div></div>
+    );
+    return (
+      <div className="content">
+        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:20,marginBottom:20}}>Histórico de Projetos</div>
+        <div className="history-list">
+          {projects.map(p => (
+            <div key={p.id} className="history-item" onClick={() => { setActiveProject(p); setView("results"); }}>
+              <div style={{fontSize:22}}>🎬</div>
+              <div className="history-info"><div className="history-name">{p.name}</div><div className="history-meta">{p.objetivo} · {p.date}</div></div>
+              <div className="history-badge">18 roteiros</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <div className="logo-mark">M</div>
+          <div className="logo-text">MCP<span>Studio</span></div>
+        </div>
+        <div className="sidebar-section">
+          <div className="sidebar-label">Menu</div>
+          {navItems.map(item => (
+            <button key={item.id} className={`sidebar-btn ${view===item.id?"active":""}`} onClick={() => setView(item.id)}>
+              <span className="icon">{item.icon}</span>{item.label}
+              {item.badge && <span className="badge">{item.badge}</span>}
+            </button>
+          ))}
+        </div>
+        {projects.length > 0 && (
+          <div className="sidebar-section" style={{marginTop:20}}>
+            <div className="sidebar-label">Projetos Recentes</div>
+            {projects.slice(0,5).map(p => (
+              <button key={p.id} className={`sidebar-btn ${activeProject?.id===p.id&&view==="results"?"active":""}`} onClick={() => { setActiveProject(p); setView("results"); }}>
+                <span className="icon">🎬</span>
+                <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <button className="sidebar-new-btn" onClick={() => setView("briefing")}>+ Novo projeto</button>
+        <div className="sidebar-footer">
+          <div className="user-card">
+            <div className="user-avatar">U</div>
+            <div><div className="user-name">MCP Studio</div><div className="user-plan">✦ Pro</div></div>
+          </div>
+        </div>
+      </aside>
+
+      <main className="main">
+        <div className="topbar">
+          <div className="topbar-title">
+            {view==="home"&&"Dashboard"}{view==="briefing"&&"Novo Projeto"}{view==="results"&&(activeProject?.name||"Resultados")}{view==="history"&&"Histórico"}
+          </div>
+          <div className="topbar-pill"><span className="dot" />IA conectada</div>
+          {apiKey && <button className="action-btn" onClick={() => { setApiKey(""); localStorage.removeItem("mcp_api_key"); }} style={{fontSize:11,padding:"5px 10px"}}>🔑 Trocar chave</button>}
+        </div>
+        {view==="home" && renderHome()}
+        {view==="briefing" && renderBriefing()}
+        {view==="results" && renderResults()}
+        {view==="history" && renderHistory()}
+      </main>
+
+      {generating && (
+        <div className="generating-overlay">
+          <div className="generating-card">
+            <div className="gen-spinner" />
+            <div className="gen-title">Gerando seus roteiros...</div>
+            <div className="gen-sub">A IA está aplicando o método MCP completo ao seu briefing.</div>
+            <div className="gen-steps">
+              {GEN_STEPS.map((s,i) => (
+                <div key={i} className={`gen-step ${i<genStep?"done":i===genStep?"active":""}`}>
+                  <span className="step-dot" />{s}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className={`toast ${toast.type}`}>
+          <span style={{fontSize:16}}>{toast.type==="error"?"⚠️":"✓"}</span>{toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
