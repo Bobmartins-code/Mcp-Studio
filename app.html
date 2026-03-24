@@ -235,7 +235,7 @@ function App(){
     try{
       var r=await supaClient.from("projetos").select("*").order("criado_em",{ascending:false});
       if(r.data&&r.data.length>0){
-        setProjects(r.data.map(function(p){return {id:p.id,name:p.nome,objetivo:p.objetivo,date:new Date(p.criado_em).toLocaleDateString("pt-BR"),form:p.form,rodadas:p.rodadas||[]};}));
+       var ps=r.data.map(function(p){return {id:p.id,name:p.nome,objetivo:p.objetivo,date:new Date(p.criado_em).toLocaleDateString("pt-BR"),form:p.form,rodadas:p.rodadas||[]};});setProjects(ps);if(ps.length>0)setActiveProject(ps[0]);
       }
     }catch(e){console.log("Erro ao carregar projetos",e);}
   }
