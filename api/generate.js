@@ -6,6 +6,8 @@ export default async function handler(req, res) {
 
   try {
     const { messages } = req.body;
+const bodySize = JSON.stringify(req.body).length;
+if (bodySize > 3000000) return res.status(413).json({ error: "Conteudo muito grande. Reduza o tamanho das imagens ou use URL no lugar de fotos." });
     if (!messages) return res.status(400).json({ error: "Messages obrigatorio" });
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
