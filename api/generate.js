@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // Log inicial para confirmar que a função é invocada
   console.log("[generate] Iniciando handler, method:", req.method);
 
   if (req.method !== "POST") {
@@ -14,7 +13,7 @@ export default async function handler(req, res) {
   }
 
   const messages = req.body?.messages;
-  console.log("[generate] Messages recebidas:", !!messages, Array.isArray(messages) ? messages.length : "não é array");
+  console.log("[generate] Messages recebidas:", !!messages);
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "Messages obrigatorio e deve ser array" });
@@ -54,7 +53,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error("[generate] EXCEPTION:", err.message, err.stack);
     return res.status(500).json({ 
-      error: "Exceção interna", 
+      error: "Excecao interna", 
       message: err.message 
     });
   }
