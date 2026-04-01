@@ -23,16 +23,30 @@ module.exports = async function handler(req, res) {
 
     const d = await r.json();
 
-    // Tentar reparar o JSON da resposta antes de retornar
+    // Sanitizar o texto da resposta para garantir JSON valido
     if (d.content && Array.isArray(d.content)) {
       d.content = d.content.map(function(block) {
         if (block.type === "text" && block.text) {
-          // Substituir aspas tipograficas por aspas simples dentro de strings JSON
-          block.text = block.text
-            .replace(/\u201c/g, "'")  // aspas duplas esquerdas
-            .replace(/\u201d/g, "'")  // aspas duplas direitas
-            .replace(/\u2018/g, "'")  // aspas simples esquerdas
-            .replace(/\u2019/g, "'"); // aspas simples direitas
+          var text = block.text;
+          // Extrair apenas o JSON da resposta
+          var start = text.indexOf("{");
+          var end = text.lastIndexOf("}");
+          if (start !== -1 && end !== -1) {
+            text = text.substring(start, end + 1);
+          }
+          // Substituir aspas tipograficas
+          text = text
+            .replace(/\u201c/g, "\\\"")
+            .replace(/\u201d/g, "\\\"")
+            .replace(/\u2018/g, "'")
+            .replace(/\u2019/g, "'");
+          // Tentar parsear e re-serializar para garantir JSON valido
+          try {
+            var parsed = JSON.parse(text);
+            block.text = JSON.stringify(parsed);
+          } catch(e) {
+            block.text = text;
+          }
         }
         return block;
       });
