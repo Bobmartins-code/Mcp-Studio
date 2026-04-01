@@ -291,7 +291,7 @@ function App(){
       if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
       var data=await res.json();
       if(data.error)throw new Error(data.error.message||data.error);
-      var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
+      var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"").trim();
       var parsed;
       try{parsed=JSON.parse(raw);}catch(ex){var st=raw.indexOf("{"),en=raw.lastIndexOf("}");if(st>-1&&en>-1)parsed=JSON.parse(raw.substring(st,en+1));else throw new Error("Erro ao processar resposta da IA");}
       var nr={numero:rodada,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
@@ -331,7 +331,7 @@ function App(){
     try{
       var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:buildVP(activeProject.form,tipo,ex)}]})});
       var data=await res.json();
-      var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
+      var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"").trim();
       var parsed=JSON.parse(raw);
       setVarResults(function(prev){var n=Object.assign({},prev);n[tipo]=parsed.items||[];return n;});
       showToast("5 "+tipo+" gerados!");
