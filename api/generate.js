@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     const { messages } = req.body;
     if (!messages) return res.status(400).json({ error: "Messages obrigatorio" });
     const bodySize = JSON.stringify(req.body).length;
-    if (bodySize > 3000000) return res.status(413).json({ error: "Conteudo muito grande. Reduza o tamanho das imagens ou use URL no lugar de fotos." });
+    if (bodySize > 3000000) return res.status(413).json({ error: "Conteudo muito grande. Use URL no lugar de fotos." });
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -15,7 +15,7 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
-model: "claude-haiku-4-5-20251001",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 4000,
         messages: messages
       })
