@@ -1,60 +1,51 @@
 module.exports = async function handler(req, res) {
-    console.log("[generate] Iniciando handler, method:", req.method);
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-    if (req.method !== "POST") {
-          return res.status(405).json({ error: "Method not allowed" });
-    }
+      if (req.method === "OPTIONS") return res.status(200).end();
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    console.log("[generate] API key presente:", !!apiKey);
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: "Chave API nao configurada" });
 
-    if (!apiKey) {
-          return res.status(500).json({ error: "Sem chave API" });
-    }
+      const body = req.body || {};
+      const messages = body.messages;
+      const maxTokens = body.max_tokens || 6000;
 
-    const messages = req.body && req.body.messages;
-    console.log("[generate] Messages recebidas:", !!messages);
-
-    if (!messages || !Array.isArray(messages)) {
-          return res.status(400).json({ error: "Messages obrigatorio e deve ser array" });
-    }
-
-    try {
-          console.log("[generate] Chamando Anthropic API...");
-
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-              method: "POST",
-              headers: {
-                        "Content-Type": "application/json",
-                        "x-api-key": apiKey,
-                        "anthropic-version": "2023-06-01",
-              },
-              body: JSON.stringify({
-                        model: "claude-haiku-4-5-20251001",
-                        max_tokens: 4000,
-                        messages: messages,
-              }),
-      });
-
-      console.log("[generate] Status Anthropic:", response.status);
-
-      const data = await response.json();
-
-      if (!response.ok) {
-              console.error("[generate] Erro Anthropic:", JSON.stringify(data));
-              return res.status(response.status).json({
-                        error: "Erro da API Anthropic",
-                        details: data
-              });
+      if (!messages || !Array.isArray(messages) || messages.length === 0) {
+              return res.status(400).json({ error: "messages obrigatorio e deve ser array" });
       }
 
-      return res.status(200).json(data);
+      try {
+              const response = await fetch("https://api.anthropic.com/v1/messages", {
+                        method: "POST",
+                        headers: {
+                                    "Content-Type": "application/json",
+                                    "x-api-key": apiKey,
+                                    "anthropic-version": "2023-06-01",
+                        },
+                        body: JSON.stringify({
+                                    model: "claude-haiku-4-5-20251001",
+                                    max_tokens: maxTokens,
+                                    messages: messages,
+                        }),
+              });
 
-    } catch (err) {
-          console.error("[generate] EXCEPTION:", err.message, err.stack);
-          return res.status(500).json({
-                  error: "Excecao interna",
-                  message: err.message
-          });
-    }
+        const data = await response.json();
+
+        if (!response.ok) {
+                  return res.status(response.status).json({
+                              error: data.error || "Erro da API Anthropic",
+                              details: data,
+                  });
+        }
+
+        return res.status(200).json(data);
+      } catch (err) {
+              return res.status(500).json({
+                        error: "Erro interno",
+                        message: err.message,
+              });
+      }
 };
