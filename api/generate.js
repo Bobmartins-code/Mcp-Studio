@@ -17,11 +17,27 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 4096,
-        messages: messages,
-        system: "You are a JSON generator. Always respond with valid JSON only. Never use unescaped double quotes inside string values. Use single quotes or escaped quotes \\\" inside strings."
+        messages: messages
       })
     });
+
     const d = await r.json();
+
+    // Tentar reparar o JSON da resposta antes de retornar
+    if (d.content && Array.isArray(d.content)) {
+      d.content = d.content.map(function(block) {
+        if (block.type === "text" && block.text) {
+          // Substituir aspas tipograficas por aspas simples dentro de strings JSON
+          block.text = block.text
+            .replace(/\u201c/g, "'")  // aspas duplas esquerdas
+            .replace(/\u201d/g, "'")  // aspas duplas direitas
+            .replace(/\u2018/g, "'")  // aspas simples esquerdas
+            .replace(/\u2019/g, "'"); // aspas simples direitas
+        }
+        return block;
+      });
+    }
+
     return res.status(r.ok ? 200 : r.status).json(d);
   } catch(e) {
     return res.status(500).json({ error: e.message });
