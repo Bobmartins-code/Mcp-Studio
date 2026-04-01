@@ -23,30 +23,72 @@ module.exports = async function handler(req, res) {
 
     const d = await r.json();
 
-    // Sanitizar o texto da resposta para garantir JSON valido
     if (d.content && Array.isArray(d.content)) {
       d.content = d.content.map(function(block) {
         if (block.type === "text" && block.text) {
           var text = block.text;
-          // Extrair apenas o JSON da resposta
+
+          // Extrair apenas o bloco JSON
           var start = text.indexOf("{");
           var end = text.lastIndexOf("}");
           if (start !== -1 && end !== -1) {
             text = text.substring(start, end + 1);
           }
-          // Substituir aspas tipograficas
-          text = text
-            .replace(/\u201c/g, "\\\"")
-            .replace(/\u201d/g, "\\\"")
-            .replace(/\u2018/g, "'")
-            .replace(/\u2019/g, "'");
-          // Tentar parsear e re-serializar para garantir JSON valido
-          try {
-            var parsed = JSON.parse(text);
-            block.text = JSON.stringify(parsed);
-          } catch(e) {
-            block.text = text;
+
+          // Sanitizar caracteres problematicos dentro de valores de string JSON
+          // Substituir aspas duplas dentro de strings por aspas simples
+          // Estrategia: percorrer caracter a caracter
+          var result = "";
+          var inString = false;
+          var escape = false;
+          for (var i = 0; i < text.length; i++) {
+            var c = text[i];
+            if (escape) {
+              result += c;
+              escape = false;
+              continue;
+            }
+            if (c === "\\") {
+              escape = true;
+              result += c;
+              continue;
+            }
+            if (c === '"') {
+              if (!inString) {
+                inString = true;
+                result += c;
+              } else {
+                // Verificar se esta aspa fecha a string ou e uma aspa dentro
+                // Olhar o proximo caracter nao-espaco
+                var next = "";
+                for (var j = i + 1; j < text.length; j++) {
+                  if (text[j] !== " " && text[j] !== "\n" && text[j] !== "\r" && text[j] !== "\t") {
+                    next = text[j];
+                    break;
+                  }
+                }
+                // Se o proximo char relevante e : , } ] entao esta aspa fecha a string
+                if (next === ":" || next === "," || next === "}" || next === "]" || next === "") {
+                  inString = false;
+                  result += c;
+                } else {
+                  // Aspa dentro de string - substituir por aspas simples
+                  result += "'";
+                }
+              }
+            } else if (c === "\n" || c === "\r") {
+              // Quebras de linha dentro de strings viram espaco
+              if (inString) {
+                result += " ";
+              } else {
+                result += c;
+              }
+            } else {
+              result += c;
+            }
           }
+
+          block.text = result;
         }
         return block;
       });
