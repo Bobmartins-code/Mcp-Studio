@@ -7,12 +7,20 @@ module.exports = async function handler(req, res) {
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},
-      body: JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:4000,messages:messages})
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4096,
+        messages: messages
+      })
     });
     const d = await r.json();
     return res.status(r.ok ? 200 : r.status).json(d);
   } catch(e) {
-    return res.status(500).json({error:e.message});
+    return res.status(500).json({ error: e.message });
   }
 };
