@@ -15,9 +15,10 @@ module.exports = async function handler(req, res) {
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
-        max_tokens: 8000,
-        messages: messages
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4096,
+        messages: messages,
+        system: "You are a JSON generator. Always respond with valid JSON only. Never use unescaped double quotes inside string values. Use single quotes or escaped quotes \\\" inside strings."
       })
     });
     const d = await r.json();
