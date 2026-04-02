@@ -481,8 +481,7 @@ function App(){
         ),
         projects.length>0&&ce("div",null,
           ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:12}},"Projetos recentes"),
-          ce("div",{className:"hl"},projects.slice(0,3).map(function(p){return ce("div",{key:p.id,className:"hi",onClick:function(){setActiveProject(p);setView("results");}},ce("div",{style:{fontSize:20}},"🎬"),ce("div",{className:"hi-inf"},ce("div",{className:"hi-n"},p.name),ce("div",{className:"hi-m"},p.date)),ce("div",{className:"hi-b"},((p.rodadas&&p.rodadas.length)||1)*6+" roteiros"));}))\
-        )
+          ce("div",{className:"hl"},projects.slice(0,3).map(function(p){return ce("div",{key:p.id,className:"hi",onClick:function(){setActiveProject(p);setView("results");}},ce("div",{style:{fontSize:20}},"🎬"),ce("div",{className:"hi-inf"},ce("div",{className:"hi-n"},p.name),ce("div",{className:"hi-m"},p.date)),ce("div",{className:"hi-b"},((p.rodadas&&p.rodadas.length)||1)*6+" roteiros"));})))
       ),
       view==="briefing"&&ce("div",{className:"content"},
         ce("div",{className:"fwrap"},
