@@ -4,25 +4,26 @@ module.exports = async function handler(req, res) {
     if (!apiKey) return res.status(500).json({ error: "Sem chave API" });
     const messages = req.body && req.body.messages;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-          return res.status(400).json({ error: "Messages obrigatorio" });
+        return res.status(400).json({ error: "Messages obrigatorio" });
     }
     try {
-          const r = await fetch("https://api.anthropic.com/v1/messages", {
-                  method: "POST",
-                  headers: {
-                            "Content-Type": "application/json",
-                            "x-api-key": apiKey,
-                            "anthropic-version": "2023-06-01"
-                  },
-                  body: JSON.stringify({
-                            model: "claude-haiku-4-5-20251001",
-                            max_tokens: 6000,
-                            messages: messages
-                  })
-          });
-          const d = await r.json();
-          return res.status(r.ok ? 200 : r.status).json(d);
+        const r = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01"
+            },
+            body: JSON.stringify({
+                model: "claude-haiku-4-5-20251001",
+                max_tokens: 6000,
+                system: "Voce gera JSON puro sem markdown. REGRA CRITICA: NUNCA use aspas duplas dentro dos valores de texto. Use apenas aspas simples quando precisar de citacao dentro de um texto. Exemplo ERRADO: \"gancho\":\"Sua cliente disse \\\"nunca funcionou\\\"\". Exemplo CORRETO: \"gancho\":\"Sua cliente disse 'nunca funcionou'\". Todo o JSON deve ser valido e parseable.",
+                messages: messages
+            })
+        });
+        const d = await r.json();
+        return res.status(r.ok ? 200 : r.status).json(d);
     } catch(e) {
-          return res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 };
