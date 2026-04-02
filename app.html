@@ -287,7 +287,7 @@ function App(){
       }else{
         messages=[{role:"user",content:buildP(ff,rodada,hist)}];
       }
-      var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:messages,max_tokens:4096})});
+      var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:messages,max_tokens:6000})});
       if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
       var data=await res.json();
       if(data.error)throw new Error(data.error.message||data.error);
@@ -451,7 +451,7 @@ function App(){
         return ce("div",{className:"content"},
           ce("div",{className:"rh"},
             ce("div",null,ce("div",{className:"rh-title"},activeProject.name),ce("div",{className:"rh-meta"},activeProject.objetivo+" - "+rod.data+" - "+(activeProject.rodadas.length*18)+" roteiros")),
-            ce("div",{className:"rh-acts"},ce("button",{className:"abtn",onClick:copyAll},"Copiar todos"),ce("button",{className:"abtn pr",onClick:function(){setView("briefing");}},"Nova variacao"))
+            ce("div",{className:"rh-acts"},ce("button",{className:"abtn",onClick:copyAll},"Copiar todos"),ce("button",{className:"abtn pr",onClick:function(){setView("briefing");}},"+ Próxima Rodada"))
           ),
           ce("div",{className:"tabs"},[{id:"personas",lb:"Personas"},{id:"roteiros",lb:"Todos"},{id:"topo",lb:"Topo"},{id:"meio",lb:"Meio"},{id:"fundo",lb:"Fundo"},{id:"ugc",lb:"UGC"},{id:"matriz",lb:"Matriz"}].map(function(t){return ce("button",{key:t.id,className:"tab"+(activeTab===t.id?" on":""),onClick:function(){setActiveTab(t.id);}},t.lb);})),
           activeTab==="personas"&&ce("div",null,
