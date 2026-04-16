@@ -355,6 +355,49 @@ function App(){
     }
   }
 
+  async function handleNextRound(){
+    if(!activeProject)return;
+    setGenerating(true);
+    try{
+      var ff=activeProject.form;
+      var hist=activeProject.rodadas||[];
+      var rodada=hist.length+1;
+      if(rodada>3){showToast("Todas as 3 rodadas ja foram geradas!","err");setGenerating(false);return;}
+      var messages=[{role:"user",content:buildP(ff,rodada,hist)}];
+      var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:messages,max_tokens:6000})});
+      if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
+      var data=await res.json();
+      if(data.error)throw new Error(data.error.message||data.error);
+      var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"").trim();
+      var parsed;
+      try{parsed=JSON.parse(raw);}
+      catch(ex1){
+        var st=raw.indexOf("{"),en=raw.lastIndexOf("}");
+        if(st>-1&&en>-1){parsed=JSON.parse(raw.substring(st,en+1));}
+        else throw new Error("Erro ao processar resposta da IA");
+      }
+      var nr={numero:rodada,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
+      var novasRodadas=hist.concat([nr]);
+      var proj=Object.assign({},activeProject,{rodadas:novasRodadas});
+      await supaClient.from("projetos").update({rodadas:novasRodadas}).eq("id",activeProject.id);
+      setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});
+      setActiveProject(proj);
+      setGenerating(false);
+      setActiveTab("roteiros");
+      setOpenScripts({});
+      setSelected([]);
+      showToast("Rodada "+rodada+" gerada! "+novasRodadas.length*6+" roteiros no total.");
+    }catch(e){
+      setGenerating(false);
+      var msg=e&&e.message||"";
+      var erroMsg="Erro ao gerar: "+msg;
+      if(msg.indexOf("overloaded")>-1)erroMsg="A IA esta sobrecarregada. Aguarde 30s e tente novamente.";
+      else if(msg.indexOf("429")>-1)erroMsg="Muitas requisicoes. Aguarde 1 minuto e tente novamente.";
+      else if(msg.indexOf("timeout")>-1||msg.indexOf("524")>-1)erroMsg="Tempo esgotado. Tente novamente.";
+      showToast(erroMsg,"err");
+    }
+  }
+
   async function genVar(tipo){
     if(!activeProject)return;
     setVarLoading(tipo);
@@ -530,14 +573,14 @@ function App(){
       ),
       view==="results"&&activeProject&&function(){
         var rod=activeProject.rodadas[activeProject.rodadas.length-1],resultado=rod.resultado,scripts=getScs(),intel=resultado.inteligencia||{},personas=resultado.personas||[];
-        var totalRot=activeProject.rodadas.length*6;
+        var totalRot=activeProject.rodadas.reduce(function(acc,r){return acc+(r.resultado&&r.resultado.roteiros?r.resultado.roteiros.length:6);},0);
         return ce("div",{className:"content"},
           ce("div",{className:"rh"},
             ce("div",null,ce("div",{className:"rh-title"},activeProject.name),ce("div",{className:"rh-meta"},activeProject.objetivo+" - "+rod.data+" - "+totalRot+" roteiros gerados")),
             ce("div",{className:"rh-acts"},
               selected.length>0&&ce("button",{className:"abtn",onClick:function(){copySelected(scripts);}},"\u2713 Copiar "+selected.length+" selecionados"),
               ce("button",{className:"abtn",onClick:function(){copyAll(scripts);}},"Copiar todos"),
-              ce("button",{className:"abtn pr",onClick:function(){setView("briefing");setSelected([]);}},"\uFF0B Proxima Rodada")
+              ce("button",{className:"abtn pr",onClick:function(){handleNextRound();},disabled:generating},generating?"Gerando...":"\uFF0B Proxima Rodada")
             )
           ),
           ce("div",{className:"tabs"},[{id:"personas",lb:"Personas"},{id:"roteiros",lb:"Todos"},{id:"topo",lb:"Topo"},{id:"meio",lb:"Meio"},{id:"fundo",lb:"Fundo"},{id:"ugc",lb:"UGC"},{id:"matriz",lb:"Matriz"}].map(function(t){return ce("button",{key:t.id,className:"tab"+(activeTab===t.id?" on":""),onClick:function(){setActiveTab(t.id);setSelected([]);}},t.lb);})),
