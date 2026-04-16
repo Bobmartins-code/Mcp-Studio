@@ -13,7 +13,7 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0A0A0F;--sur:#111118;--sur2:#18181F;--bo:rgba(255,255,255,.07);--boh:rgba(255,255,255,.14);--ac:#FF4D00;--ac2:#FF8A50;--gold:#F5C842;--ok:#2DDE98;--pu:#9B8EFF;--tx:#F0EEE8;--mu:#6B6B7A;--mu2:#9B9BAA}
 html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif}
-::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--boh);border-radius:3px}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--boh);border-aradius:3px}
 .app{display:flex;height:100vh;overflow:hidden}
 .sb{width:240px;min-width:240px;background:var(--sur);border-right:1px solid var(--bo);display:flex;flex-direction:column;padding:20px 0;overflow-y:auto;transition:transform .3s;z-index:50}
 .sb-logo{padding:0 20px 24px;border-bottom:1px solid var(--bo);display:flex;align-items:center;gap:10px}
@@ -420,7 +420,9 @@ function App(){
   
   function getScs(){
     if(!activeProject)return[];
-    var r=activeProject.rodadas[activeProject.rodadas.length-1].resultado.roteiros||[];
+    var r=activeProject.rodadas.reduce(function(acc,rod){
+      return acc.concat((rod.resultado&&rod.resultado.roteiros)||[]);
+    },[]);
     if(activeTab==="topo")return r.filter(function(s){return s.funil==="topo";});
     if(activeTab==="meio")return r.filter(function(s){return s.funil==="meio";});
     if(activeTab==="fundo")return r.filter(function(s){return s.funil==="fundo";});
