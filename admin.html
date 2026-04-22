@@ -19,8 +19,17 @@ html,body{min-height:100%;background:var(--bg);color:var(--tx);font-family:'DM S
 .btn-sm:hover{border-color:var(--boh);color:var(--tx)}
 .content{padding:32px;max-width:1200px;margin:0 auto}
 .page-title{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;margin-bottom:4px}
-.page-sub{color:var(--mu2);font-size:13.5px;margin-bottom:28px}
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px}
+.page-sub{color:var(--mu2);font-size:13.5px;margin-bottom:20px}
+.filters{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:24px;background:var(--sur);border:1px solid var(--bo);border-radius:12px;padding:16px 20px}
+.filters label{font-size:12px;color:var(--mu2);margin-right:4px}
+.filters select,.filters input[type=date],.filters input[type=text]{background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:12px;padding:6px 10px;font-family:'DM Sans',sans-serif;outline:none}
+.filters select:focus,.filters input:focus{border-color:rgba(255,77,0,.5)}
+.filter-group{display:flex;align-items:center;gap:6px}
+.filter-sep{color:var(--bo);font-size:18px}
+.btn-filter{padding:6px 14px;border-radius:8px;border:none;background:var(--ac);color:#fff;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600}
+.btn-clear{padding:6px 14px;border-radius:8px;border:1px solid var(--bo);background:transparent;color:var(--mu2);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.btn-export{padding:6px 14px;border-radius:8px;border:1px solid rgba(45,222,152,.3);background:rgba(45,222,152,.08);color:var(--ok);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px}
 .stat{background:var(--sur);border:1px solid var(--bo);border-radius:14px;padding:20px}
 .stat-val{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;margin-bottom:4px}
 .stat-lbl{font-size:12px;color:var(--mu2)}
@@ -29,11 +38,15 @@ html,body{min-height:100%;background:var(--bg);color:var(--tx);font-family:'DM S
 .stat.gold .stat-val{color:var(--gold)}
 .stat.pu .stat-val{color:#9B8EFF}
 .section{background:var(--sur);border:1px solid var(--bo);border-radius:14px;overflow:hidden;margin-bottom:20px}
-.sec-head{padding:16px 20px;border-bottom:1px solid var(--bo);display:flex;align-items:center;justify-content:space-between}
+.sec-head{padding:16px 20px;border-bottom:1px solid var(--bo);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .sec-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px}
 .sec-count{font-size:12px;color:var(--mu2)}
+.sec-search{background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:12px;padding:6px 10px;font-family:'DM Sans',sans-serif;outline:none;width:200px}
+.sec-search:focus{border-color:rgba(255,77,0,.5)}
 table{width:100%;border-collapse:collapse}
-th{padding:10px 20px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--mu);border-bottom:1px solid var(--bo)}
+th{padding:10px 20px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--mu);border-bottom:1px solid var(--bo);cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:var(--mu2)}
+th .sort-icon{margin-left:4px;opacity:.5}
 td{padding:12px 20px;font-size:13px;border-bottom:1px solid var(--bo)}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:var(--sur2)}
@@ -57,6 +70,11 @@ tr:hover td{background:var(--sur2)}
 .pin-err{color:var(--ac2);font-size:12px;margin-top:8px}
 .refresh-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--bo);background:transparent;color:var(--mu2);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif}
 .refresh-btn:hover{color:var(--tx);border-color:var(--boh)}
+.pagination{display:flex;align-items:center;justify-content:center;gap:8px;padding:16px;border-top:1px solid var(--bo)}
+.pg-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--bo);background:transparent;color:var(--mu2);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.pg-btn:hover{color:var(--tx);border-color:var(--boh)}
+.pg-btn.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.pg-info{font-size:12px;color:var(--mu2)}
 </style>
 </head>
 <body>
@@ -66,7 +84,7 @@ tr:hover td{background:var(--sur2)}
     <div class="pin-sub">Painel Administrativo<br>Digite o PIN de acesso</div>
     <input id="pin-input" class="pin-input" type="password" maxlength="6" placeholder="••••••" onkeydown="if(event.key==='Enter')checkPin()"/>
     <button class="pin-btn" onclick="checkPin()">Entrar</button>
-    <div id="pin-err" class="pin-err" style="display:none">PIN incorreto. Tente novamente.</div>
+    <div id="pin-err" class="pin-err" style="display:none">PIN incorreto.</div>
   </div>
 </div>
 
@@ -75,35 +93,68 @@ tr:hover td{background:var(--sur2)}
     <div class="tb-logo">MCP<span>Studio</span></div>
     <div class="tb-badge">Admin</div>
     <div class="tb-right">
-      <button class="refresh-btn" onclick="loadData()">↻ Atualizar</button>
+      <button class="refresh-btn" onclick="loadData()">&#8635; Atualizar</button>
       <button class="btn-sm" onclick="logout()">Sair</button>
     </div>
   </div>
   <div class="content">
     <div class="page-title">Painel Administrativo</div>
     <div class="page-sub" id="last-update">Carregando dados...</div>
-    <div class="stats-grid">
-      <div class="stat ac"><div class="stat-val" id="stat-users">—</div><div class="stat-lbl">Usuários cadastrados</div></div>
-      <div class="stat ok"><div class="stat-val" id="stat-projects">—</div><div class="stat-lbl">Projetos gerados</div></div>
-      <div class="stat gold"><div class="stat-val" id="stat-roteiros">—</div><div class="stat-lbl">Roteiros gerados</div></div>
-      <div class="stat pu"><div class="stat-val" id="stat-ativos">—</div><div class="stat-lbl">Ativos (últimos 7 dias)</div></div>
-      <div class="stat"><div class="stat-val" id="stat-hoje">—</div><div class="stat-lbl">Projetos hoje</div></div>
+
+    <!-- FILTROS -->
+    <div class="filters">
+      <div class="filter-group">
+        <label>Periodo:</label>
+        <select id="f-periodo" onchange="onPeriodoChange()">
+          <option value="todos">Todos</option>
+          <option value="hoje">Hoje</option>
+          <option value="7dias">Ultimos 7 dias</option>
+          <option value="30dias">Ultimos 30 dias</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </div>
+      <div class="filter-group" id="f-custom" style="display:none">
+        <label>De:</label>
+        <input type="date" id="f-inicio"/>
+        <label>Ate:</label>
+        <input type="date" id="f-fim"/>
+      </div>
+      <button class="btn-filter" onclick="aplicarFiltros()">Filtrar</button>
+      <button class="btn-clear" onclick="limparFiltros()">Limpar</button>
+      <button class="btn-export" onclick="exportarCSV()">Exportar CSV</button>
     </div>
 
+    <div class="stats-grid">
+      <div class="stat ac"><div class="stat-val" id="stat-users">-</div><div class="stat-lbl">Usuarios cadastrados</div></div>
+      <div class="stat ok"><div class="stat-val" id="stat-projects">-</div><div class="stat-lbl">Projetos gerados</div></div>
+      <div class="stat gold"><div class="stat-val" id="stat-roteiros">-</div><div class="stat-lbl">Roteiros gerados</div></div>
+      <div class="stat pu"><div class="stat-val" id="stat-ativos">-</div><div class="stat-lbl">Ativos (7 dias)</div></div>
+      <div class="stat"><div class="stat-val" id="stat-hoje">-</div><div class="stat-lbl">Projetos hoje</div></div>
+    </div>
+
+    <!-- USUARIOS -->
     <div class="section">
       <div class="sec-head">
-        <div class="sec-title">Todos os usuários</div>
-        <div class="sec-count" id="users-count"></div>
+        <div class="sec-title">Todos os usuarios</div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <input class="sec-search" id="busca-usuario" placeholder="Buscar por email..." oninput="renderUsuarios()"/>
+          <div class="sec-count" id="users-count"></div>
+        </div>
       </div>
-      <div id="users-table"><div class="loading"><div class="spin"></div>Carregando usuários...</div></div>
+      <div id="users-table"><div class="loading"><div class="spin"></div>Carregando...</div></div>
     </div>
 
+    <!-- PROJETOS -->
     <div class="section">
       <div class="sec-head">
         <div class="sec-title">Projetos recentes</div>
-        <div class="sec-count" id="projects-count"></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <input class="sec-search" id="busca-projeto" placeholder="Buscar projeto ou usuario..." oninput="renderProjetos()"/>
+          <div class="sec-count" id="projects-count"></div>
+        </div>
       </div>
-      <div id="projects-table"><div class="loading"><div class="spin"></div>Carregando projetos...</div></div>
+      <div id="projects-table"><div class="loading"><div class="spin"></div>Carregando...</div></div>
+      <div id="projects-pagination" class="pagination" style="display:none"></div>
     </div>
   </div>
 </div>
@@ -114,6 +165,12 @@ var SUPA_KEY="sb_publishable_U3wOTwbeEvXtHOqP_I29VQ_ARH5CAkH";
 var supaClient=window.supabase.createClient(SUPA_URL,SUPA_KEY);
 var ADMIN_PIN="1234";
 
+var allUsers=[], allProjetos=[], emailMap={};
+var sortUsersBy="last_sign_in_at", sortUsersDir=-1;
+var sortProjBy="criado_em", sortProjDir=-1;
+var projPage=1, projPerPage=20;
+var filtroInicio=null, filtroFim=null;
+
 function checkPin(){
   var v=document.getElementById("pin-input").value;
   if(v===ADMIN_PIN){
@@ -123,7 +180,6 @@ function checkPin(){
   }else{
     document.getElementById("pin-err").style.display="block";
     document.getElementById("pin-input").value="";
-    document.getElementById("pin-input").focus();
   }
 }
 
@@ -133,105 +189,248 @@ function logout(){
   document.getElementById("pin-input").value="";
 }
 
-function fmt(dt){
-  if(!dt)return"-";
-  return new Date(dt).toLocaleString("pt-BR");
+function fmt(dt){if(!dt)return"-";return new Date(dt).toLocaleString("pt-BR");}
+function fmtDate(dt){if(!dt)return"-";return new Date(dt).toLocaleDateString("pt-BR");}
+function diasAtras(dt){if(!dt)return 999;return(Date.now()-new Date(dt).getTime())/(1000*60*60*24);}
+
+function onPeriodoChange(){
+  var v=document.getElementById("f-periodo").value;
+  document.getElementById("f-custom").style.display=v==="custom"?"flex":"none";
 }
 
-function diasAtras(dt){
-  if(!dt)return 999;
-  return (Date.now()-new Date(dt).getTime())/(1000*60*60*24);
+function aplicarFiltros(){
+  var p=document.getElementById("f-periodo").value;
+  var now=new Date();
+  filtroInicio=null; filtroFim=null;
+  if(p==="hoje"){filtroInicio=new Date(now.toDateString());filtroFim=new Date();}
+  else if(p==="7dias"){filtroInicio=new Date(now-7*86400000);filtroFim=new Date();}
+  else if(p==="30dias"){filtroInicio=new Date(now-30*86400000);filtroFim=new Date();}
+  else if(p==="custom"){
+    var di=document.getElementById("f-inicio").value;
+    var df=document.getElementById("f-fim").value;
+    if(di)filtroInicio=new Date(di);
+    if(df){filtroFim=new Date(df);filtroFim.setHours(23,59,59);}
+  }
+  projPage=1;
+  renderUsuarios();
+  renderProjetos();
+  atualizarStats();
+}
+
+function limparFiltros(){
+  document.getElementById("f-periodo").value="todos";
+  document.getElementById("f-custom").style.display="none";
+  document.getElementById("f-inicio").value="";
+  document.getElementById("f-fim").value="";
+  document.getElementById("busca-usuario").value="";
+  document.getElementById("busca-projeto").value="";
+  filtroInicio=null; filtroFim=null; projPage=1;
+  renderUsuarios(); renderProjetos(); atualizarStats();
+}
+
+function filtrarPorData(dt){
+  if(!dt)return true;
+  var d=new Date(dt);
+  if(filtroInicio&&d<filtroInicio)return false;
+  if(filtroFim&&d>filtroFim)return false;
+  return true;
 }
 
 async function loadData(){
   document.getElementById("last-update").textContent="Atualizando...";
   try{
-    // Buscar todos os usuários via função SQL
     var ru=await supaClient.rpc("get_all_users");
-    var allUsers=ru.data||[];
-
-    // Buscar projetos
+    allUsers=ru.data||[];
     var rp=await supaClient.from("projetos").select("*").order("criado_em",{ascending:false});
-    var projetos=rp.data||[];
-
-    // Estatísticas
-    var hoje=new Date().toISOString().split("T")[0];
-    var projetosHoje=projetos.filter(function(p){return p.criado_em&&p.criado_em.startsWith(hoje);});
-    var totalRoteiros=projetos.reduce(function(acc,p){
-      return acc+(p.rodadas||[]).reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
-    },0);
-    var ativos7dias=allUsers.filter(function(u){return diasAtras(u.last_sign_in_at)<7;}).length;
-
-    // Mapa de projetos por usuario
-    var projMap={};
-    projetos.forEach(function(p){
-      var uid=p.user_id;
-      if(!projMap[uid]){projMap[uid]={projetos:0,roteiros:0};}
-      projMap[uid].projetos++;
-      projMap[uid].roteiros+=(p.rodadas||[]).reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
-    });
-
-    // Atualizar stats
-    document.getElementById("stat-users").textContent=allUsers.length;
-    document.getElementById("stat-projects").textContent=projetos.length;
-    document.getElementById("stat-roteiros").textContent=totalRoteiros;
-    document.getElementById("stat-ativos").textContent=ativos7dias;
-    document.getElementById("stat-hoje").textContent=projetosHoje.length;
-    document.getElementById("last-update").textContent="Última atualização: "+new Date().toLocaleString("pt-BR");
-
-    // Tabela de usuários
-    document.getElementById("users-count").textContent=allUsers.length+" usuário(s)";
-    if(allUsers.length===0){
-      document.getElementById("users-table").innerHTML='<div class="empty">Nenhum usuário encontrado</div>';
-    }else{
-      var html='<table><thead><tr><th>Email</th><th>Cadastro</th><th>Último acesso</th><th>Projetos</th><th>Roteiros</th><th>Status</th></tr></thead><tbody>';
-      allUsers.forEach(function(u){
-        var p=projMap[u.id]||{projetos:0,roteiros:0};
-        var dias=diasAtras(u.last_sign_in_at);
-        var badge=dias<1?'<span class="badge ok">Hoje</span>':dias<7?'<span class="badge ac">Esta semana</span>':dias<30?'<span class="badge mu">Este mês</span>':'<span class="badge nu">Inativo</span>';
-        html+='<tr>';
-        html+='<td style="font-weight:500">'+u.email+'</td>';
-        html+='<td style="font-size:12px;color:var(--mu2)">'+fmt(u.created_at)+'</td>';
-        html+='<td style="font-size:12px;color:var(--mu2)">'+fmt(u.last_sign_in_at)+'</td>';
-        html+='<td>'+p.projetos+'</td>';
-        html+='<td>'+p.roteiros+'</td>';
-        html+='<td>'+badge+'</td>';
-        html+='</tr>';
-      });
-      html+='</tbody></table>';
-      document.getElementById("users-table").innerHTML=html;
-    }
-
-    // Tabela de projetos
-    document.getElementById("projects-count").textContent=projetos.length+" projeto(s)";
-    if(projetos.length===0){
-      document.getElementById("projects-table").innerHTML='<div class="empty">Nenhum projeto encontrado</div>';
-    }else{
-      // Mapa email por user_id
-      var emailMap={};
-      allUsers.forEach(function(u){emailMap[u.id]=u.email;});
-
-      var html2='<table><thead><tr><th>Projeto</th><th>Usuário</th><th>Destino</th><th>Rodadas</th><th>Roteiros</th><th>Data</th></tr></thead><tbody>';
-      projetos.slice(0,50).forEach(function(p){
-        var rods=p.rodadas||[];
-        var total=rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
-        html2+='<tr>';
-        html2+='<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.nome+'</td>';
-        html2+='<td style="font-size:12px;color:var(--mu2)">'+(emailMap[p.user_id]||'-')+'</td>';
-        html2+='<td><span class="badge mu">'+(p.objetivo||'-')+'</span></td>';
-        html2+='<td>'+rods.length+'</td>';
-        html2+='<td>'+total+'</td>';
-        html2+='<td style="font-size:12px;color:var(--mu2)">'+fmt(p.criado_em)+'</td>';
-        html2+='</tr>';
-      });
-      html2+='</tbody></table>';
-      document.getElementById("projects-table").innerHTML=html2;
-    }
-
+    allProjetos=rp.data||[];
+    emailMap={};
+    allUsers.forEach(function(u){emailMap[u.id]=u.email;});
+    atualizarStats();
+    renderUsuarios();
+    renderProjetos();
+    document.getElementById("last-update").textContent="Ultima atualizacao: "+new Date().toLocaleString("pt-BR");
   }catch(e){
     document.getElementById("last-update").textContent="Erro: "+e.message;
-    console.error(e);
   }
+}
+
+function atualizarStats(){
+  var hoje=new Date().toISOString().split("T")[0];
+  var projFiltrados=allProjetos.filter(function(p){return filtrarPorData(p.criado_em);});
+  var usersFiltrados=allUsers.filter(function(u){return filtrarPorData(u.last_sign_in_at);});
+  var totalRot=projFiltrados.reduce(function(acc,p){return acc+(p.rodadas||[]).reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);},0);
+  var ativos=allUsers.filter(function(u){return diasAtras(u.last_sign_in_at)<7;}).length;
+  var projHoje=allProjetos.filter(function(p){return p.criado_em&&p.criado_em.startsWith(hoje);}).length;
+  document.getElementById("stat-users").textContent=allUsers.length;
+  document.getElementById("stat-projects").textContent=projFiltrados.length;
+  document.getElementById("stat-roteiros").textContent=totalRot;
+  document.getElementById("stat-ativos").textContent=ativos;
+  document.getElementById("stat-hoje").textContent=projHoje;
+}
+
+function getProjMap(){
+  var projFiltrados=allProjetos.filter(function(p){return filtrarPorData(p.criado_em);});
+  var m={};
+  projFiltrados.forEach(function(p){
+    var uid=p.user_id;
+    if(!m[uid]){m[uid]={projetos:0,roteiros:0,ultimo:p.criado_em};}
+    m[uid].projetos++;
+    m[uid].roteiros+=(p.rodadas||[]).reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
+    if(p.criado_em>m[uid].ultimo)m[uid].ultimo=p.criado_em;
+  });
+  return m;
+}
+
+function renderUsuarios(){
+  var busca=(document.getElementById("busca-usuario").value||"").toLowerCase();
+  var projMap=getProjMap();
+  var lista=allUsers.filter(function(u){
+    if(busca&&u.email.toLowerCase().indexOf(busca)<0)return false;
+    if(filtroInicio||filtroFim){return filtrarPorData(u.last_sign_in_at)||filtrarPorData(u.created_at);}
+    return true;
+  });
+  lista.sort(function(a,b){
+    var va=a[sortUsersBy]||"";
+    var vb=b[sortUsersBy]||"";
+    return va<vb?-sortUsersDir:va>vb?sortUsersDir:0;
+  });
+  document.getElementById("users-count").textContent=lista.length+" usuario(s)";
+  if(lista.length===0){document.getElementById("users-table").innerHTML='<div class="empty">Nenhum usuario encontrado</div>';return;}
+  var cols=[
+    {k:"email",lb:"Email"},
+    {k:"created_at",lb:"Cadastro"},
+    {k:"last_sign_in_at",lb:"Ultimo acesso"},
+    {k:"_projetos",lb:"Projetos"},
+    {k:"_roteiros",lb:"Roteiros"},
+    {k:"_status",lb:"Status"}
+  ];
+  var html='<table><thead><tr>';
+  cols.forEach(function(c){
+    var icon=sortUsersBy===c.k?(sortUsersDir===1?" ▲":" ▼"):" ↕";
+    html+='<th onclick="sortUsers(\''+c.k+'\')">'+c.lb+'<span class="sort-icon">'+icon+'</span></th>';
+  });
+  html+='</tr></thead><tbody>';
+  lista.forEach(function(u){
+    var p=projMap[u.id]||{projetos:0,roteiros:0};
+    var dias=diasAtras(u.last_sign_in_at);
+    var badge=dias<1?'<span class="badge ok">Hoje</span>':dias<7?'<span class="badge ac">Esta semana</span>':dias<30?'<span class="badge mu">Este mes</span>':'<span class="badge nu">Inativo</span>';
+    html+='<tr><td style="font-weight:500">'+u.email+'</td><td style="font-size:12px;color:var(--mu2)">'+fmt(u.created_at)+'</td><td style="font-size:12px;color:var(--mu2)">'+fmt(u.last_sign_in_at)+'</td><td>'+p.projetos+'</td><td>'+p.roteiros+'</td><td>'+badge+'</td></tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById("users-table").innerHTML=html;
+}
+
+function sortUsers(col){
+  if(sortUsersBy===col)sortUsersDir*=-1;
+  else{sortUsersBy=col;sortUsersDir=-1;}
+  renderUsuarios();
+}
+
+function renderProjetos(){
+  var busca=(document.getElementById("busca-projeto").value||"").toLowerCase();
+  var lista=allProjetos.filter(function(p){
+    if(!filtrarPorData(p.criado_em))return false;
+    if(busca){
+      var email=(emailMap[p.user_id]||"").toLowerCase();
+      var nome=(p.nome||"").toLowerCase();
+      if(nome.indexOf(busca)<0&&email.indexOf(busca)<0)return false;
+    }
+    return true;
+  });
+  lista.sort(function(a,b){
+    var va=a[sortProjBy]||"";
+    var vb=b[sortProjBy]||"";
+    return va<vb?-sortProjDir:va>vb?sortProjDir:0;
+  });
+  var total=lista.length;
+  var totalPages=Math.max(1,Math.ceil(total/projPerPage));
+  if(projPage>totalPages)projPage=totalPages;
+  var start=(projPage-1)*projPerPage;
+  var page=lista.slice(start,start+projPerPage);
+  document.getElementById("projects-count").textContent=total+" projeto(s)";
+  if(page.length===0){document.getElementById("projects-table").innerHTML='<div class="empty">Nenhum projeto encontrado</div>';document.getElementById("projects-pagination").style.display="none";return;}
+  var cols=[
+    {k:"nome",lb:"Projeto"},
+    {k:"_usuario",lb:"Usuario"},
+    {k:"objetivo",lb:"Destino"},
+    {k:"_rodadas",lb:"Rodadas"},
+    {k:"_roteiros",lb:"Roteiros"},
+    {k:"criado_em",lb:"Data"}
+  ];
+  var html='<table><thead><tr>';
+  cols.forEach(function(c){
+    var icon=sortProjBy===c.k?(sortProjDir===1?" ▲":" ▼"):" ↕";
+    html+='<th onclick="sortProj(\''+c.k+'\')">'+c.lb+'<span class="sort-icon">'+icon+'</span></th>';
+  });
+  html+='</tr></thead><tbody>';
+  page.forEach(function(p){
+    var rods=p.rodadas||[];
+    var total=rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
+    html+='<tr>';
+    html+='<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.nome+'</td>';
+    html+='<td style="font-size:12px;color:var(--mu2)">'+(emailMap[p.user_id]||"-")+'</td>';
+    html+='<td><span class="badge mu">'+(p.objetivo||"-")+'</span></td>';
+    html+='<td>'+rods.length+'</td>';
+    html+='<td>'+total+'</td>';
+    html+='<td style="font-size:12px;color:var(--mu2)">'+fmt(p.criado_em)+'</td>';
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById("projects-table").innerHTML=html;
+  // Paginacao
+  if(totalPages>1){
+    var pg='';
+    pg+='<button class="pg-btn" onclick="mudarPagina('+(projPage-1)+')" '+(projPage===1?'disabled':'')+'>&#8249;</button>';
+    for(var i=1;i<=totalPages;i++){
+      if(i===1||i===totalPages||Math.abs(i-projPage)<=1){
+        pg+='<button class="pg-btn'+(i===projPage?' on':'')+'" onclick="mudarPagina('+i+')">'+i+'</button>';
+      }else if(Math.abs(i-projPage)===2){
+        pg+='<span class="pg-info">...</span>';
+      }
+    }
+    pg+='<button class="pg-btn" onclick="mudarPagina('+(projPage+1)+')" '+(projPage===totalPages?'disabled':'')+'>&#8250;</button>';
+    pg+='<span class="pg-info">'+start+1+'-'+Math.min(start+projPerPage,total)+' de '+total+'</span>';
+    document.getElementById("projects-pagination").innerHTML=pg;
+    document.getElementById("projects-pagination").style.display="flex";
+  }else{
+    document.getElementById("projects-pagination").style.display="none";
+  }
+}
+
+function sortProj(col){
+  if(sortProjBy===col)sortProjDir*=-1;
+  else{sortProjBy=col;sortProjDir=-1;}
+  renderProjetos();
+}
+
+function mudarPagina(p){
+  var totalPages=Math.ceil(allProjetos.length/projPerPage);
+  if(p<1||p>totalPages)return;
+  projPage=p;
+  renderProjetos();
+}
+
+function exportarCSV(){
+  var busca=(document.getElementById("busca-usuario").value||"").toLowerCase();
+  var projMap=getProjMap();
+  var lista=allUsers.filter(function(u){
+    if(busca&&u.email.toLowerCase().indexOf(busca)<0)return false;
+    return true;
+  });
+  var csv="Email,Cadastro,Ultimo acesso,Projetos,Roteiros,Status\n";
+  lista.forEach(function(u){
+    var p=projMap[u.id]||{projetos:0,roteiros:0};
+    var dias=diasAtras(u.last_sign_in_at);
+    var status=dias<1?"Hoje":dias<7?"Esta semana":dias<30?"Este mes":"Inativo";
+    csv+='"'+u.email+'","'+fmt(u.created_at)+'","'+fmt(u.last_sign_in_at)+'",'+p.projetos+','+p.roteiros+',"'+status+'"\n';
+  });
+  var blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  a.href=url;
+  a.download="mcp-studio-usuarios-"+new Date().toISOString().split("T")[0]+".csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 </script>
 </body>
