@@ -505,7 +505,7 @@ function App(){
             ce("div",{style:{fontSize:"10px",color:"var(--gold)"}},"Pro")
           )
         ),
-        (user&&user.email==="rrubensmartins@gmail.com"?ce("a",{href:"/admin.html",target:"_blank",style:{display:"block",margin:"8px 12px 4px",padding:"8px 12px",borderRadius:"8px",background:"rgba(255,77,0,.1)",border:"1px solid rgba(255,77,0,.3)",color:"#FF8A50",fontSize:"12px",fontWeight:"600",textDecoration:"none",textAlign:"center",cursor:"pointer"}},"Painel Admin"):null),ce("button",{className:"sb-logout",onClick:doLogout},"Sair da conta")
+        (userEmail==="rrubensmartins@gmail.com"?ce("a",{href:"/admin.html",target:"_blank",style:{display:"block",margin:"8px 12px 4px",padding:"8px 12px",borderRadius:"8px",background:"rgba(255,77,0,.1)",border:"1px solid rgba(255,77,0,.3)",color:"#FF8A50",fontSize:"12px",fontWeight:"600",textDecoration:"none",textAlign:"center",cursor:"pointer"}},"Painel Admin"):null),ce("button",{className:"sb-logout",onClick:doLogout},"Sair da conta")
       )
     ),
     ce("main",{className:"main"},
