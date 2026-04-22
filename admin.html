@@ -241,7 +241,7 @@ async function loadData(){
   try{
     var ru=await supaClient.rpc("get_all_users");
     allUsers=ru.data||[];
-    var rp=await supaClient.from("projetos").select("*").order("criado_em",{ascending:false});
+    var rp=await supaClient.rpc("get_all_projetos");
     allProjetos=rp.data||[];
     emailMap={};
     allUsers.forEach(function(u){emailMap[u.id]=u.email;});
