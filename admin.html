@@ -55,10 +55,11 @@ tr:hover td{background:var(--sur2)}
 .pin-err{color:var(--ac2);font-size:12px;margin-top:8px}
 .refresh-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--bo);background:transparent;color:var(--mu2);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif}
 .refresh-btn:hover{color:var(--tx);border-color:var(--boh)}
+.email-cell{font-weight:500;color:var(--tx)}
+.date-cell{font-size:12px;color:var(--mu2)}
 </style>
 </head>
 <body>
-
 <div id="pin-screen" class="pin-screen">
   <div class="pin-card">
     <div class="pin-title">MCP<span style="color:var(--ac)">Studio</span></div>
@@ -78,48 +79,28 @@ tr:hover td{background:var(--sur2)}
       <button class="btn-sm" onclick="logout()">Sair</button>
     </div>
   </div>
-
   <div class="content">
     <div class="page-title">Painel Administrativo</div>
     <div class="page-sub" id="last-update">Carregando dados...</div>
-
     <div class="stats-grid">
-      <div class="stat ac">
-        <div class="stat-val" id="stat-users">—</div>
-        <div class="stat-lbl">Usuários cadastrados</div>
-      </div>
-      <div class="stat ok">
-        <div class="stat-val" id="stat-projects">—</div>
-        <div class="stat-lbl">Projetos gerados</div>
-      </div>
-      <div class="stat gold">
-        <div class="stat-val" id="stat-roteiros">—</div>
-        <div class="stat-lbl">Roteiros gerados</div>
-      </div>
-      <div class="stat">
-        <div class="stat-val" id="stat-hoje">—</div>
-        <div class="stat-lbl">Projetos hoje</div>
-      </div>
+      <div class="stat ac"><div class="stat-val" id="stat-users">—</div><div class="stat-lbl">Usuários cadastrados</div></div>
+      <div class="stat ok"><div class="stat-val" id="stat-projects">—</div><div class="stat-lbl">Projetos gerados</div></div>
+      <div class="stat gold"><div class="stat-val" id="stat-roteiros">—</div><div class="stat-lbl">Roteiros gerados</div></div>
+      <div class="stat"><div class="stat-val" id="stat-hoje">—</div><div class="stat-lbl">Projetos hoje</div></div>
     </div>
-
     <div class="section">
       <div class="sec-head">
-        <div class="sec-title">Usuários</div>
+        <div class="sec-title">Usuários cadastrados</div>
         <div class="sec-count" id="users-count"></div>
       </div>
-      <div id="users-table">
-        <div class="loading"><div class="spin"></div>Carregando usuários...</div>
-      </div>
+      <div id="users-table"><div class="loading"><div class="spin"></div>Carregando usuários...</div></div>
     </div>
-
     <div class="section">
       <div class="sec-head">
         <div class="sec-title">Projetos recentes</div>
         <div class="sec-count" id="projects-count"></div>
       </div>
-      <div id="projects-table">
-        <div class="loading"><div class="spin"></div>Carregando projetos...</div>
-      </div>
+      <div id="projects-table"><div class="loading"><div class="spin"></div>Carregando projetos...</div></div>
     </div>
   </div>
 </div>
@@ -156,6 +137,16 @@ async function loadData(){
     var rp=await supaClient.from("projetos").select("*").order("criado_em",{ascending:false});
     var projetos=rp.data||[];
 
+    // Carregar usuarios via RPC (função que busca emails)
+    // Como a chave publica nao acessa auth.users diretamente,
+    // vamos buscar os perfis da tabela projetos e cruzar com os emails do Supabase Auth
+    var emailMap={};
+    try{
+      // Tentar buscar via tabela de perfis se existir
+      var ru=await supaClient.from("profiles").select("id,email");
+      if(ru.data){ru.data.forEach(function(u){emailMap[u.id]=u.email;});}
+    }catch(e){}
+
     // Estatísticas
     var hoje=new Date().toISOString().split("T")[0];
     var projetosHoje=projetos.filter(function(p){return p.criado_em&&p.criado_em.startsWith(hoje);});
@@ -168,8 +159,18 @@ async function loadData(){
     var userMap={};
     projetos.forEach(function(p){
       var uid=p.user_id||"desconhecido";
-      if(!userMap[uid]){userMap[uid]={uid:uid,projetos:0,roteiros:0,ultimo:p.criado_em};}
+      if(!userMap[uid]){
+        userMap[uid]={
+          uid:uid,
+          email:emailMap[uid]||p.user_email||null,
+          projetos:0,
+          roteiros:0,
+          ultimo:p.criado_em,
+          nomes:[]
+        };
+      }
       userMap[uid].projetos++;
+      userMap[uid].nomes.push(p.nome);
       var rods=p.rodadas||[];
       userMap[uid].roteiros+=rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
       if(p.criado_em>userMap[uid].ultimo)userMap[uid].ultimo=p.criado_em;
@@ -188,28 +189,31 @@ async function loadData(){
     if(users.length===0){
       document.getElementById("users-table").innerHTML='<div class="empty">Nenhum usuário encontrado</div>';
     }else{
-      var html='<table><thead><tr><th>User ID</th><th>Projetos</th><th>Roteiros gerados</th><th>Último acesso</th></tr></thead><tbody>';
+      var html='<table><thead><tr><th>Email / ID</th><th>Projetos</th><th>Roteiros</th><th>Último acesso</th><th>Status</th></tr></thead><tbody>';
       users.sort(function(a,b){return b.ultimo>a.ultimo?1:-1;}).forEach(function(u){
         var dt=u.ultimo?new Date(u.ultimo).toLocaleString("pt-BR"):"-";
         var badge=u.projetos>5?'<span class="badge ok">Ativo</span>':u.projetos>0?'<span class="badge ac">Em uso</span>':'<span class="badge mu">Novo</span>';
-        html+='<tr><td style="font-size:11px;color:var(--mu2);font-family:monospace">'+u.uid.substring(0,18)+'...</td><td>'+u.projetos+'</td><td>'+u.roteiros+'</td><td>'+dt+' '+badge+'</td></tr>';
+        var emailHtml=u.email
+          ?'<div class="email-cell">'+u.email+'</div>'
+          :'<div style="font-size:11px;color:var(--mu2);font-family:monospace">'+u.uid.substring(0,20)+'...</div>';
+        html+='<tr><td>'+emailHtml+'</td><td>'+u.projetos+'</td><td>'+u.roteiros+'</td><td class="date-cell">'+dt+'</td><td>'+badge+'</td></tr>';
       });
       html+='</tbody></table>';
       document.getElementById("users-table").innerHTML=html;
     }
 
-    // Tabela de projetos recentes
+    // Tabela de projetos
     document.getElementById("projects-count").textContent=projetos.length+" projeto(s)";
     if(projetos.length===0){
       document.getElementById("projects-table").innerHTML='<div class="empty">Nenhum projeto encontrado</div>';
     }else{
-      var html2='<table><thead><tr><th>Projeto</th><th>Destino</th><th>Rodadas</th><th>Roteiros</th><th>Data</th></tr></thead><tbody>';
-      projetos.slice(0,30).forEach(function(p){
+      var html2='<table><thead><tr><th>Projeto</th><th>Usuário</th><th>Destino</th><th>Rodadas</th><th>Roteiros</th><th>Data</th></tr></thead><tbody>';
+      projetos.slice(0,50).forEach(function(p){
         var rods=p.rodadas||[];
         var total=rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
         var dt=p.criado_em?new Date(p.criado_em).toLocaleString("pt-BR"):"-";
-        var obj=p.objetivo||"-";
-        html2+='<tr><td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.nome+'</td><td><span class="badge mu">'+obj+'</span></td><td>'+rods.length+'</td><td>'+total+'</td><td style="color:var(--mu2);font-size:12px">'+dt+'</td></tr>';
+        var emailUser=emailMap[p.user_id]||p.user_email||(p.user_id?p.user_id.substring(0,12)+'...':'-');
+        html2+='<tr><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.nome+'</td><td style="font-size:12px;color:var(--mu2)">'+emailUser+'</td><td><span class="badge mu">'+(p.objetivo||'-')+'</span></td><td>'+rods.length+'</td><td>'+total+'</td><td class="date-cell">'+dt+'</td></tr>';
       });
       html2+='</tbody></table>';
       document.getElementById("projects-table").innerHTML=html2;
