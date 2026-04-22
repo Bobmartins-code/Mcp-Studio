@@ -17,7 +17,7 @@ html,body{min-height:100%;background:var(--bg);color:var(--tx);font-family:'DM S
 .tb-right{margin-left:auto;display:flex;gap:10px;align-items:center}
 .btn-sm{padding:7px 14px;border-radius:8px;border:1px solid var(--bo);background:var(--sur2);color:var(--mu2);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}
 .btn-sm:hover{border-color:var(--boh);color:var(--tx)}
-.content{padding:32px;max-width:1100px;margin:0 auto}
+.content{padding:32px;max-width:1200px;margin:0 auto}
 .page-title{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;margin-bottom:4px}
 .page-sub{color:var(--mu2);font-size:13.5px;margin-bottom:28px}
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px}
@@ -27,6 +27,7 @@ html,body{min-height:100%;background:var(--bg);color:var(--tx);font-family:'DM S
 .stat.ac .stat-val{color:var(--ac2)}
 .stat.ok .stat-val{color:var(--ok)}
 .stat.gold .stat-val{color:var(--gold)}
+.stat.pu .stat-val{color:#9B8EFF}
 .section{background:var(--sur);border:1px solid var(--bo);border-radius:14px;overflow:hidden;margin-bottom:20px}
 .sec-head{padding:16px 20px;border-bottom:1px solid var(--bo);display:flex;align-items:center;justify-content:space-between}
 .sec-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px}
@@ -40,6 +41,7 @@ tr:hover td{background:var(--sur2)}
 .badge.ok{background:rgba(45,222,152,.1);border:1px solid rgba(45,222,152,.2);color:var(--ok)}
 .badge.ac{background:rgba(255,77,0,.1);border:1px solid rgba(255,77,0,.2);color:var(--ac2)}
 .badge.mu{background:var(--sur2);border:1px solid var(--bo);color:var(--mu2)}
+.badge.nu{background:rgba(155,142,255,.1);border:1px solid rgba(155,142,255,.2);color:#9B8EFF}
 .loading{text-align:center;padding:40px;color:var(--mu2);font-size:13px}
 .spin{width:24px;height:24px;border:2px solid var(--bo);border-top-color:var(--ac);border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 10px}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -55,8 +57,6 @@ tr:hover td{background:var(--sur2)}
 .pin-err{color:var(--ac2);font-size:12px;margin-top:8px}
 .refresh-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--bo);background:transparent;color:var(--mu2);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif}
 .refresh-btn:hover{color:var(--tx);border-color:var(--boh)}
-.email-cell{font-weight:500;color:var(--tx)}
-.date-cell{font-size:12px;color:var(--mu2)}
 </style>
 </head>
 <body>
@@ -86,15 +86,18 @@ tr:hover td{background:var(--sur2)}
       <div class="stat ac"><div class="stat-val" id="stat-users">—</div><div class="stat-lbl">Usuários cadastrados</div></div>
       <div class="stat ok"><div class="stat-val" id="stat-projects">—</div><div class="stat-lbl">Projetos gerados</div></div>
       <div class="stat gold"><div class="stat-val" id="stat-roteiros">—</div><div class="stat-lbl">Roteiros gerados</div></div>
+      <div class="stat pu"><div class="stat-val" id="stat-ativos">—</div><div class="stat-lbl">Ativos (últimos 7 dias)</div></div>
       <div class="stat"><div class="stat-val" id="stat-hoje">—</div><div class="stat-lbl">Projetos hoje</div></div>
     </div>
+
     <div class="section">
       <div class="sec-head">
-        <div class="sec-title">Usuários cadastrados</div>
+        <div class="sec-title">Todos os usuários</div>
         <div class="sec-count" id="users-count"></div>
       </div>
       <div id="users-table"><div class="loading"><div class="spin"></div>Carregando usuários...</div></div>
     </div>
+
     <div class="section">
       <div class="sec-head">
         <div class="sec-title">Projetos recentes</div>
@@ -130,73 +133,70 @@ function logout(){
   document.getElementById("pin-input").value="";
 }
 
+function fmt(dt){
+  if(!dt)return"-";
+  return new Date(dt).toLocaleString("pt-BR");
+}
+
+function diasAtras(dt){
+  if(!dt)return 999;
+  return (Date.now()-new Date(dt).getTime())/(1000*60*60*24);
+}
+
 async function loadData(){
   document.getElementById("last-update").textContent="Atualizando...";
   try{
-    // Carregar projetos
+    // Buscar todos os usuários via função SQL
+    var ru=await supaClient.rpc("get_all_users");
+    var allUsers=ru.data||[];
+
+    // Buscar projetos
     var rp=await supaClient.from("projetos").select("*").order("criado_em",{ascending:false});
     var projetos=rp.data||[];
-
-    // Carregar usuarios via RPC (função que busca emails)
-    // Como a chave publica nao acessa auth.users diretamente,
-    // vamos buscar os perfis da tabela projetos e cruzar com os emails do Supabase Auth
-    var emailMap={};
-    try{
-      // Tentar buscar via tabela de perfis se existir
-      var ru=await supaClient.from("profiles").select("id,email");
-      if(ru.data){ru.data.forEach(function(u){emailMap[u.id]=u.email;});}
-    }catch(e){}
 
     // Estatísticas
     var hoje=new Date().toISOString().split("T")[0];
     var projetosHoje=projetos.filter(function(p){return p.criado_em&&p.criado_em.startsWith(hoje);});
     var totalRoteiros=projetos.reduce(function(acc,p){
-      var rods=p.rodadas||[];
-      return acc+rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
+      return acc+(p.rodadas||[]).reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
     },0);
+    var ativos7dias=allUsers.filter(function(u){return diasAtras(u.last_sign_in_at)<7;}).length;
 
-    // Agrupar por usuario
-    var userMap={};
+    // Mapa de projetos por usuario
+    var projMap={};
     projetos.forEach(function(p){
-      var uid=p.user_id||"desconhecido";
-      if(!userMap[uid]){
-        userMap[uid]={
-          uid:uid,
-          email:emailMap[uid]||p.user_email||null,
-          projetos:0,
-          roteiros:0,
-          ultimo:p.criado_em,
-          nomes:[]
-        };
-      }
-      userMap[uid].projetos++;
-      userMap[uid].nomes.push(p.nome);
-      var rods=p.rodadas||[];
-      userMap[uid].roteiros+=rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
-      if(p.criado_em>userMap[uid].ultimo)userMap[uid].ultimo=p.criado_em;
+      var uid=p.user_id;
+      if(!projMap[uid]){projMap[uid]={projetos:0,roteiros:0};}
+      projMap[uid].projetos++;
+      projMap[uid].roteiros+=(p.rodadas||[]).reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
     });
-    var users=Object.values(userMap);
 
     // Atualizar stats
-    document.getElementById("stat-users").textContent=users.length;
+    document.getElementById("stat-users").textContent=allUsers.length;
     document.getElementById("stat-projects").textContent=projetos.length;
     document.getElementById("stat-roteiros").textContent=totalRoteiros;
+    document.getElementById("stat-ativos").textContent=ativos7dias;
     document.getElementById("stat-hoje").textContent=projetosHoje.length;
     document.getElementById("last-update").textContent="Última atualização: "+new Date().toLocaleString("pt-BR");
 
     // Tabela de usuários
-    document.getElementById("users-count").textContent=users.length+" usuário(s)";
-    if(users.length===0){
+    document.getElementById("users-count").textContent=allUsers.length+" usuário(s)";
+    if(allUsers.length===0){
       document.getElementById("users-table").innerHTML='<div class="empty">Nenhum usuário encontrado</div>';
     }else{
-      var html='<table><thead><tr><th>Email / ID</th><th>Projetos</th><th>Roteiros</th><th>Último acesso</th><th>Status</th></tr></thead><tbody>';
-      users.sort(function(a,b){return b.ultimo>a.ultimo?1:-1;}).forEach(function(u){
-        var dt=u.ultimo?new Date(u.ultimo).toLocaleString("pt-BR"):"-";
-        var badge=u.projetos>5?'<span class="badge ok">Ativo</span>':u.projetos>0?'<span class="badge ac">Em uso</span>':'<span class="badge mu">Novo</span>';
-        var emailHtml=u.email
-          ?'<div class="email-cell">'+u.email+'</div>'
-          :'<div style="font-size:11px;color:var(--mu2);font-family:monospace">'+u.uid.substring(0,20)+'...</div>';
-        html+='<tr><td>'+emailHtml+'</td><td>'+u.projetos+'</td><td>'+u.roteiros+'</td><td class="date-cell">'+dt+'</td><td>'+badge+'</td></tr>';
+      var html='<table><thead><tr><th>Email</th><th>Cadastro</th><th>Último acesso</th><th>Projetos</th><th>Roteiros</th><th>Status</th></tr></thead><tbody>';
+      allUsers.forEach(function(u){
+        var p=projMap[u.id]||{projetos:0,roteiros:0};
+        var dias=diasAtras(u.last_sign_in_at);
+        var badge=dias<1?'<span class="badge ok">Hoje</span>':dias<7?'<span class="badge ac">Esta semana</span>':dias<30?'<span class="badge mu">Este mês</span>':'<span class="badge nu">Inativo</span>';
+        html+='<tr>';
+        html+='<td style="font-weight:500">'+u.email+'</td>';
+        html+='<td style="font-size:12px;color:var(--mu2)">'+fmt(u.created_at)+'</td>';
+        html+='<td style="font-size:12px;color:var(--mu2)">'+fmt(u.last_sign_in_at)+'</td>';
+        html+='<td>'+p.projetos+'</td>';
+        html+='<td>'+p.roteiros+'</td>';
+        html+='<td>'+badge+'</td>';
+        html+='</tr>';
       });
       html+='</tbody></table>';
       document.getElementById("users-table").innerHTML=html;
@@ -207,20 +207,29 @@ async function loadData(){
     if(projetos.length===0){
       document.getElementById("projects-table").innerHTML='<div class="empty">Nenhum projeto encontrado</div>';
     }else{
+      // Mapa email por user_id
+      var emailMap={};
+      allUsers.forEach(function(u){emailMap[u.id]=u.email;});
+
       var html2='<table><thead><tr><th>Projeto</th><th>Usuário</th><th>Destino</th><th>Rodadas</th><th>Roteiros</th><th>Data</th></tr></thead><tbody>';
       projetos.slice(0,50).forEach(function(p){
         var rods=p.rodadas||[];
         var total=rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
-        var dt=p.criado_em?new Date(p.criado_em).toLocaleString("pt-BR"):"-";
-        var emailUser=emailMap[p.user_id]||p.user_email||(p.user_id?p.user_id.substring(0,12)+'...':'-');
-        html2+='<tr><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.nome+'</td><td style="font-size:12px;color:var(--mu2)">'+emailUser+'</td><td><span class="badge mu">'+(p.objetivo||'-')+'</span></td><td>'+rods.length+'</td><td>'+total+'</td><td class="date-cell">'+dt+'</td></tr>';
+        html2+='<tr>';
+        html2+='<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.nome+'</td>';
+        html2+='<td style="font-size:12px;color:var(--mu2)">'+(emailMap[p.user_id]||'-')+'</td>';
+        html2+='<td><span class="badge mu">'+(p.objetivo||'-')+'</span></td>';
+        html2+='<td>'+rods.length+'</td>';
+        html2+='<td>'+total+'</td>';
+        html2+='<td style="font-size:12px;color:var(--mu2)">'+fmt(p.criado_em)+'</td>';
+        html2+='</tr>';
       });
       html2+='</tbody></table>';
       document.getElementById("projects-table").innerHTML=html2;
     }
 
   }catch(e){
-    document.getElementById("last-update").textContent="Erro ao carregar: "+e.message;
+    document.getElementById("last-update").textContent="Erro: "+e.message;
     console.error(e);
   }
 }
