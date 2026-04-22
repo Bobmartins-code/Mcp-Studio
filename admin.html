@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MCP Studio — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0A0A0F;--sur:#111118;--sur2:#18181F;--bo:rgba(255,255,255,.07);--boh:rgba(255,255,255,.14);--ac:#FF4D00;--ac2:#FF8A50;--gold:#F5C842;--ok:#2DDE98;--tx:#F0EEE8;--mu:#6B6B7A;--mu2:#9B9BAA}
+html,body{min-height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif}
+.topbar{height:58px;border-bottom:1px solid var(--bo);display:flex;align-items:center;padding:0 32px;gap:14px;background:var(--sur)}
+.tb-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:18px}
+.tb-logo span{color:var(--ac)}
+.tb-badge{background:rgba(255,77,0,.15);border:1px solid rgba(255,77,0,.3);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--ac2)}
+.tb-right{margin-left:auto;display:flex;gap:10px;align-items:center}
+.btn-sm{padding:7px 14px;border-radius:8px;border:1px solid var(--bo);background:var(--sur2);color:var(--mu2);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}
+.btn-sm:hover{border-color:var(--boh);color:var(--tx)}
+.content{padding:32px;max-width:1100px;margin:0 auto}
+.page-title{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;margin-bottom:4px}
+.page-sub{color:var(--mu2);font-size:13.5px;margin-bottom:28px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px}
+.stat{background:var(--sur);border:1px solid var(--bo);border-radius:14px;padding:20px}
+.stat-val{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;margin-bottom:4px}
+.stat-lbl{font-size:12px;color:var(--mu2)}
+.stat.ac .stat-val{color:var(--ac2)}
+.stat.ok .stat-val{color:var(--ok)}
+.stat.gold .stat-val{color:var(--gold)}
+.section{background:var(--sur);border:1px solid var(--bo);border-radius:14px;overflow:hidden;margin-bottom:20px}
+.sec-head{padding:16px 20px;border-bottom:1px solid var(--bo);display:flex;align-items:center;justify-content:space-between}
+.sec-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px}
+.sec-count{font-size:12px;color:var(--mu2)}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 20px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--mu);border-bottom:1px solid var(--bo)}
+td{padding:12px 20px;font-size:13px;border-bottom:1px solid var(--bo)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--sur2)}
+.badge{display:inline-flex;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
+.badge.ok{background:rgba(45,222,152,.1);border:1px solid rgba(45,222,152,.2);color:var(--ok)}
+.badge.ac{background:rgba(255,77,0,.1);border:1px solid rgba(255,77,0,.2);color:var(--ac2)}
+.badge.mu{background:var(--sur2);border:1px solid var(--bo);color:var(--mu2)}
+.loading{text-align:center;padding:40px;color:var(--mu2);font-size:13px}
+.spin{width:24px;height:24px;border:2px solid var(--bo);border-top-color:var(--ac);border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 10px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:40px;color:var(--mu2);font-size:13px}
+.pin-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100}
+.pin-card{background:var(--sur);border:1px solid var(--bo);border-radius:20px;padding:40px;text-align:center;width:320px}
+.pin-title{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;margin-bottom:6px}
+.pin-sub{color:var(--mu2);font-size:13px;margin-bottom:24px}
+.pin-input{width:100%;background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:18px;padding:12px;text-align:center;letter-spacing:6px;outline:none;font-family:'DM Sans',sans-serif}
+.pin-input:focus{border-color:rgba(255,77,0,.5)}
+.pin-btn{width:100%;margin-top:14px;padding:13px;border-radius:8px;border:none;background:var(--ac);color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer}
+.pin-btn:hover{background:#FF6520}
+.pin-err{color:var(--ac2);font-size:12px;margin-top:8px}
+.refresh-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--bo);background:transparent;color:var(--mu2);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.refresh-btn:hover{color:var(--tx);border-color:var(--boh)}
+</style>
+</head>
+<body>
+
+<div id="pin-screen" class="pin-screen">
+  <div class="pin-card">
+    <div class="pin-title">MCP<span style="color:var(--ac)">Studio</span></div>
+    <div class="pin-sub">Painel Administrativo<br>Digite o PIN de acesso</div>
+    <input id="pin-input" class="pin-input" type="password" maxlength="6" placeholder="••••••" onkeydown="if(event.key==='Enter')checkPin()"/>
+    <button class="pin-btn" onclick="checkPin()">Entrar</button>
+    <div id="pin-err" class="pin-err" style="display:none">PIN incorreto. Tente novamente.</div>
+  </div>
+</div>
+
+<div id="admin-panel" style="display:none">
+  <div class="topbar">
+    <div class="tb-logo">MCP<span>Studio</span></div>
+    <div class="tb-badge">Admin</div>
+    <div class="tb-right">
+      <button class="refresh-btn" onclick="loadData()">↻ Atualizar</button>
+      <button class="btn-sm" onclick="logout()">Sair</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="page-title">Painel Administrativo</div>
+    <div class="page-sub" id="last-update">Carregando dados...</div>
+
+    <div class="stats-grid">
+      <div class="stat ac">
+        <div class="stat-val" id="stat-users">—</div>
+        <div class="stat-lbl">Usuários cadastrados</div>
+      </div>
+      <div class="stat ok">
+        <div class="stat-val" id="stat-projects">—</div>
+        <div class="stat-lbl">Projetos gerados</div>
+      </div>
+      <div class="stat gold">
+        <div class="stat-val" id="stat-roteiros">—</div>
+        <div class="stat-lbl">Roteiros gerados</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="stat-hoje">—</div>
+        <div class="stat-lbl">Projetos hoje</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-head">
+        <div class="sec-title">Usuários</div>
+        <div class="sec-count" id="users-count"></div>
+      </div>
+      <div id="users-table">
+        <div class="loading"><div class="spin"></div>Carregando usuários...</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-head">
+        <div class="sec-title">Projetos recentes</div>
+        <div class="sec-count" id="projects-count"></div>
+      </div>
+      <div id="projects-table">
+        <div class="loading"><div class="spin"></div>Carregando projetos...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var SUPA_URL="https://yutqrrcdlkocrpznryqi.supabase.co";
+var SUPA_KEY="sb_publishable_U3wOTwbeEvXtHOqP_I29VQ_ARH5CAkH";
+var supaClient=window.supabase.createClient(SUPA_URL,SUPA_KEY);
+var ADMIN_PIN="1234";
+
+function checkPin(){
+  var v=document.getElementById("pin-input").value;
+  if(v===ADMIN_PIN){
+    document.getElementById("pin-screen").style.display="none";
+    document.getElementById("admin-panel").style.display="block";
+    loadData();
+  }else{
+    document.getElementById("pin-err").style.display="block";
+    document.getElementById("pin-input").value="";
+    document.getElementById("pin-input").focus();
+  }
+}
+
+function logout(){
+  document.getElementById("pin-screen").style.display="flex";
+  document.getElementById("admin-panel").style.display="none";
+  document.getElementById("pin-input").value="";
+}
+
+async function loadData(){
+  document.getElementById("last-update").textContent="Atualizando...";
+  try{
+    // Carregar projetos
+    var rp=await supaClient.from("projetos").select("*").order("criado_em",{ascending:false});
+    var projetos=rp.data||[];
+
+    // Estatísticas
+    var hoje=new Date().toISOString().split("T")[0];
+    var projetosHoje=projetos.filter(function(p){return p.criado_em&&p.criado_em.startsWith(hoje);});
+    var totalRoteiros=projetos.reduce(function(acc,p){
+      var rods=p.rodadas||[];
+      return acc+rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
+    },0);
+
+    // Agrupar por usuario
+    var userMap={};
+    projetos.forEach(function(p){
+      var uid=p.user_id||"desconhecido";
+      if(!userMap[uid]){userMap[uid]={uid:uid,projetos:0,roteiros:0,ultimo:p.criado_em};}
+      userMap[uid].projetos++;
+      var rods=p.rodadas||[];
+      userMap[uid].roteiros+=rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
+      if(p.criado_em>userMap[uid].ultimo)userMap[uid].ultimo=p.criado_em;
+    });
+    var users=Object.values(userMap);
+
+    // Atualizar stats
+    document.getElementById("stat-users").textContent=users.length;
+    document.getElementById("stat-projects").textContent=projetos.length;
+    document.getElementById("stat-roteiros").textContent=totalRoteiros;
+    document.getElementById("stat-hoje").textContent=projetosHoje.length;
+    document.getElementById("last-update").textContent="Última atualização: "+new Date().toLocaleString("pt-BR");
+
+    // Tabela de usuários
+    document.getElementById("users-count").textContent=users.length+" usuário(s)";
+    if(users.length===0){
+      document.getElementById("users-table").innerHTML='<div class="empty">Nenhum usuário encontrado</div>';
+    }else{
+      var html='<table><thead><tr><th>User ID</th><th>Projetos</th><th>Roteiros gerados</th><th>Último acesso</th></tr></thead><tbody>';
+      users.sort(function(a,b){return b.ultimo>a.ultimo?1:-1;}).forEach(function(u){
+        var dt=u.ultimo?new Date(u.ultimo).toLocaleString("pt-BR"):"-";
+        var badge=u.projetos>5?'<span class="badge ok">Ativo</span>':u.projetos>0?'<span class="badge ac">Em uso</span>':'<span class="badge mu">Novo</span>';
+        html+='<tr><td style="font-size:11px;color:var(--mu2);font-family:monospace">'+u.uid.substring(0,18)+'...</td><td>'+u.projetos+'</td><td>'+u.roteiros+'</td><td>'+dt+' '+badge+'</td></tr>';
+      });
+      html+='</tbody></table>';
+      document.getElementById("users-table").innerHTML=html;
+    }
+
+    // Tabela de projetos recentes
+    document.getElementById("projects-count").textContent=projetos.length+" projeto(s)";
+    if(projetos.length===0){
+      document.getElementById("projects-table").innerHTML='<div class="empty">Nenhum projeto encontrado</div>';
+    }else{
+      var html2='<table><thead><tr><th>Projeto</th><th>Destino</th><th>Rodadas</th><th>Roteiros</th><th>Data</th></tr></thead><tbody>';
+      projetos.slice(0,30).forEach(function(p){
+        var rods=p.rodadas||[];
+        var total=rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
+        var dt=p.criado_em?new Date(p.criado_em).toLocaleString("pt-BR"):"-";
+        var obj=p.objetivo||"-";
+        html2+='<tr><td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.nome+'</td><td><span class="badge mu">'+obj+'</span></td><td>'+rods.length+'</td><td>'+total+'</td><td style="color:var(--mu2);font-size:12px">'+dt+'</td></tr>';
+      });
+      html2+='</tbody></table>';
+      document.getElementById("projects-table").innerHTML=html2;
+    }
+
+  }catch(e){
+    document.getElementById("last-update").textContent="Erro ao carregar: "+e.message;
+    console.error(e);
+  }
+}
+</script>
+</body>
+</html>
