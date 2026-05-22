@@ -7,6 +7,8 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: "Messages obrigatorio" });
     }
     try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 55000);
         const r = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
             headers: {
@@ -19,11 +21,16 @@ module.exports = async function handler(req, res) {
                 max_tokens: 6000,
                 system: "Voce gera JSON puro sem markdown. REGRA CRITICA: NUNCA use aspas duplas dentro dos valores de texto. Use apenas aspas simples quando precisar de citacao dentro de um texto. Exemplo ERRADO: \"gancho\":\"Sua cliente disse \\\"nunca funcionou\\\"\". Exemplo CORRETO: \"gancho\":\"Sua cliente disse 'nunca funcionou'\". Todo o JSON deve ser valido e parseable.",
                 messages: messages
-            })
+            }),
+            signal: controller.signal
         });
+        clearTimeout(timeout);
         const d = await r.json();
         return res.status(r.ok ? 200 : r.status).json(d);
     } catch(e) {
+        if (e.name === "AbortError") {
+            return res.status(504).json({ error: "A IA demorou demais para responder. Tente novamente." });
+        }
         return res.status(500).json({ error: e.message });
     }
 };
