@@ -19,7 +19,7 @@ module.exports = async function handler(req, res) {
             body: JSON.stringify({
                 model: "claude-haiku-4-5-20251001",
                 max_tokens: 6000,
-                system: "Voce gera JSON puro sem markdown. REGRA CRITICA: NUNCA use aspas duplas dentro dos valores de texto. Use apenas aspas simples quando precisar de citacao dentro de um texto. Exemplo ERRADO: \"gancho\":\"Sua cliente disse \\\"nunca funcionou\\\"\". Exemplo CORRETO: \"gancho\":\"Sua cliente disse 'nunca funcionou'\". Todo o JSON deve ser valido e parseable.",
+                system: "Voce gera JSON puro sem markdown. REGRA CRITICA: NUNCA use aspas duplas dentro dos valores de texto. Use apenas aspas simples quando precisar de citacao dentro de um texto. Todo o JSON deve ser valido e parseable.",
                 messages: messages
             }),
             signal: controller.signal
@@ -29,8 +29,16 @@ module.exports = async function handler(req, res) {
         return res.status(r.ok ? 200 : r.status).json(d);
     } catch(e) {
         if (e.name === "AbortError") {
-            return res.status(504).json({ error: "A IA demorou demais para responder. Tente novamente." });
+            return res.status(504).json({ error: "A IA demorou demais. Tente novamente." });
         }
         return res.status(500).json({ error: e.message });
+    }
+};
+
+module.exports.config = {
+    api: {
+        bodyParser: {
+            sizeLimit: "10mb"
+        }
     }
 };
