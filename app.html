@@ -148,7 +148,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .loading-spin{width:36px;height:36px;border:3px solid var(--bo);border-top-color:var(--ac);border-radius:50%;animation:sp .8s linear infinite}
 @media(max-width:768px){.sb{position:fixed;left:0;top:0;height:100%;transform:translateX(-100%)}.sb.op{transform:translateX(0)}.sb-ov.op{display:block}.mob-bar{display:flex}.content{padding:16px}.fi-row{grid-template-columns:1fr}.obj-g{grid-template-columns:1fr}.ton-g{grid-template-columns:1fr 1fr}.var-g{grid-template-columns:1fr}.pg-grid{grid-template-columns:1fr}.ins-g{grid-template-columns:1fr}.rh{flex-direction:column}.ov-card{padding:28px 24px}}
 @media(max-width:480px){.grid{grid-template-columns:1fr}.itabs{flex-direction:column}.ton-g{grid-template-columns:1fr}}
-</style>
+.edit-drawer{position:fixed;top:0;right:0;width:400px;max-width:95vw;height:100vh;background:var(--sur);border-left:1px solid var(--bo);z-index:200;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.4);}.edit-dh{padding:20px 24px 16px;border-bottom:1px solid var(--bo);display:flex;align-items:center;justify-content:space-between;}.edit-dt{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;}.edit-dc{background:none;border:none;color:var(--mu2);font-size:22px;cursor:pointer;line-height:1;}.edit-db{flex:1;overflow-y:auto;padding:20px 24px;}.edit-fl{margin-bottom:14px;}.edit-fl label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--mu);margin-bottom:6px;}.edit-fv{background:var(--sur2);border:1px solid var(--bo);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--tx);line-height:1.5;}.edit-box{background:rgba(155,142,255,.06);border:1px solid rgba(155,142,255,.15);border-radius:12px;padding:16px;margin-top:12px;}.edit-ta{width:100%;background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:13px;padding:10px 12px;font-family:inherit;outline:none;resize:vertical;min-height:80px;}.edit-ta:focus{border-color:rgba(155,142,255,.5);}.edit-sb{padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#9B8EFF,#7B6EDF);color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;width:100%;margin-top:10px;}.edit-sb:disabled{opacity:.5;cursor:not-allowed;}.edit-badge{font-size:10px;background:rgba(155,142,255,.2);color:#9B8EFF;border:1px solid rgba(155,142,255,.3);border-radius:20px;padding:2px 7px;margin-left:8px;}</style>
 </head>
 <body>
 <div id="loading-screen" class="loading-screen">
@@ -191,9 +191,9 @@ var STEPS=["Analisando produto...","Identificando Personas...","Construindo inte
 
 function buildP(form,rod,hist){
   var h=hist.length>0?" USADOS:"+hist.slice(-1).map(function(r){return r.roteiros?r.roteiros.slice(0,2).map(function(s){return s.gancho.substring(0,30);}).join("|"):"";}).join(""):"";
-  var tons=(form.tons&&form.tons.length>0)?form.tons.join(","):"variado";
-  var extra=rod>1?" RODADA "+rod+h+" gere roteiros TOTALMENTE DIFERENTES.":"";
-  var tomVoz=(form.tomVoz&&form.tomVoz.length>0)?form.tomVoz.join(","):"variado";var proibidas=form.proibidas?"NUNCA USE:"+form.proibidas+".":"";var caract=form.caracteristicas?"CARACTERISTICAS ESPECIFICAS DO PRODUTO:"+form.caracteristicas+".":"";var exemplo=form.exemploConteudo?"EXEMPLO DE CONTEUDO QUE JA FUNCIONOU (copie o estilo,vocabulario e voz,nao o conteudo):"+form.exemploConteudo+".":"";return "Voce e um estrategista senior de Meta Ads/Reels de alta conversao. Escreva como um copywriter humano brasileiro — linguagem natural, coloquial, especifica. PROIBIDO frases genericas de IA como: incrivel, revolucionario, transforme sua vida, nao perca, descubra, potencialize, imagina, voce sabia. "+proibidas+" "+extra+" PRODUTO:"+form.produto+" DESTINO:"+form.objetivo+" NEGOCIO/PUBLICO:"+(form.descricao||"inferir")+" DIFERENCIAIS:"+(form.diferenciais||"inferir")+" "+caract+" TICKET:"+(form.preco||"inferir")+" TOM DE VOZ:"+tomVoz+". "+exemplo+" REGRAS:gancho=dor especifica nos 3s(nunca Voce sabia/Ola);corpo=desenvolva dor do gancho;CTA=conecte ao gancho com mesma dor;titulo=descreva estilo(ex:Gancho dor+solucao). Extraia do negocio:dores,desejos,objecoes,linguagem real. JSON sem markdown:{\"personas\":[{\"emoji\":\"e\",\"nome\":\"n\",\"tipo\":\"t\",\"motivacao\":\"m\",\"dor\":\"d\",\"objecao\":\"o\",\"comunicacao\":\"c\"}],\"inteligencia\":{\"dores\":[\"d\"],\"desejos\":[\"d\"],\"objecoes\":[\"o\"],\"gatilhos\":[\"g\"],\"insight\":\"i\",\"bigIdea\":\"b\",\"mecanismo\":\"m\",\"diferencial\":\"d\"},\"roteiros\":[{\"id\":1,\"titulo\":\"Gancho dor+solucao\",\"pilar\":\"Angulos\",\"funil\":\"topo\",\"tom\":\"conversacional\",\"gancho\":\"g\",\"corpo\":\"c\",\"cta\":\"cta\"}]} 2 personas+6 roteiros por RODADA. Rodada 1: roteiros 1-3 pilar Angulos funil topo + roteiros 4-6 pilar Conceitos funil meio. Rodada 2: roteiros 7-9 pilar FullFunnel funil topo + roteiros 10-12 pilar FullFunnel funil meio. Rodada 3: roteiros 13-15 pilar FullFunnel funil fundo + roteiros 16-18 pilar UGC funil ugc. REGRAS: gancho=dor hiper-especifica nos 3s(NUNCA Voce sabia/Ola/Imagine); corpo=historia real ou dado concreto minimo 3 frases; CTA=conectar dor do gancho + acao especifica(clica no link da bio/me segue/salva esse video). 25-35 palavras por secao.";
+  var tons=(form.tomVoz&&form.tomVoz.length>0)?form.tomVoz.join(","):(form.tons&&form.tons.length>0)?form.tons.join(","):"variado";var proibidas=form.proibidas?"NUNCA USE:"+form.proibidas+". ":"";var caract=form.caracteristicas?"CARACTERISTICAS:"+form.caracteristicas+". ":"";var exemplo=form.exemploConteudo?"EXEMPLO DE ESTILO DO CLIENTE (reproduza o tom e vocabulario):"+form.exemploConteudo+". ":"";
+  var ganchos=hist.reduce(function(a,r){return a.concat((r.roteiros||[]).map(function(s){return s.gancho.substring(0,50);}));},[]);var gStr=ganchos.length>0?" GANCHOS JA USADOS-NUNCA repita:"+ganchos.join("|")+" ":"";var liked=hist.reduce(function(a,r){return a.concat((r.roteiros||[]).filter(function(s){return s.liked;}));},[]);var lStr=liked.length>0?" ESTILO PREFERIDO:"+liked.slice(0,3).map(function(s){return "["+s.gancho.substring(0,40)+"]";}).join("|")+" ":"";var extra=rod>1?" RODADA "+rod+gStr+lStr+"gere roteiros TOTALMENTE DIFERENTES.":"";
+  return "Voce e um estrategista senior de Meta Ads/Reels de alta conversao. Escreva como copywriter humano brasileiro. PROIBIDO: incrivel, revolucionario, transforme sua vida, nao perca, descubra. "+proibidas+caract+exemplo+extra+" PRODUTO:"+form.produto+" DESTINO:"+form.objetivo+" NEGOCIO/PUBLICO:"+(form.descricao||"inferir")+" DIFERENCIAIS:"+(form.diferenciais||"inferir")+" TICKET:"+(form.preco||"inferir")+" TOM:"+tons+" REGRAS:gancho=dor especifica nos 3s(nunca Voce sabia/Ola);corpo=desenvolva dor do gancho;CTA=conecte ao gancho com mesma dor;titulo=descreva estilo(ex:Gancho dor+solucao). Extraia do negocio:dores,desejos,objecoes,linguagem real. JSON sem markdown:{\"personas\":[{\"emoji\":\"e\",\"nome\":\"n\",\"tipo\":\"t\",\"motivacao\":\"m\",\"dor\":\"d\",\"objecao\":\"o\",\"comunicacao\":\"c\"}],\"inteligencia\":{\"dores\":[\"d\"],\"desejos\":[\"d\"],\"objecoes\":[\"o\"],\"gatilhos\":[\"g\"],\"insight\":\"i\",\"bigIdea\":\"b\",\"mecanismo\":\"m\",\"diferencial\":\"d\"},\"roteiros\":[{\"id\":1,\"titulo\":\"Gancho dor+solucao\",\"pilar\":\"Angulos\",\"funil\":\"topo\",\"tom\":\"conversacional\",\"gancho\":\"g\",\"corpo\":\"c\",\"cta\":\"cta\"}]} 2 personas+6 roteiros por RODADA. Rodada 1: roteiros 1-3 pilar Angulos funil topo + roteiros 4-6 pilar Conceitos funil meio. Rodada 2: roteiros 7-9 pilar FullFunnel funil topo + roteiros 10-12 pilar FullFunnel funil meio. Rodada 3: roteiros 13-15 pilar FullFunnel funil fundo + roteiros 16-18 pilar UGC funil ugc. REGRAS: gancho=dor hiper-especifica nos 3s(NUNCA Voce sabia/Ola/Imagine); corpo=historia real ou dado concreto minimo 3 frases; CTA=conectar dor do gancho + acao especifica(clica no link da bio/me segue/salva esse video). 25-35 palavras por secao.";
 }
 function buildVP(form,tipo,ex){
   var m={ganchos:"5 ganchos poderosos",roteiros:"5 roteiros gancho+corpo+CTA",ctas:"5 CTAs diretos"};
@@ -210,6 +210,10 @@ function App(){
   var s7=useState({}),openScripts=s7[0],setOpenScripts=s7[1];
   var s8=useState("roteiros"),activeTab=s8[0],setActiveTab=s8[1];
   var s9=useState(null),copiedId=s9[0],setCopiedId=s9[1];
+  var sL=useState({}),likes=sL[0],setLikes=sL[1];
+  var sE=useState(null),editingScript=sE[0],setEditingScript=sE[1];
+  var sEI=useState(""),editInstr=sEI[0],setEditInstr=sEI[1];
+  var sEG=useState(false),editGenerating=sEG[0],setEditGenerating=sEG[1];
   var s10=useState(null),toast=s10[0],setToast=s10[1];
   var s11=useState(null),varLoading=s11[0],setVarLoading=s11[1];
   var s12=useState({}),varResults=s12[0],setVarResults=s12[1];
@@ -337,6 +341,8 @@ function App(){
     }
   }
 
+  function toggleLike(sid){if(!activeProject)return;var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(s){return s.id===sid?Object.assign({},s,{liked:!s.liked}):s;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);}
+  async function handleEditScript(s,instrucao){setEditGenerating(true);try{var msg=[{role:"user",content:"Copywriter expert. Roteiro: GANCHO:"+s.gancho+" CORPO:"+s.corpo+" CTA:"+s.cta+" TITULO:"+s.titulo+" Instrucao:"+instrucao+" Reescreva aplicando a instrucao. Responda APENAS com JSON sem markdown: {gancho:...,corpo:...,cta:...,titulo:...}"}];var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:msg,max_tokens:1000})});var data=await res.json();var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();var parsed=JSON.parse(raw);var novo=Object.assign({},s,{gancho:parsed.gancho||s.gancho,corpo:parsed.corpo||s.corpo,cta:parsed.cta||s.cta,titulo:parsed.titulo||s.titulo,editado:true});var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(sc){return sc.id===s.id?novo:sc;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);setEditingScript(novo);setEditInstr("");showToast("Roteiro atualizado!");}catch(e){showToast("Erro: "+e.message,"err");}setEditGenerating(false);}
   async function genVar(tipo){
     if(!activeProject)return;
     setVarLoading(tipo);
@@ -380,7 +386,7 @@ function App(){
             ce("div",{style:{fontSize:"10px",color:"var(--gold)"}},"Pro")
           )
         ),
-        ce("button",{className:"sb-logout",onClick:doLogout},"Sair da conta")
+        (userEmail==="rrubensmartins@gmail.com"?ce("a",{href:"/admin.html",target:"_blank",style:{display:"block",margin:"8px 12px 4px",padding:"8px 12px",borderRadius:"8px",background:"rgba(255,77,0,.1)",border:"1px solid rgba(255,77,0,.3)",color:"#FF8A50",fontSize:"12px",fontWeight:"600",textDecoration:"none",textAlign:"center"}},"Painel Admin"):null),ce("button",{className:"sb-logout",onClick:doLogout},"Sair da conta")
       )
     ),
     ce("main",{className:"main"},
@@ -427,35 +433,7 @@ function App(){
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"02 - Publico alvo e sobre seu negocio"),
             ce("div",{className:"fi"},ce("label",null,"Descreva quem atende, o que oferece e o que transforma na vida do cliente"),ce("textarea",{style:{minHeight:110},placeholder:"Ex: Somos uma loja feminina em SP, atendemos mulheres 25-40 anos.",value:form.descricao,onChange:function(e){setForm(function(f){return Object.assign({},f,{descricao:e.target.value});})}})),
-            ce("div",{className:"fi"},ce("label",null,"Diferenciais (opcional)"),ce("input",{placeholder:"Ex: Entrega rapida, atendimento personalizado, exclusividade...",value:form.diferenciais,onChange:function(e){setForm(function(f){return Object.assign({},f,{diferenciais:e.target.value});})}}))
-          ),
-          ce("div",{className:"sec"},
-            ce("div",{className:"sec-t"},"04 - Tom de voz e estilo"),
-            ce("div",{className:"fi"},
-              ce("label",null,"Como voce quer soar? (escolha um ou mais)"),
-              ce("div",{className:"tons-grid",style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8,marginTop:8}},
-                ["Direto e objetivo","Descontraido e divertido","Provocador e ousado","Acolhedor e empatico","Urgente e persuasivo","Confessional e intimo","Educativo e autoridade","Inspirador e motivacional"].map(function(t){
-                  var sel=(form.tomVoz||[]).includes(t);
-                  return ce("button",{key:t,type:"button",onClick:function(){setForm(function(f){var arr=f.tomVoz||[];return Object.assign({},f,{tomVoz:sel?arr.filter(function(x){return x!==t;}):arr.concat([t])});});},style:{padding:"7px 10px",borderRadius:8,border:"1px solid "+(sel?"var(--ac)":"var(--bo)"),background:sel?"rgba(255,77,0,.15)":"var(--sur2)",color:sel?"var(--ac2)":"var(--mu2)",fontSize:12,cursor:"pointer",textAlign:"left",fontFamily:"inherit",transition:"all .15s"}},t);
-                })
-              )
-            ),
-            ce("div",{className:"fi"},
-              ce("label",null,"Caracteristicas do produto (opcional)"),
-              ce("textarea",{style:{minHeight:80},placeholder:"Ex: feito a mao, sem gluten, dura 3x mais, aprovado por dermatologistas, garantia de 30 dias...",value:form.caracteristicas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{caracteristicas:e.target.value});})}}
-              )
-            ),
-            ce("div",{className:"fi"},
-              ce("label",null,"Exemplo de conteudo que ja funcionou (opcional)"),
-              ce("textarea",{style:{minHeight:80},placeholder:"Cole aqui um post, roteiro ou legenda que teve bom resultado. A IA vai aprender o estilo e a voz da sua marca.",value:form.exemploConteudo||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{exemploConteudo:e.target.value});})}}
-              )
-            ),
-            ce("div",{className:"fi"},
-              ce("label",null,"Palavras ou frases que NAO quer usar (opcional)"),
-              ce("input",{placeholder:"Ex: incrivel, revolucionario, nao perca essa chance...",value:form.proibidas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{proibidas:e.target.value});})}}
-              )
-            )
-          
+            ce("div",{className:"fi"},ce("label",null,"Diferenciais (opcional)"),ce("input",{placeholder:"Ex: Entrega rapida, atendimento personalizado, exclusividade...",value:form.diferenciais,onChange:function(e){setForm(function(f){return Object.assign({},f,{diferenciais:e.target.value;});});}})),ce("div",{className:"fi"},ce("label",null,"Tom de voz (escolha um ou mais)"),ce("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8,marginTop:6}},["Direto e objetivo","Descontraido e divertido","Provocador e ousado","Acolhedor e empatico","Urgente e persuasivo","Confessional e intimo","Educativo e autoridade","Inspirador"].map(function(t){var sel=(form.tomVoz||[]).includes(t);return ce("button",{key:t,type:"button",onClick:function(){setForm(function(f){var a=f.tomVoz||[];return Object.assign({},f,{tomVoz:sel?a.filter(function(x){return x!==t;}):a.concat([t]);});});},style:{padding:"7px 10px",borderRadius:8,border:"1px solid "+(sel?"var(--ac)":"var(--bo)"),background:sel?"rgba(255,77,0,.15)":"var(--sur2)",color:sel?"var(--ac2)":"var(--mu2)",fontSize:12,cursor:"pointer",textAlign:"left",fontFamily:"inherit",transition:"all .15s"}},t);}))),ce("div",{className:"fi"},ce("label",null,"Caracteristicas do produto (opcional)"),ce("textarea",{style:{minHeight:70},placeholder:"Ex: feito a mao, sem gluten, aprovado por dermatologistas, garantia 30 dias...",value:form.caracteristicas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{caracteristicas:e.target.value;});});}})),ce("div",{className:"fi"},ce("label",null,"Exemplo de conteudo que ja funcionou (opcional)"),ce("textarea",{style:{minHeight:70},placeholder:"Cole um post ou legenda que teve bom resultado. A IA vai aprender seu estilo.",value:form.exemploConteudo||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{exemploConteudo:e.target.value;});});}})),ce("div",{className:"fi"},ce("label",null,"Palavras ou frases que NAO quer usar (opcional)"),ce("input",{placeholder:"Ex: incrivel, revolucionario, nao perca essa chance...",value:form.proibidas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{proibidas:e.target.value;});});}}))
           ),
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"03 - Ticket medio"),
@@ -500,7 +478,7 @@ function App(){
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl"},"Gancho"),ce("div",{className:"sc-bl-txt"},s.gancho)),
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl b"},"Corpo"),ce("div",{className:"sc-bl-txt"},s.corpo)),
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl c"},"CTA"),ce("div",{className:"sc-bl-txt"},s.cta)),
-                ce("div",{className:"sc-ft"},ce("button",{className:"cbtn"+(copiedId===s.id?" cp":""),onClick:function(){copySc(s);}},copiedId===s.id?"Copiado!":"Copiar roteiro"))
+                ce("div",{className:"sc-ft",style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},ce("button",{className:"cbtn"+(copiedId===s.id?" cp":""),onClick:function(){copySc(s);}},copiedId===s.id?"Copiado!":"Copiar roteiro"),ce("button",{onClick:function(e){e.stopPropagation();toggleLike(s.id);},title:s.liked?"Remover like":"Amei este roteiro",style:{background:"none",border:"1px solid "+(s.liked?"rgba(255,50,80,.4)":"var(--bo)"),borderRadius:8,cursor:"pointer",fontSize:16,padding:"3px 8px",transition:"transform .15s",transform:s.liked?"scale(1.2)":"scale(1)"}},s.liked?"❤️":"🤍"),ce("button",{onClick:function(e){e.stopPropagation();setEditingScript(s);setEditInstr("");},style:{background:"rgba(155,142,255,.1)",border:"1px solid rgba(155,142,255,.3)",color:"#9B8EFF",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Ajustar"))
               )
             );}))
           )
