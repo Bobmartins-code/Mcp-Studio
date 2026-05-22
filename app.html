@@ -343,6 +343,49 @@ function App(){
 
   function toggleLike(sid){if(!activeProject)return;var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(s){return s.id===sid?Object.assign({},s,{liked:!s.liked}):s;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);}
   async function handleEditScript(s,instrucao){setEditGenerating(true);try{var msg=[{role:"user",content:"Copywriter expert. Roteiro: GANCHO:"+s.gancho+" CORPO:"+s.corpo+" CTA:"+s.cta+" TITULO:"+s.titulo+" Instrucao:"+instrucao+" Reescreva aplicando a instrucao. Responda APENAS com JSON sem markdown: {gancho:...,corpo:...,cta:...,titulo:...}"}];var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:msg,max_tokens:1000})});var data=await res.json();var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();var parsed=JSON.parse(raw);var novo=Object.assign({},s,{gancho:parsed.gancho||s.gancho,corpo:parsed.corpo||s.corpo,cta:parsed.cta||s.cta,titulo:parsed.titulo||s.titulo,editado:true});var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(sc){return sc.id===s.id?novo:sc;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);setEditingScript(novo);setEditInstr("");showToast("Roteiro atualizado!");}catch(e){showToast("Erro: "+e.message,"err");}setEditGenerating(false);}
+  async function handleNextRound(){
+    if(!activeProject)return;
+    setGenerating(true);
+    try{
+      var ff=activeProject.form;
+      var hist=activeProject.rodadas||[];
+      var rodada=hist.length+1;
+      if(rodada>3){showToast("Todas as 3 rodadas ja foram geradas!","err");setGenerating(false);return;}
+      var messages=[{role:"user",content:buildP(ff,rodada,hist)}];
+      var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:messages,max_tokens:6000})});
+      if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
+      var data=await res.json();
+      if(data.error)throw new Error(data.error.message||data.error);
+      var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"").trim();
+      var parsed;
+      try{parsed=JSON.parse(raw);}
+      catch(ex1){
+        var st=raw.indexOf("{"),en=raw.lastIndexOf("}");
+        if(st>-1&&en>-1){parsed=JSON.parse(raw.substring(st,en+1));}
+        else throw new Error("Erro ao processar resposta da IA");
+      }
+      var nr={numero:rodada,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
+      var novasRodadas=hist.concat([nr]);
+      var proj=Object.assign({},activeProject,{rodadas:novasRodadas});
+      await supaClient.from("projetos").update({rodadas:novasRodadas}).eq("id",activeProject.id);
+      setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});
+      setActiveProject(proj);
+      setGenerating(false);
+      setActiveTab("roteiros");
+      setOpenScripts({});
+      setSelected([]);
+      showToast("Rodada "+rodada+" gerada! "+novasRodadas.length*6+" roteiros no total.");
+    }catch(e){
+      setGenerating(false);
+      var msg=e&&e.message||"";
+      var erroMsg="Erro ao gerar: "+msg;
+      if(msg.indexOf("overloaded")>-1)erroMsg="A IA esta sobrecarregada. Aguarde 30s e tente novamente.";
+      else if(msg.indexOf("429")>-1)erroMsg="Muitas requisicoes. Aguarde 1 minuto.";
+      else if(msg.indexOf("timeout")>-1||msg.indexOf("524")>-1)erroMsg="Tempo esgotado. Tente novamente.";
+      showToast(erroMsg,"err");
+    }
+  }
+
   async function genVar(tipo){
     if(!activeProject)return;
     setVarLoading(tipo);
@@ -362,7 +405,7 @@ function App(){
   function togSc(id){setOpenScripts(function(p){var n=Object.assign({},p);n[id]=!n[id];return n;});}
   function copySc(s){navigator.clipboard.writeText("ROTEIRO "+s.id+" - "+s.titulo+"\n\nGANCHO\n"+s.gancho+"\n\nCORPO\n"+s.corpo+"\n\nCTA\n"+s.cta);setCopiedId(s.id);setTimeout(function(){setCopiedId(null);},2000);showToast("Copiado!");}
   function copyAll(){if(!activeProject)return;var rod=activeProject.rodadas[activeProject.rodadas.length-1];navigator.clipboard.writeText(rod.resultado.roteiros.map(function(s,i){return "=== ROTEIRO "+(i+1)+" ===\n"+s.gancho+"\n"+s.corpo+"\n"+s.cta;}).join("\n\n"));showToast("Todos copiados!");}
-  function getScs(){if(!activeProject)return[];var r=activeProject.rodadas[activeProject.rodadas.length-1].resultado.roteiros||[];if(activeTab==="topo")return r.filter(function(s){return s.funil==="topo";});if(activeTab==="meio")return r.filter(function(s){return s.funil==="meio";});if(activeTab==="fundo")return r.filter(function(s){return s.funil==="fundo";});if(activeTab==="ugc")return r.filter(function(s){return s.funil==="ugc";});return r;}
+  function getScs(){if(!activeProject)return[];var r=activeProject.rodadas.reduce(function(acc,rod){return acc.concat((rod.resultado&&rod.resultado.roteiros)||[]);},[]);if(activeTab==="topo")return r.filter(function(s){return s.funil==="topo";});if(activeTab==="meio")return r.filter(function(s){return s.funil==="meio";});if(activeTab==="fundo")return r.filter(function(s){return s.funil==="fundo";});if(activeTab==="ugc")return r.filter(function(s){return s.funil==="ugc";});return r;}
   function ftag(f){if(!f)return null;var m={topo:"TOPO",meio:"MEIO",fundo:"FUNDO",ugc:"UGC"};return ce("span",{className:"tag "+f},m[f]||f.toUpperCase());}
   var titles={home:"Dashboard",briefing:"Novo Projeto",results:(activeProject&&activeProject.name)||"Resultados",history:"Historico"};
 
@@ -457,7 +500,7 @@ function App(){
         return ce("div",{className:"content"},
           ce("div",{className:"rh"},
             ce("div",null,ce("div",{className:"rh-title"},activeProject.name),ce("div",{className:"rh-meta"},activeProject.objetivo+" - "+rod.data+" - "+(activeProject.rodadas.length*18)+" roteiros")),
-            ce("div",{className:"rh-acts"},ce("button",{className:"abtn",onClick:copyAll},"Copiar todos"),ce("button",{className:"abtn pr",onClick:function(){setView("briefing");}},"+ Próxima Rodada"))
+            ce("div",{className:"rh-acts"},ce("button",{className:"abtn",onClick:copyAll},"Copiar todos"),ce("button",{className:"abtn pr",onClick:function(){handleNextRound();},disabled:generating},generating?"Gerando...":"+ Próxima Rodada"))
           ),
           ce("div",{className:"tabs"},[{id:"personas",lb:"Personas"},{id:"roteiros",lb:"Todos"},{id:"topo",lb:"Topo"},{id:"meio",lb:"Meio"},{id:"fundo",lb:"Fundo"},{id:"ugc",lb:"UGC"},{id:"matriz",lb:"Matriz"}].map(function(t){return ce("button",{key:t.id,className:"tab"+(activeTab===t.id?" on":""),onClick:function(){setActiveTab(t.id);}},t.lb);})),
           activeTab==="personas"&&ce("div",null,
