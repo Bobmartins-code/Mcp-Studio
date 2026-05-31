@@ -197,6 +197,19 @@ function buildP(form,rod,hist){
   var ganchos=hist.reduce(function(a,r){return a.concat((r.roteiros||[]).map(function(s){return s.gancho.substring(0,50);}));},[]);var gStr=ganchos.length>0?" GANCHOS JA USADOS-NUNCA repita:"+ganchos.join("|")+" ":"";var liked=hist.reduce(function(a,r){return a.concat((r.roteiros||[]).filter(function(s){return s.liked;}));},[]);var lStr=liked.length>0?" ESTILO PREFERIDO:"+liked.slice(0,3).map(function(s){return "["+s.gancho.substring(0,40)+"]";}).join("|")+" ":"";var extra=rod>1?" RODADA "+rod+gStr+lStr+"gere roteiros TOTALMENTE DIFERENTES.":"";
   return "Voce e o melhor copywriter de Meta Ads do Brasil. Seu trabalho e gerar roteiros para Reels que parecem uma conversa real — nao um anuncio. O cliente vai usar esses roteiros para gravar videos."+" CONTEXTO DO NEGOCIO: Produto/Servico: "+form.produto+" | Destino do anuncio: "+form.objetivo+" | Publico e negocio: "+(form.descricao||"inferir")+" | Diferenciais: "+(form.diferenciais||"inferir")+" | Ticket medio: "+(form.preco||"inferir")+" | Tom de voz: "+tons+". "+caract+proibidas+exemplo+extra+" REGRA DE OURO - ESPECIFICIDADE OBRIGATORIA: Cada gancho DEVE mencionar um dado, situacao ou detalhe ESPECIFICO do negocio acima. PROIBIDO gancho que funcione para qualquer outro negocio. Teste: se o gancho funciona para um concorrente qualquer, esta errado. Reescreva ate ser unico para este negocio."+" EXEMPLO DE GANCHO RUIM (generico, proibido): 'Voce sabia que pode mudar sua vida com um produto incrivel?' ou 'Ja pensou em ter resultados melhores?'"+" EXEMPLO DE GANCHO BOM (especifico, obrigatorio): use dados reais como preco, tempo, quantidade, nome do produto, situacao do publico descrito - igual ao estilo: 'Seu closet tem 50 pecas mas voce usa as mesmas 5 todo dia' ou 'Voce gasta 100 reais em 5 pecas que rasgam em 3 meses'"+" REGRAS DO CORPO: deve ter 1 argumento solido - dado, calculo, psicologia ou mecanismo real do produto. Minimo 3 frases densas. Conectar com o gancho. Linguagem coloquial brasileira real."+" REGRAS DO CTA: conectar diretamente com a dor do gancho. Especifico — 'conhece nossa short courino fivela?' e melhor que 'clica no link'. 25-35 palavras por secao."+" Extraia do negocio:dores,desejos,objecoes,linguagem real. JSON sem markdown:{\"personas\":[{\"emoji\":\"e\",\"nome\":\"n\",\"tipo\":\"t\",\"motivacao\":\"m\",\"dor\":\"d\",\"objecao\":\"o\",\"comunicacao\":\"c\"}],\"inteligencia\":{\"dores\":[\"d\"],\"desejos\":[\"d\"],\"objecoes\":[\"o\"],\"gatilhos\":[\"g\"],\"insight\":\"i\",\"bigIdea\":\"b\",\"mecanismo\":\"m\",\"diferencial\":\"d\"},\"roteiros\":[{\"id\":1,\"titulo\":\"Gancho dor+solucao\",\"pilar\":\"Angulos\",\"funil\":\"topo\",\"tom\":\"conversacional\",\"gancho\":\"g\",\"corpo\":\"c\",\"cta\":\"cta\"}]} 2 personas+6 roteiros por RODADA. Rodada 1: roteiros 1-3 pilar Angulos funil topo + roteiros 4-6 pilar Conceitos funil meio. Rodada 2: roteiros 7-9 pilar FullFunnel funil topo + roteiros 10-12 pilar FullFunnel funil meio. Rodada 3: roteiros 13-15 pilar FullFunnel funil fundo + roteiros 16-18 pilar UGC funil ugc. REGRAS: gancho=dor hiper-especifica nos 3s(NUNCA Voce sabia/Ola/Imagine); corpo=historia real ou dado concreto minimo 3 frases; CTA=conectar dor do gancho + acao especifica(clica no link da bio/me segue/salva esse video). 25-35 palavras por secao.";
 }
+function buildAnalise(form){
+  var p="Voce e um estrategista de marketing especialista em comportamento do consumidor brasileiro.";
+  p+=" Analise este negocio e responda APENAS com JSON valido sem markdown neste formato exato:";
+  p+=" {\"dor_profunda\":\"dor emocional mais intensa - o sentimento causado pelo problema\",";
+  p+="\"momento_decisao\":\"momento exato em que a pessoa percebe que precisa disto\",";
+  p+="\"objecao_principal\":\"primeira coisa que impede a compra\",";
+  p+="\"linguagem_real\":\"3 expressoes que esse publico usa sobre este problema\",";
+  p+="\"mecanismo_unico\":\"o que so este produto tem que concorrentes nao tem\",";
+  p+="\"insight_surpreendente\":\"verdade sobre este mercado que a maioria nao fala\"}";
+  p+=" NEGOCIO: "+form.produto+" | PUBLICO: "+(form.descricao||"inferir")+" | DIFERENCIAIS: "+(form.diferenciais||"inferir")+".";
+  return p;
+}
+
 function buildVP(form,tipo,ex){
   var instr={ganchos:"5 ganchos de 1 frase cada, estilo Reels, direto e impactante",roteiros:"5 ganchos completos de 1-2 frases cada",ctas:"5 CTAs de 1 frase cada, especificos e diretos"};
   var proib=ex.length>0?" Nao repita estes ja usados: "+ex.join(" | ")+".":"";
@@ -294,6 +307,36 @@ function App(){
       }else{
         messages=[{role:"user",content:buildP(ff,rodada,hist)}];
       }
+      // CHAMADA 1 - Analise profunda
+      var rA=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:buildAnalise(ff)}],max_tokens:800})});
+      var dA=await rA.json();
+      var rawA=(dA.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
+      var analise={};
+      try{var as=rawA.indexOf("{"),ae=rawA.lastIndexOf("}");if(as>-1&&ae>-1)analise=JSON.parse(rawA.substring(as,ae+1));}catch(eA){}
+      var aCtx="";
+      if(analise.dor_profunda){
+        aCtx=" ANALISE PROFUNDA DO NEGOCIO - use obrigatoriamente para criar os ganchos:";
+        aCtx+=" DOR EMOCIONAL: "+analise.dor_profunda;
+        aCtx+=" | MOMENTO DA DECISAO: "+analise.momento_decisao;
+        aCtx+=" | OBJECAO PRINCIPAL: "+analise.objecao_principal;
+        aCtx+=" | LINGUAGEM REAL: "+analise.linguagem_real;
+        aCtx+=" | MECANISMO UNICO: "+analise.mecanismo_unico;
+        aCtx+=" | INSIGHT: "+analise.insight_surpreendente;
+        aCtx+=" - O gancho DEVE nascer de um destes insights. O corpo DEVE responder a objecao. O CTA DEVE usar a linguagem real.";
+        if(messages[0]&&typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+aCtx});
+        else if(messages[0]&&Array.isArray(messages[0].content)){var li=messages[0].content[messages[0].content.length-1];if(li&&li.type==="text")li.text+=aCtx;}
+      }
+      // CHAMADA 2 - Roteiros com contexto rico
+      // Analise para proxima rodada
+      var rA2=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:buildAnalise(ff)}],max_tokens:800})});
+      var dA2=await rA2.json();
+      var rawA2=(dA2.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
+      var analise2={};
+      try{var as2=rawA2.indexOf("{"),ae2=rawA2.lastIndexOf("}");if(as2>-1&&ae2>-1)analise2=JSON.parse(rawA2.substring(as2,ae2+1));}catch(eA2){}
+      if(analise2.dor_profunda&&messages[0]){
+        var aCtx2=" ANALISE: DOR: "+analise2.dor_profunda+" | OBJECAO: "+analise2.objecao_principal+" | LINGUAGEM: "+analise2.linguagem_real+" | MECANISMO: "+analise2.mecanismo_unico;
+        messages[0]=Object.assign({},messages[0],{content:messages[0].content+aCtx2});
+      }
       var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:messages,max_tokens:6000})});
       if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
       var data=await res.json();
@@ -355,6 +398,16 @@ function App(){
       var rodada=hist.length+1;
       if(rodada>3){showToast("Todas as 3 rodadas ja foram geradas!","err");setGenerating(false);return;}
       var messages=[{role:"user",content:buildP(ff,rodada,hist)}];
+      // Analise para proxima rodada
+      var rA2=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:buildAnalise(ff)}],max_tokens:800})});
+      var dA2=await rA2.json();
+      var rawA2=(dA2.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
+      var analise2={};
+      try{var as2=rawA2.indexOf("{"),ae2=rawA2.lastIndexOf("}");if(as2>-1&&ae2>-1)analise2=JSON.parse(rawA2.substring(as2,ae2+1));}catch(eA2){}
+      if(analise2.dor_profunda&&messages[0]){
+        var aCtx2=" ANALISE: DOR: "+analise2.dor_profunda+" | OBJECAO: "+analise2.objecao_principal+" | LINGUAGEM: "+analise2.linguagem_real+" | MECANISMO: "+analise2.mecanismo_unico;
+        messages[0]=Object.assign({},messages[0],{content:messages[0].content+aCtx2});
+      }
       var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:messages,max_tokens:6000})});
       if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
       var data=await res.json();
