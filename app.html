@@ -166,7 +166,8 @@ supaClient.auth.getSession().then(function(r){
   currentUser=r.data.session.user;
   document.getElementById("loading-screen").style.display="none";
   document.getElementById("root").style.display="block";
-  initApp();
+  window.__sessionReady=true;
+  if(window.__babelReady)initApp();
 });
 async function doLogout(){
   await supaClient.auth.signOut();
@@ -612,6 +613,8 @@ function App(){
 }
 
 function initApp(){ReactDOM.createRoot(document.getElementById("root")).render(ce(App));}
+window.__babelReady=true;
+if(window.__sessionReady)initApp();
 </script>
 </body>
 </html>
