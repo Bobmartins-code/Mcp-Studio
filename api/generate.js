@@ -6,6 +6,16 @@ module.exports = async function handler(req, res) {
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: "Messages obrigatorio" });
     }
+    // Modelo escolhido pelo cliente (com allowlist) — default Haiku para custo baixo
+    const ALLOWED_MODELS = {
+        "claude-haiku-4-5-20251001": 1,
+        "claude-sonnet-4-6": 1,
+        "claude-opus-4-8": 1
+    };
+    const model = (req.body && ALLOWED_MODELS[req.body.model]) ? req.body.model : "claude-haiku-4-5-20251001";
+    // Respeita max_tokens do cliente com teto de seguranca
+    const reqMax = req.body && Number(req.body.max_tokens);
+    const maxTokens = (reqMax && reqMax > 0) ? Math.min(reqMax, 8000) : 6000;
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 55000);
@@ -17,8 +27,8 @@ module.exports = async function handler(req, res) {
                 "anthropic-version": "2023-06-01"
             },
             body: JSON.stringify({
-                model: "claude-haiku-4-5-20251001",
-                max_tokens: 6000,
+                model: model,
+                max_tokens: maxTokens,
                 system: "Voce gera JSON puro sem markdown. REGRA CRITICA: NUNCA use aspas duplas dentro dos valores de texto. Use apenas aspas simples quando precisar de citacao dentro de um texto. Todo o JSON deve ser valido e parseable.",
                 messages: messages
             }),
