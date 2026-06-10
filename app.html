@@ -275,6 +275,7 @@ function App(){
   var sEI=useState(""),editInstr=sEI[0],setEditInstr=sEI[1];
   var sH=useState(""),histBusca=sH[0],setHistBusca=sH[1];
   var sLP=useState(false),lendoPublico=sLP[0],setLendoPublico=sLP[1];
+  var sPf=useState(null),perfil=sPf[0],setPerfil=sPf[1];
   var sEG=useState(false),editGenerating=sEG[0],setEditGenerating=sEG[1];
   var s10=useState(null),toast=s10[0],setToast=s10[1];
   var s11=useState(null),varLoading=s11[0],setVarLoading=s11[1];
@@ -295,7 +296,10 @@ function App(){
     return function(){clearInterval(stepRef.current);};
   },[generating]);
 
-  useEffect(function(){carregarProjetos();},[]);
+  useEffect(function(){carregarProjetos();carregarPerfil();},[]);
+  useEffect(function(){
+    if(view==="briefing"&&perfil&&!form.produto&&!form.descricao&&!form.diferenciais){setForm(function(f){return Object.assign({},f,{descricao:perfil.descricao||f.descricao,diferenciais:perfil.diferenciais||f.diferenciais,caracteristicas:perfil.caracteristicas||f.caracteristicas,preco:perfil.preco||f.preco,exemploConteudo:perfil.exemploConteudo||f.exemploConteudo});});}
+  },[view,perfil]);
 
   async function carregarProjetos(){
     try{
@@ -315,6 +319,9 @@ function App(){
       }
     }catch(e){console.log("Erro ao carregar projetos",e);}
   }
+
+  async function carregarPerfil(){try{var r=await supaClient.from("perfil_publico").select("dados").eq("user_id",currentUser.id).maybeSingle();if(r&&r.data&&r.data.dados)setPerfil(r.data.dados);}catch(e){}}
+  async function salvarPerfil(dados){try{var r=await supaClient.from("perfil_publico").upsert({user_id:currentUser.id,dados:dados,atualizado_em:new Date().toISOString()},{onConflict:"user_id"}).select();if(r&&r.error)throw r.error;setPerfil(dados);showToast("Publico salvo! Os proximos projetos ja vem preenchidos.");}catch(e){showToast("Nao foi possivel salvar. Confirme se a tabela foi criada no Supabase.","err");}}
 
   function showToast(msg,type){setToast({msg:msg,type:type||"ok"});setTimeout(function(){setToast(null);},type==="err"?7000:3000);}
   function handleImages(files){var arr=Array.from(files).slice(0,4);setImageFiles(arr);setImagePreviews(arr.map(function(f){return URL.createObjectURL(f);}));}
@@ -546,14 +553,14 @@ function App(){
   function baixarRoteiros(){if(!activeProject)return;var txt="ROTEIROS - "+activeProject.name+"\n\n";var n=0;(activeProject.rodadas||[]).forEach(function(rod){((rod.resultado&&rod.resultado.roteiros)||[]).forEach(function(s){n++;txt+="=== ROTEIRO "+n+(s.pilar?" ("+s.pilar+")":"")+" ===\nGANCHO: "+s.gancho+"\n\nCORPO: "+s.corpo+"\n\nCTA: "+s.cta+"\n\n----------------------------------------\n\n";});});var blob=new Blob([txt],{type:"text/plain;charset=utf-8;"});var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download=(activeProject.name||"roteiros").substring(0,40).replace(/[^a-zA-Z0-9-_ ]/g,"").trim()+".txt";a.click();URL.revokeObjectURL(url);showToast("Arquivo baixado!");}
   function getScs(){if(!activeProject)return[];var all=[];var num=0;activeProject.rodadas.forEach(function(rod){(rod.resultado&&rod.resultado.roteiros||[]).forEach(function(s){num++;all.push(Object.assign({},s,{numGlobal:num}));});});if(activeTab==="topo")return all.filter(function(s){return s.funil==="topo";});if(activeTab==="meio")return all.filter(function(s){return s.funil==="meio";});if(activeTab==="fundo")return all.filter(function(s){return s.funil==="fundo";});if(activeTab==="ugc")return all.filter(function(s){return s.funil==="ugc";});return all;}
   function ftag(f){if(!f)return null;var m={topo:"TOPO",meio:"MEIO",fundo:"FUNDO",ugc:"UGC"};return ce("span",{className:"tag "+f},m[f]||f.toUpperCase());}
-  var titles={home:"Dashboard",briefing:"Novo Projeto",results:(activeProject&&activeProject.name)||"Resultados",history:"Historico"};
+  var titles={home:"Dashboard",briefing:"Novo Projeto",results:(activeProject&&activeProject.name)||"Resultados",history:"Historico",publico:"Meu Publico"};
 
   return ce("div",{className:"app"},
     ce("div",{className:"sb-ov"+(sbOpen?" op":""),onClick:function(){setSbOpen(false);}}),
     ce("aside",{className:"sb"+(sbOpen?" op":"")},
       ce("div",{className:"sb-logo"},ce("div",{className:"sb-mark"},"M"),ce("div",{className:"sb-name"},"MCP",ce("span",null,"Studio"))),
       ce("div",{className:"sb-nav"},ce("div",{className:"sb-lbl"},"Menu"),
-        [{id:"home",lb:"Inicio"},{id:"briefing",lb:"Novo Projeto"},{id:"history",lb:"Historico",bx:projects.length||null}].map(function(item){return ce("button",{key:item.id,className:"sb-btn"+(view===item.id?" on":""),onClick:function(){setView(item.id);setSbOpen(false);}},item.lb,item.bx&&ce("span",{className:"bx"},item.bx));})
+        [{id:"home",lb:"Inicio"},{id:"briefing",lb:"Novo Projeto"},{id:"publico",lb:"Meu Publico"},{id:"history",lb:"Historico",bx:projects.length||null}].map(function(item){return ce("button",{key:item.id,className:"sb-btn"+(view===item.id?" on":""),onClick:function(){setView(item.id);setSbOpen(false);}},item.lb,item.bx&&ce("span",{className:"bx"},item.bx));})
       ),
       projects.length>0&&ce("div",{className:"sb-nav",style:{marginTop:16}},
         ce("div",{className:"sb-lbl"},"Recentes"),
@@ -675,7 +682,8 @@ function App(){
           :ce("div",null,
             ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18}},"Historico"),ce("input",{placeholder:"Buscar projeto...",value:histBusca,onChange:function(e){setHistBusca(e.target.value);},style:{background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:8,color:"var(--tx)",fontSize:13,padding:"8px 12px",outline:"none",minWidth:200,fontFamily:"'DM Sans',sans-serif"}})),
             ce("div",{className:"hl"},projects.filter(function(p){return !histBusca||(p.name||"").toLowerCase().indexOf(histBusca.toLowerCase())>-1;}).map(function(p){return ce("div",{key:p.id,className:"hi",onClick:function(){setActiveProject(p);setView("results");}},ce("div",{style:{fontSize:20}},"🎬"),ce("div",{className:"hi-inf"},ce("div",{className:"hi-n"},p.name),ce("div",{className:"hi-m"},p.date)),ce("div",{className:"hi-b"},((p.rodadas&&p.rodadas.length)||1)*5+" roteiros"),ce("button",{onClick:function(e){renameProject(p.id,e);},title:"Renomear",style:{background:"none",border:"1px solid var(--bo)",borderRadius:6,color:"var(--mu2)",cursor:"pointer",padding:"4px 8px",fontSize:13,marginLeft:8}},"✏️"),ce("button",{onClick:function(e){deleteProject(p.id,e);},title:"Apagar",style:{background:"none",border:"1px solid var(--bo)",borderRadius:6,color:"var(--mu2)",cursor:"pointer",padding:"4px 8px",fontSize:13}},"🗑️"));})))
-      )
+      ),
+      view==="publico"&&ce("div",{className:"content"},ce("div",{className:"fwrap"},ce("div",{className:"fhead"},ce("h2",null,"Meu Publico"),ce("p",null,"Descreva seu publico e negocio uma vez. Todo projeto novo ja vem preenchido com isso, e voce pode ajustar a qualquer momento.")),ce("div",{className:"sec"},ce("div",{className:"fi"},ce("label",null,"Publico e negocio"),ce("textarea",{style:{minHeight:110},placeholder:"Quem voce atende, o que oferece e o que transforma na vida do cliente.",value:(perfil&&perfil.descricao)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{descricao:v});});}})),ce("div",{className:"fi"},ce("label",null,"Diferenciais"),ce("input",{placeholder:"Ex: entrega rapida, atendimento personalizado...",value:(perfil&&perfil.diferenciais)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{diferenciais:v});});}})),ce("div",{className:"fi"},ce("label",null,"Caracteristicas do produto"),ce("textarea",{style:{minHeight:70},placeholder:"Ex: feito a mao, sem gluten, garantia 30 dias...",value:(perfil&&perfil.caracteristicas)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{caracteristicas:v});});}})),ce("div",{className:"fi"},ce("label",null,"Ticket medio"),ce("input",{placeholder:"Ex: R$ 97,00",value:(perfil&&perfil.preco)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{preco:v});});}})),ce("div",{className:"fi"},ce("label",null,"Exemplo de conteudo que ja funcionou"),ce("textarea",{style:{minHeight:70},placeholder:"Cole um post ou legenda que teve bom resultado.",value:(perfil&&perfil.exemploConteudo)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{exemploConteudo:v});});}})),ce("button",{className:"gbtn",onClick:function(){salvarPerfil(perfil||{});}},"Salvar meu publico")))),
     ),
     generating&&ce("div",{className:"ov"},ce("div",{className:"ov-card"},ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seus roteiros..."),ce("div",{className:"ov-p"},"Isso pode levar ate 1 minuto. Estamos lendo seu conteudo e criando os roteiros. Nao feche esta tela."),ce("div",{className:"ov-steps"},STEPS.map(function(s,i){return ce("div",{key:i,className:"ov-s"+(i<genStep?" dn":i===genStep?" ac":"")},ce("span",{className:"sdot"}),s);})))),
     toast&&ce("div",{className:"toast"},ce("span",null,toast.type==="err"?"!":"v")," ",toast.msg),
