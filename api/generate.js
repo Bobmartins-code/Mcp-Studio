@@ -16,6 +16,8 @@ module.exports = async function handler(req, res) {
     // Respeita max_tokens do cliente com teto de seguranca
     const reqMax = req.body && Number(req.body.max_tokens);
     const maxTokens = (reqMax && reqMax > 0) ? Math.min(reqMax, 8000) : 6000;
+    // Ferramentas nativas (ex: web_fetch para ler URLs) — repassadas quando enviadas
+    const tools = (req.body && Array.isArray(req.body.tools) && req.body.tools.length) ? req.body.tools : null;
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 55000);
@@ -26,12 +28,12 @@ module.exports = async function handler(req, res) {
                 "x-api-key": apiKey,
                 "anthropic-version": "2023-06-01"
             },
-            body: JSON.stringify({
+            body: JSON.stringify(Object.assign({
                 model: model,
                 max_tokens: maxTokens,
                 system: "Voce gera JSON puro sem markdown. REGRA CRITICA: NUNCA use aspas duplas dentro dos valores de texto. Use apenas aspas simples quando precisar de citacao dentro de um texto. Todo o JSON deve ser valido e parseable.",
                 messages: messages
-            }),
+            }, tools ? { tools: tools } : {})),
             signal: controller.signal
         });
         clearTimeout(timeout);
