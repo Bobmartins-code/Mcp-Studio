@@ -57,7 +57,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
       <div class="err" id="login-err"></div>
       <div class="ok" id="login-ok"></div>
       <div class="fi"><label>Email</label><input type="email" id="login-email" placeholder="seu@email.com"/></div>
-      <div class="fi"><label>Senha</label><input type="password" id="login-senha" placeholder="••••••••"/></div>
+      <div class="fi"><label>Senha</label><input type="password" id="login-senha" placeholder="••••••••"/><button type="button" class="link" style="align-self:flex-end;font-size:11px;margin-top:2px" onclick="togglePw('login-senha',this)">mostrar</button></div>
       <div style="text-align:right;margin-bottom:14px">
         <button class="link" onclick="showScreen('recuperar')">Esqueci minha senha</button>
       </div>
@@ -76,8 +76,8 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
       <div class="ok" id="cad-ok"></div>
       <div class="fi"><label>Nome completo</label><input type="text" id="cad-nome" placeholder="Seu nome"/></div>
       <div class="fi"><label>Email</label><input type="email" id="cad-email" placeholder="seu@email.com"/></div>
-      <div class="fi"><label>Senha</label><input type="password" id="cad-senha" placeholder="Minimo 6 caracteres"/></div>
-      <div class="fi"><label>Confirmar senha</label><input type="password" id="cad-senha2" placeholder="Repita a senha"/></div>
+      <div class="fi"><label>Senha</label><input type="password" id="cad-senha" placeholder="Minimo 6 caracteres"/><button type="button" class="link" style="align-self:flex-end;font-size:11px;margin-top:2px" onclick="togglePw('cad-senha',this)">mostrar</button></div>
+      <div class="fi"><label>Confirmar senha</label><input type="password" id="cad-senha2" placeholder="Repita a senha"/><button type="button" class="link" style="align-self:flex-end;font-size:11px;margin-top:2px" onclick="togglePw('cad-senha2',this)">mostrar</button></div>
       <button class="btn" id="btn-cad" onclick="fazerCadastro()">Criar conta</button>
       <div class="divider">ou</div>
       <button class="btn-sec" onclick="showScreen('login')">Ja tenho conta</button>
@@ -105,8 +105,8 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
       <div class="card-sub">Digite sua nova senha abaixo.</div>
       <div class="err" id="ns-err"></div>
       <div class="ok" id="ns-ok"></div>
-      <div class="fi"><label>Nova senha</label><input type="password" id="ns-senha" placeholder="Minimo 6 caracteres"/></div>
-      <div class="fi"><label>Confirmar nova senha</label><input type="password" id="ns-senha2" placeholder="Repita a senha"/></div>
+      <div class="fi"><label>Nova senha</label><input type="password" id="ns-senha" placeholder="Minimo 6 caracteres"/><button type="button" class="link" style="align-self:flex-end;font-size:11px;margin-top:2px" onclick="togglePw('ns-senha',this)">mostrar</button></div>
+      <div class="fi"><label>Confirmar nova senha</label><input type="password" id="ns-senha2" placeholder="Repita a senha"/><button type="button" class="link" style="align-self:flex-end;font-size:11px;margin-top:2px" onclick="togglePw('ns-senha2',this)">mostrar</button></div>
       <button class="btn" id="btn-ns" onclick="salvarNovaSenha()">Salvar nova senha</button>
     </div>
   </div>
@@ -124,6 +124,8 @@ function showErr(id,msg){var e=document.getElementById(id);e.textContent=msg;e.c
 function showOk(id,msg){var e=document.getElementById(id);e.textContent=msg;e.classList.add("show");e.nextElementSibling&&e.nextElementSibling.classList.remove("show");}
 function hideMsg(errId,okId){document.getElementById(errId).classList.remove("show");document.getElementById(okId).classList.remove("show");}
 function setLoad(id,on,txt){var b=document.getElementById(id);b.disabled=on;b.innerHTML=on?"<span class='spin-sm'></span>Aguarde...":txt;}
+function traduzErro(m){m=m||"";var l=m.toLowerCase();if(l.indexOf("invalid login credentials")>-1)return"Email ou senha incorretos.";if(l.indexOf("email not confirmed")>-1)return"Confirme seu email antes de entrar. Veja sua caixa de entrada (e tambem o spam).";if(l.indexOf("already registered")>-1||l.indexOf("already been registered")>-1)return"Este email ja tem conta. Tente fazer login.";if(l.indexOf("rate")>-1||l.indexOf("too many")>-1)return"Muitas tentativas. Aguarde um minuto e tente de novo.";if(l.indexOf("at least 6")>-1)return"A senha deve ter pelo menos 6 caracteres.";if(l.indexOf("network")>-1||l.indexOf("failed to fetch")>-1)return"Sem conexao. Verifique sua internet.";return m;}
+function togglePw(id,btn){var i=document.getElementById(id);if(i.type==="password"){i.type="text";btn.textContent="ocultar";}else{i.type="password";btn.textContent="mostrar";}}
 
 // Verifica se veio do link de recuperacao
 supa.auth.onAuthStateChange(function(event,session){
@@ -141,7 +143,7 @@ async function fazerLogin(){
   if(!email||!senha){showErr("login-err","Preencha email e senha.");return;}
   setLoad("btn-login",true,"Entrar");
   var r=await supa.auth.signInWithPassword({email:email,password:senha});
-  if(r.error){showErr("login-err",r.error.message==="Invalid login credentials"?"Email ou senha incorretos.":r.error.message);setLoad("btn-login",false,"Entrar");}
+  if(r.error){showErr("login-err",traduzErro(r.error.message));setLoad("btn-login",false,"Entrar");}
   else{window.location.href="app.html";}
 }
 
@@ -155,7 +157,7 @@ async function fazerCadastro(){
   if(senha!==senha2){showErr("cad-err","As senhas nao coincidem.");return;}
   setLoad("btn-cad",true,"Criar conta");
   var r=await supa.auth.signUp({email:email,password:senha,options:{data:{nome:nome}}});
-  if(r.error){showErr("cad-err",r.error.message);setLoad("btn-cad",false,"Criar conta");}
+  if(r.error){showErr("cad-err",traduzErro(r.error.message));setLoad("btn-cad",false,"Criar conta");}
   else{showOk("cad-ok","Conta criada! Verifique seu email para confirmar o cadastro.");setLoad("btn-cad",false,"Criar conta");}
 }
 
@@ -164,7 +166,7 @@ async function recuperarSenha(){
   if(!email){showErr("rec-err","Digite seu email.");return;}
   setLoad("btn-rec",true,"Enviar link de recuperacao");
   var r=await supa.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+"/index.html"});
-  if(r.error){showErr("rec-err",r.error.message);setLoad("btn-rec",false,"Enviar link de recuperacao");}
+  if(r.error){showErr("rec-err",traduzErro(r.error.message));setLoad("btn-rec",false,"Enviar link de recuperacao");}
   else{showOk("rec-ok","Link enviado! Verifique seu email.");setLoad("btn-rec",false,"Enviar link de recuperacao");}
 }
 
@@ -175,7 +177,7 @@ async function salvarNovaSenha(){
   if(senha!==senha2){showErr("ns-err","As senhas nao coincidem.");return;}
   setLoad("btn-ns",true,"Salvar nova senha");
   var r=await supa.auth.updateUser({password:senha});
-  if(r.error){showErr("ns-err",r.error.message);setLoad("btn-ns",false,"Salvar nova senha");}
+  if(r.error){showErr("ns-err",traduzErro(r.error.message));setLoad("btn-ns",false,"Salvar nova senha");}
   else{showOk("ns-ok","Senha alterada com sucesso!");setTimeout(function(){window.location.href="app.html";},1500);}
 }
 

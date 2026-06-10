@@ -6,9 +6,8 @@
 <title>MCP Studio</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0A0A0F;--sur:#111118;--sur2:#18181F;--bo:rgba(255,255,255,.07);--boh:rgba(255,255,255,.14);--ac:#FF4D00;--ac2:#FF8A50;--gold:#F5C842;--ok:#2DDE98;--pu:#9B8EFF;--tx:#F0EEE8;--mu:#6B6B7A;--mu2:#9B9BAA}
@@ -175,7 +174,7 @@ async function doLogout(){
   await supaClient.auth.signOut();
   window.location.href="index.html";
 }
-</script><script type="text/babel">
+</script><script>
 var useState=React.useState,useEffect=React.useEffect,useRef=React.useRef,ce=React.createElement;
 var OBJS=[
   {id:"mensagens",ic:"💬",lb:"Mensagens no WhatsApp",ds:"Ideal para servicos, consultas e vendas por conversa"},
@@ -257,6 +256,7 @@ function App(){
   var sL=useState({}),likes=sL[0],setLikes=sL[1];
   var sE=useState(null),editingScript=sE[0],setEditingScript=sE[1];
   var sEI=useState(""),editInstr=sEI[0],setEditInstr=sEI[1];
+  var sH=useState(""),histBusca=sH[0],setHistBusca=sH[1];
   var sEG=useState(false),editGenerating=sEG[0],setEditGenerating=sEG[1];
   var s10=useState(null),toast=s10[0],setToast=s10[1];
   var s11=useState(null),varLoading=s11[0],setVarLoading=s11[1];
@@ -273,7 +273,7 @@ function App(){
   useEffect(function(){
     if(!generating)return;
     var i=0;setGenStep(0);
-    stepRef.current=setInterval(function(){i++;if(i<STEPS.length)setGenStep(i);},800);
+    stepRef.current=setInterval(function(){i++;if(i<STEPS.length)setGenStep(i);},2600);
     return function(){clearInterval(stepRef.current);};
   },[generating]);
 
@@ -488,7 +488,11 @@ function App(){
       }
       var items=parsed.items||[];
       if(!Array.isArray(items)||items.length===0)throw new Error("Nenhum item gerado");
-      setVarResults(function(prev){var n=Object.assign({},prev);n[tipo]=items;return n;});
+      var rods=(activeProject.rodadas||[]).map(function(r,idx,arr){if(idx!==arr.length-1)return r;var nv=Object.assign({},(r.resultado&&r.resultado.variacoes)||{});nv[tipo]=items;return Object.assign({},r,{resultado:Object.assign({},r.resultado,{variacoes:nv})});});
+      var projV=Object.assign({},activeProject,{rodadas:rods});
+      supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);
+      setProjects(function(prev){return prev.map(function(p){return p.id===projV.id?projV:p;});});
+      setActiveProject(projV);
       showToast(items.length+" "+tipo+" gerados!");
     }catch(e){
       console.error("genVar erro:",e);
@@ -497,9 +501,12 @@ function App(){
     setVarLoading(null);
   }
 
+  function deleteProject(id,e){if(e)e.stopPropagation();if(!window.confirm("Apagar este projeto? Esta acao nao pode ser desfeita."))return;supaClient.from("projetos").delete().eq("id",id);setProjects(function(prev){return prev.filter(function(p){return p.id!==id;});});if(activeProject&&activeProject.id===id){setActiveProject(null);setView("home");}showToast("Projeto apagado.");}
+  function renameProject(id,e){if(e)e.stopPropagation();var p=projects.find(function(x){return x.id===id;});var novo=window.prompt("Novo nome do projeto:",(p&&p.name)||"");if(!novo||!novo.trim())return;novo=novo.trim();supaClient.from("projetos").update({nome:novo}).eq("id",id);setProjects(function(prev){return prev.map(function(x){return x.id===id?Object.assign({},x,{name:novo}):x;});});if(activeProject&&activeProject.id===id)setActiveProject(Object.assign({},activeProject,{name:novo}));showToast("Projeto renomeado.");}
   function togSc(id){setOpenScripts(function(p){var n=Object.assign({},p);n[id]=!n[id];return n;});}
   function copySc(s){navigator.clipboard.writeText("ROTEIRO "+s.id+" - "+s.titulo+"\n\nGANCHO\n"+s.gancho+"\n\nCORPO\n"+s.corpo+"\n\nCTA\n"+s.cta);setCopiedId(s.id);setTimeout(function(){setCopiedId(null);},2000);showToast("Copiado!");}
   function copyAll(){if(!activeProject)return;var rod=activeProject.rodadas[activeProject.rodadas.length-1];navigator.clipboard.writeText(rod.resultado.roteiros.map(function(s,i){return "=== ROTEIRO "+(i+1)+" ===\n"+s.gancho+"\n"+s.corpo+"\n"+s.cta;}).join("\n\n"));showToast("Todos copiados!");}
+  function baixarRoteiros(){if(!activeProject)return;var txt="ROTEIROS - "+activeProject.name+"\n\n";var n=0;(activeProject.rodadas||[]).forEach(function(rod){((rod.resultado&&rod.resultado.roteiros)||[]).forEach(function(s){n++;txt+="=== ROTEIRO "+n+(s.pilar?" ("+s.pilar+")":"")+" ===\nGANCHO: "+s.gancho+"\n\nCORPO: "+s.corpo+"\n\nCTA: "+s.cta+"\n\n----------------------------------------\n\n";});});var blob=new Blob([txt],{type:"text/plain;charset=utf-8;"});var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download=(activeProject.name||"roteiros").substring(0,40).replace(/[^a-zA-Z0-9-_ ]/g,"").trim()+".txt";a.click();URL.revokeObjectURL(url);showToast("Arquivo baixado!");}
   function getScs(){if(!activeProject)return[];var all=[];var num=0;activeProject.rodadas.forEach(function(rod){(rod.resultado&&rod.resultado.roteiros||[]).forEach(function(s){num++;all.push(Object.assign({},s,{numGlobal:num}));});});if(activeTab==="topo")return all.filter(function(s){return s.funil==="topo";});if(activeTab==="meio")return all.filter(function(s){return s.funil==="meio";});if(activeTab==="fundo")return all.filter(function(s){return s.funil==="fundo";});if(activeTab==="ugc")return all.filter(function(s){return s.funil==="ugc";});return all;}
   function ftag(f){if(!f)return null;var m={topo:"TOPO",meio:"MEIO",fundo:"FUNDO",ugc:"UGC"};return ce("span",{className:"tag "+f},m[f]||f.toUpperCase());}
   var titles={home:"Dashboard",briefing:"Novo Projeto",results:(activeProject&&activeProject.name)||"Resultados",history:"Historico"};
@@ -551,6 +558,7 @@ function App(){
       view==="briefing"&&ce("div",{className:"content"},
         ce("div",{className:"fwrap"},
           ce("div",{className:"fhead"},ce("h2",null,"Novo Projeto"),ce("p",null,"Preencha o briefing e a IA aplica o metodo MCP completo.")),
+          ce("div",{style:{background:"rgba(245,200,66,.08)",border:"1px solid rgba(245,200,66,.2)",borderRadius:12,padding:"12px 16px",marginBottom:18,fontSize:13,color:"var(--mu2)",lineHeight:1.5}},ce("span",{style:{color:"var(--gold)",fontWeight:600}},"Dica: "),"quanto mais detalhe voce der aqui — publico, diferenciais e, principalmente, um exemplo de conteudo que ja funcionou — mais especificos e melhores ficam os roteiros."),
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"01 - Produto ou Servico"),
             ce("div",{style:{marginBottom:12}},
@@ -570,7 +578,7 @@ function App(){
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"02 - Publico alvo e sobre seu negocio"),
             ce("div",{className:"fi"},ce("label",null,"Descreva quem atende, o que oferece e o que transforma na vida do cliente"),ce("textarea",{style:{minHeight:110},placeholder:"Ex: Somos uma loja feminina em SP, atendemos mulheres 25-40 anos.",value:form.descricao,onChange:function(e){setForm(function(f){return Object.assign({},f,{descricao:e.target.value});})}})),
-            ce("div",{className:"fi"},ce("label",null,"Diferenciais (opcional)"),ce("input",{placeholder:"Ex: Entrega rapida, atendimento personalizado, exclusividade...",value:form.diferenciais,onChange:function(e){setForm(function(f){return Object.assign({},f,{diferenciais:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Caracteristicas do produto (opcional)"),ce("textarea",{style:{minHeight:70},placeholder:"Ex: feito a mao, sem gluten, aprovado por dermatologistas, garantia 30 dias...",value:form.caracteristicas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{caracteristicas:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Exemplo de conteudo que ja funcionou (opcional)"),ce("textarea",{style:{minHeight:70},placeholder:"Cole um post ou legenda que teve bom resultado. A IA vai aprender seu estilo.",value:form.exemploConteudo||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{exemploConteudo:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Palavras ou frases que NAO quer usar (opcional)"),ce("input",{placeholder:"Ex: incrivel, revolucionario, nao perca essa chance...",value:form.proibidas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{proibidas:e.target.value});});}}))
+            ce("div",{className:"fi"},ce("label",null,"Diferenciais (opcional)"),ce("input",{placeholder:"Ex: Entrega rapida, atendimento personalizado, exclusividade...",value:form.diferenciais,onChange:function(e){setForm(function(f){return Object.assign({},f,{diferenciais:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Caracteristicas do produto (opcional)"),ce("textarea",{style:{minHeight:70},placeholder:"Ex: feito a mao, sem gluten, aprovado por dermatologistas, garantia 30 dias...",value:form.caracteristicas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{caracteristicas:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Exemplo de conteudo que ja funcionou (muito recomendado)"),ce("textarea",{style:{minHeight:70},placeholder:"Cole um post ou legenda que teve bom resultado. A IA vai aprender seu estilo.",value:form.exemploConteudo||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{exemploConteudo:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Palavras ou frases que NAO quer usar (opcional)"),ce("input",{placeholder:"Ex: incrivel, revolucionario, nao perca essa chance...",value:form.proibidas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{proibidas:e.target.value});});}}))
           ),
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"03 - Ticket medio"),
@@ -586,18 +594,20 @@ function App(){
             ce("div",{className:"obj-q"},"Escolha o destino desejado - cada um gera um estilo diferente de roteiro e CTA."),
             ce("div",{className:"obj-g"},OBJS.map(function(o){return ce("div",{key:o.id,className:"obj-o"+(form.objetivo===o.id?" on":""),onClick:function(){setForm(function(f){return Object.assign({},f,{objetivo:o.id});}); }},ce("div",{className:"obj-ic"},o.ic),ce("div",null,ce("div",{className:"obj-lbl"},o.lb),ce("div",{className:"obj-ds"},o.ds)));}))
           ),
-          ce("button",{className:"gbtn",onClick:handleGenerate,disabled:!form.objetivo||(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)},"Gerar Roteiros com IA")
+          ce("button",{className:"gbtn",onClick:handleGenerate,disabled:!form.objetivo||(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)},"Gerar Roteiros com IA"),
+          (function(){var f=[];if(!form.objetivo)f.push("escolher o destino (passo 05)");if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)f.push("escolher como descrever o produto (passo 01)");else{if(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)f.push("escrever a descricao do produto");if(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)f.push("colar a URL");if(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)f.push("enviar ao menos uma foto");}return f.length?ce("div",{style:{marginTop:10,fontSize:12.5,color:"var(--ac2)",textAlign:"center"}},"Falta: "+f.join(" e ")):null;})()
         )
       ),
       view==="results"&&activeProject&&function(){
-        var rod=activeProject.rodadas[activeProject.rodadas.length-1],resultado=rod.resultado,scripts=getScs(),intel=resultado.inteligencia||{},personas=resultado.personas||[];
+        var rod=activeProject.rodadas[activeProject.rodadas.length-1],resultado=rod.resultado,scripts=getScs(),intel=resultado.inteligencia||{},personas=resultado.personas||[],vars=(resultado&&resultado.variacoes)||{};
         return ce("div",{className:"content"},
           ce("div",{className:"rh"},
             ce("div",null,ce("div",{className:"rh-title"},activeProject.name),ce("div",{className:"rh-meta"},activeProject.objetivo+" - "+rod.data+" - "+(activeProject.rodadas.length*5)+" roteiros")),
-            ce("div",{className:"rh-acts"},ce("button",{className:"abtn",onClick:copyAll},"Copiar todos"),ce("button",{className:"abtn pr",onClick:function(){handleNextRound();},disabled:generating},generating?"Gerando...":"+ Próxima Rodada"))
+            ce("div",{className:"rh-acts"},ce("button",{className:"abtn",onClick:copyAll},"Copiar todos"),ce("button",{className:"abtn",onClick:baixarRoteiros},"Baixar"),(activeProject.rodadas.length<3?ce("button",{className:"abtn pr",onClick:function(){handleNextRound();},disabled:generating},generating?"Gerando...":"+ Próxima Rodada"):ce("span",{style:{fontSize:12,color:"var(--mu)",alignSelf:"center"}},"Limite de 3 rodadas atingido")))
           ),
           ce("div",{className:"tabs"},[{id:"personas",lb:"Personas"},{id:"roteiros",lb:"Todos"},{id:"topo",lb:"Topo"},{id:"meio",lb:"Meio"},{id:"fundo",lb:"Fundo"},{id:"matriz",lb:"Matriz"}].map(function(t){return ce("button",{key:t.id,className:"tab"+(activeTab===t.id?" on":""),onClick:function(){setActiveTab(t.id);}},t.lb);})),
           activeTab==="personas"&&ce("div",null,
+            personas.length===0&&ce("div",{className:"emp-p",style:{marginBottom:14}},"As personas e a inteligencia podem nao ter sido geradas neste projeto. Gere novamente se precisar."),
             ce("div",{className:"ins-box"},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:14}},"Inteligencia Estrategica"),ce("div",{className:"ins-g"},[{lb:"Insight",v:intel.insight,c:"var(--ac2)"},{lb:"Big Idea",v:intel.bigIdea,c:"var(--gold)"},{lb:"Mecanismo",v:intel.mecanismo,c:"var(--ok)"},{lb:"Diferencial",v:intel.diferencial,c:"var(--pu)"}].map(function(item){return ce("div",{key:item.lb,className:"ins-i",style:{borderLeft:"3px solid "+item.c}},ce("div",{className:"ins-l"},item.lb),ce("div",{className:"ins-v"},item.v||"-"));}))),
             ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,marginBottom:12}},"Buyer Personas"),
             ce("div",{className:"pg-grid"},personas.map(function(p,i){return ce("div",{key:i,className:"pcard"},ce("div",{className:"pcard-hd"},ce("div",{className:"pav"},p.emoji||"👤"),ce("div",null,ce("div",{className:"pname"},p.nome),ce("div",{className:"ptype"},p.tipo))),[["Motivacao",p.motivacao],["Dor",p.dor],["Objecao",p.objecao],["Comunicacao",p.comunicacao]].map(function(pair){return ce("div",{key:pair[0],className:"prow"},ce("div",{className:"prow-l"},pair[0]),ce("div",{className:"prow-v"},pair[1]||"-"));}));}))
@@ -607,7 +617,7 @@ function App(){
             ce("div",{className:"var-sec"},
               ce("div",{className:"var-t"},"Gerar mais variacoes"),
               ce("div",{className:"var-g"},[{id:"ganchos",ic:"🎯",lb:"+ 5 Ganchos"},{id:"roteiros",ic:"📝",lb:"+ 5 Roteiros"},{id:"ctas",ic:"🔥",lb:"+ 5 CTAs"}].map(function(v){return ce("button",{key:v.id,className:"var-btn"+(varLoading===v.id?" ld":""),onClick:function(){genVar(v.id);},disabled:!!varLoading},ce("span",{className:"vi"},varLoading===v.id?"...":v.ic),v.lb);})),
-              Object.keys(varResults).length>0&&ce("div",{style:{marginTop:14}},Object.keys(varResults).map(function(tipo){return ce("div",{key:tipo,style:{marginBottom:12}},ce("div",{style:{fontSize:11,fontWeight:600,textTransform:"uppercase",color:"var(--mu)",marginBottom:8}},"Variacoes - "+tipo),varResults[tipo].map(function(item,i){return ce("div",{key:i,style:{background:"var(--sur2)",borderRadius:8,padding:"10px 12px",marginBottom:6,fontSize:13,display:"flex",justifyContent:"space-between",gap:8}},ce("span",null,item),ce("button",{style:{background:"transparent",border:"1px solid var(--bo)",borderRadius:4,color:"var(--mu2)",fontSize:10,padding:"2px 7px",cursor:"pointer"},onClick:function(){navigator.clipboard.writeText(item);showToast("Copiado!");}}, "copiar"));}));}))
+              Object.keys(vars).length>0&&ce("div",{style:{marginTop:14}},Object.keys(vars).map(function(tipo){return ce("div",{key:tipo,style:{marginBottom:12}},ce("div",{style:{fontSize:11,fontWeight:600,textTransform:"uppercase",color:"var(--mu)",marginBottom:8}},"Variacoes - "+tipo),vars[tipo].map(function(item,i){return ce("div",{key:i,style:{background:"var(--sur2)",borderRadius:8,padding:"10px 12px",marginBottom:6,fontSize:13,display:"flex",justifyContent:"space-between",gap:8}},ce("span",null,item),ce("button",{style:{background:"transparent",border:"1px solid var(--bo)",borderRadius:4,color:"var(--mu2)",fontSize:10,padding:"2px 7px",cursor:"pointer"},onClick:function(){navigator.clipboard.writeText(item);showToast("Copiado!");}}, "copiar"));}));}))
             ),
             ce("div",{className:"scripts"},scripts.map(function(s){return ce("div",{key:s.id,className:"sc"},
               ce("div",{className:"sc-hd",onClick:function(){togSc(s.id);}},ce("div",{className:"sc-n"},s.numGlobal||s.id),ce("div",{className:"sc-inf"},ce("div",{className:"sc-title"},s.titulo),ce("div",{className:"sc-pilar"},s.pilar)),ce("div",{className:"sc-tags"},ftag(s.funil),ce("span",{className:"tag"},"30s")),ce("span",{style:{color:"var(--mu)",marginLeft:8}},openScripts[s.id]?"v":">")),
@@ -624,10 +634,12 @@ function App(){
       view==="history"&&ce("div",{className:"content"},
         !projects.length
           ?ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"📂"),ce("div",{className:"emp-h"},"Nenhum projeto ainda"),ce("div",{className:"emp-p"},"Crie seu primeiro projeto."))
-          :ce("div",null,ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18,marginBottom:18}},"Historico"),ce("div",{className:"hl"},projects.map(function(p){return ce("div",{key:p.id,className:"hi",onClick:function(){setActiveProject(p);setView("results");}},ce("div",{style:{fontSize:20}},"🎬"),ce("div",{className:"hi-inf"},ce("div",{className:"hi-n"},p.name),ce("div",{className:"hi-m"},p.date)),ce("div",{className:"hi-b"},((p.rodadas&&p.rodadas.length)||1)*5+" roteiros"));})))
+          :ce("div",null,
+            ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18}},"Historico"),ce("input",{placeholder:"Buscar projeto...",value:histBusca,onChange:function(e){setHistBusca(e.target.value);},style:{background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:8,color:"var(--tx)",fontSize:13,padding:"8px 12px",outline:"none",minWidth:200,fontFamily:"'DM Sans',sans-serif"}})),
+            ce("div",{className:"hl"},projects.filter(function(p){return !histBusca||(p.name||"").toLowerCase().indexOf(histBusca.toLowerCase())>-1;}).map(function(p){return ce("div",{key:p.id,className:"hi",onClick:function(){setActiveProject(p);setView("results");}},ce("div",{style:{fontSize:20}},"🎬"),ce("div",{className:"hi-inf"},ce("div",{className:"hi-n"},p.name),ce("div",{className:"hi-m"},p.date)),ce("div",{className:"hi-b"},((p.rodadas&&p.rodadas.length)||1)*5+" roteiros"),ce("button",{onClick:function(e){renameProject(p.id,e);},title:"Renomear",style:{background:"none",border:"1px solid var(--bo)",borderRadius:6,color:"var(--mu2)",cursor:"pointer",padding:"4px 8px",fontSize:13,marginLeft:8}},"✏️"),ce("button",{onClick:function(e){deleteProject(p.id,e);},title:"Apagar",style:{background:"none",border:"1px solid var(--bo)",borderRadius:6,color:"var(--mu2)",cursor:"pointer",padding:"4px 8px",fontSize:13}},"🗑️"));})))
       )
     ),
-    generating&&ce("div",{className:"ov"},ce("div",{className:"ov-card"},ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seus roteiros..."),ce("div",{className:"ov-p"},"A IA esta aplicando o metodo MCP completo."),ce("div",{className:"ov-steps"},STEPS.map(function(s,i){return ce("div",{key:i,className:"ov-s"+(i<genStep?" dn":i===genStep?" ac":"")},ce("span",{className:"sdot"}),s);})))),
+    generating&&ce("div",{className:"ov"},ce("div",{className:"ov-card"},ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seus roteiros..."),ce("div",{className:"ov-p"},"Isso pode levar ate 1 minuto. Estamos lendo seu conteudo e criando os roteiros — nao feche esta tela."),ce("div",{className:"ov-steps"},STEPS.map(function(s,i){return ce("div",{key:i,className:"ov-s"+(i<genStep?" dn":i===genStep?" ac":"")},ce("span",{className:"sdot"}),s);})))),
     toast&&ce("div",{className:"toast"},ce("span",null,toast.type==="err"?"!":"v")," ",toast.msg),
     editingScript&&ce("div",{className:"edit-drawer"},ce("div",{className:"edit-dh"},ce("div",{className:"edit-dt"},"Ajustar roteiro",editingScript.editado?ce("span",{className:"edit-badge"},"Editado"):null),ce("button",{className:"edit-dc",onClick:function(){setEditingScript(null);setEditInstr("");}},"x")),ce("div",{className:"edit-db"},ce("div",{className:"edit-fl"},ce("label",null,"Gancho"),ce("div",{className:"edit-fv"},editingScript.gancho)),ce("div",{className:"edit-fl"},ce("label",null,"Corpo"),ce("div",{className:"edit-fv"},editingScript.corpo)),ce("div",{className:"edit-fl"},ce("label",null,"CTA"),ce("div",{className:"edit-fv"},editingScript.cta)),ce("div",{className:"edit-box"},ce("div",{style:{fontSize:12,fontWeight:600,color:"#9B8EFF",marginBottom:10}},"O que voce quer ajustar?"),ce("textarea",{className:"edit-ta",placeholder:"Ex: inclua a frase X no gancho, mude o tom, adicione urgencia no CTA...",value:editInstr,onChange:function(e){setEditInstr(e.target.value);}}),ce("button",{className:"edit-sb",disabled:!editInstr.trim()||editGenerating,onClick:function(){handleEditScript(editingScript,editInstr);}},editGenerating?"Ajustando...":"Aplicar ajuste com IA"))))
   );
