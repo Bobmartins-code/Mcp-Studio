@@ -274,6 +274,7 @@ function App(){
   var sE=useState(null),editingScript=sE[0],setEditingScript=sE[1];
   var sEI=useState(""),editInstr=sEI[0],setEditInstr=sEI[1];
   var sH=useState(""),histBusca=sH[0],setHistBusca=sH[1];
+  var sLP=useState(false),lendoPublico=sLP[0],setLendoPublico=sLP[1];
   var sEG=useState(false),editGenerating=sEG[0],setEditGenerating=sEG[1];
   var s10=useState(null),toast=s10[0],setToast=s10[1];
   var s11=useState(null),varLoading=s11[0],setVarLoading=s11[1];
@@ -520,6 +521,25 @@ function App(){
 
   function deleteProject(id,e){if(e)e.stopPropagation();if(!window.confirm("Apagar este projeto? Esta acao nao pode ser desfeita."))return;supaClient.from("projetos").delete().eq("id",id);setProjects(function(prev){return prev.filter(function(p){return p.id!==id;});});if(activeProject&&activeProject.id===id){setActiveProject(null);setView("home");}showToast("Projeto apagado.");}
   function renameProject(id,e){if(e)e.stopPropagation();var p=projects.find(function(x){return x.id===id;});var novo=window.prompt("Novo nome do projeto:",(p&&p.name)||"");if(!novo||!novo.trim())return;novo=novo.trim();supaClient.from("projetos").update({nome:novo}).eq("id",id);setProjects(function(prev){return prev.map(function(x){return x.id===id?Object.assign({},x,{name:novo}):x;});});if(activeProject&&activeProject.id===id)setActiveProject(Object.assign({},activeProject,{name:novo}));showToast("Projeto renomeado.");}
+  async function lerPublicoArquivo(file){
+    if(!file)return;
+    if(file.size>8*1024*1024){showToast("Arquivo muito grande (max 8MB).","err");return;}
+    setLendoPublico(true);
+    try{
+      var b64=await toB64(file);
+      var bloco=file.type==="application/pdf"?{type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}}:{type:"image",source:{type:"base64",media_type:file.type,data:b64}};
+      var instr={type:"text",text:"Leia este material de estudo de publico e escreva uma descricao clara e util do publico-alvo para anuncios: quem e, dores, desejos, contexto e a linguagem que usa. Escreva 1 paragrafo corrido, direto, em portugues, sem markdown e sem traco longo. Responda apenas com o texto da descricao."};
+      var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:[{role:"user",content:[bloco,instr]}],max_tokens:1200,model:"claude-sonnet-4-6"})});
+      if(!res.ok)throw new Error("Erro "+res.status);
+      var data=await res.json();
+      if(data.error)throw new Error(data.error.message||data.error);
+      var txt=(data.content||[]).map(function(b){return b.text||"";}).join("").trim();
+      if(!txt)throw new Error("nao consegui ler");
+      setForm(function(f){return Object.assign({},f,{descricao:(f.descricao?f.descricao+"\n\n":"")+txt});});
+      showToast("Publico preenchido a partir do material!");
+    }catch(e){showToast("Nao consegui ler o material. Tente outro arquivo ou preencha manualmente.","err");}
+    setLendoPublico(false);
+  }
   function togSc(id){setOpenScripts(function(p){var n=Object.assign({},p);n[id]=!n[id];return n;});}
   function copySc(s){navigator.clipboard.writeText("ROTEIRO "+s.id+" - "+s.titulo+"\n\nGANCHO\n"+s.gancho+"\n\nCORPO\n"+s.corpo+"\n\nCTA\n"+s.cta);setCopiedId(s.id);setTimeout(function(){setCopiedId(null);},2000);showToast("Copiado!");}
   function copyAll(){if(!activeProject)return;var rod=activeProject.rodadas[activeProject.rodadas.length-1];navigator.clipboard.writeText(rod.resultado.roteiros.map(function(s,i){return "=== ROTEIRO "+(i+1)+" ===\n"+s.gancho+"\n"+s.corpo+"\n"+s.cta;}).join("\n\n"));showToast("Todos copiados!");}
@@ -595,6 +615,7 @@ function App(){
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"02 - Publico alvo e sobre seu negocio"),
             ce("div",{className:"fi"},ce("label",null,"Descreva quem atende, o que oferece e o que transforma na vida do cliente"),ce("textarea",{style:{minHeight:110},placeholder:"Ex: Somos uma loja feminina em SP, atendemos mulheres 25-40 anos.",value:form.descricao,onChange:function(e){setForm(function(f){return Object.assign({},f,{descricao:e.target.value});})}})),
+            ce("div",{style:{margin:"0 0 12px"}},ce("label",{style:{display:"block",fontSize:12,fontWeight:500,color:"var(--mu2)",marginBottom:6}},"Tem um estudo de publico pronto? Carregue e a IA preenche o campo acima:"),ce("label",{style:{display:"inline-flex",alignItems:"center",gap:8,cursor:lendoPublico?"wait":"pointer",border:"1px dashed var(--boh)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"var(--ac2)",background:"var(--sur2)"}},ce("input",{type:"file",accept:".pdf,image/*",style:{display:"none"},disabled:lendoPublico,onChange:function(e){if(e.target.files&&e.target.files[0]){lerPublicoArquivo(e.target.files[0]);e.target.value="";}}}),lendoPublico?"Lendo o material...":"Carregar PDF ou foto do estudo")),
             ce("div",{className:"fi"},ce("label",null,"Diferenciais (opcional)"),ce("input",{placeholder:"Ex: Entrega rapida, atendimento personalizado, exclusividade...",value:form.diferenciais,onChange:function(e){setForm(function(f){return Object.assign({},f,{diferenciais:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Caracteristicas do produto (opcional)"),ce("textarea",{style:{minHeight:70},placeholder:"Ex: feito a mao, sem gluten, aprovado por dermatologistas, garantia 30 dias...",value:form.caracteristicas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{caracteristicas:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Exemplo de conteudo que ja funcionou (muito recomendado)"),ce("textarea",{style:{minHeight:70},placeholder:"Cole um post ou legenda que teve bom resultado. A IA vai aprender seu estilo.",value:form.exemploConteudo||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{exemploConteudo:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Palavras ou frases que NAO quer usar (opcional)"),ce("input",{placeholder:"Ex: incrivel, revolucionario, nao perca essa chance...",value:form.proibidas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{proibidas:e.target.value});});}}))
           ),
           ce("div",{className:"sec"},
