@@ -293,6 +293,7 @@ function App(){
   var sLP=useState(false),lendoPublico=sLP[0],setLendoPublico=sLP[1];
   var sPf=useState(null),perfil=sPf[0],setPerfil=sPf[1];
   var sRG=useState(null),regenId=sRG[0],setRegenId=sRG[1];
+  var sImg=useState(null),imgModal=sImg[0],setImgModal=sImg[1];
   var sEG=useState(false),editGenerating=sEG[0],setEditGenerating=sEG[1];
   var s10=useState(null),toast=s10[0],setToast=s10[1];
   var s11=useState(null),varLoading=s11[0],setVarLoading=s11[1];
@@ -578,6 +579,17 @@ function App(){
     }catch(e){showToast("Nao consegui ler o material. Tente outro arquivo ou preencha manualmente.","err");}
     setLendoPublico(false);
   }
+  async function gerarCriativo(s){
+    var f=(activeProject&&activeProject.form)||{};
+    setImgModal({loading:true});
+    try{
+      var prompt="Crie um criativo de anuncio vertical para Instagram e Reels, com aparencia profissional e que para o scroll, para este negocio: "+(f.produto||"")+". Publico: "+(f.descricao||"")+". Diferenciais: "+(f.diferenciais||"")+". A imagem deve combinar com o nicho e exibir, em destaque e bem legivel, o texto em portugues: '"+(s.gancho||"")+"'. Composicao limpa e moderna, cores que combinam com o nicho, texto integrado ao design como um anuncio real e profissional.";
+      var res=await fetch("/api/image",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({prompt:prompt,size:"1024x1536"})});
+      var data=await res.json();
+      if(!res.ok||data.error)throw new Error(data.error||("Erro "+res.status));
+      setImgModal({b64:data.b64});
+    }catch(e){setImgModal(null);showToast("Erro ao gerar imagem: "+((e&&e.message)||"tente de novo"),"err");}
+  }
   async function regenerarRoteiro(s){
     if(!activeProject)return;
     setRegenId(s.id);
@@ -732,7 +744,7 @@ function App(){
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl"},"Gancho"),ce("div",{className:"sc-bl-txt"},s.gancho)),
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl b"},"Corpo"),ce("div",{className:"sc-bl-txt"},s.corpo)),
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl c"},"CTA"),ce("div",{className:"sc-bl-txt"},s.cta)),
-                ce("div",{className:"sc-ft",style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},ce("button",{className:"cbtn"+(copiedId===s.id?" cp":""),onClick:function(){copySc(s);}},copiedId===s.id?"Copiado!":"Copiar roteiro"),ce("button",{onClick:function(e){e.stopPropagation();toggleLike(s.id);},title:s.liked?"Remover like":"Amei este roteiro",style:{background:"none",border:"1px solid "+(s.liked?"rgba(255,50,80,.4)":"var(--bo)"),borderRadius:8,cursor:"pointer",fontSize:16,padding:"3px 8px",transition:"transform .15s",transform:s.liked?"scale(1.2)":"scale(1)"}},s.liked?"❤️":"🤍"),ce("button",{onClick:function(e){e.stopPropagation();marcarVendeu(s);},title:s.vendeu?"Este vendeu (clique para desmarcar)":"Marcar que este vendeu (alimenta os proximos roteiros)",style:{background:s.vendeu?"rgba(45,222,152,.12)":"none",border:"1px solid "+(s.vendeu?"rgba(45,222,152,.45)":"var(--bo)"),borderRadius:8,cursor:"pointer",fontSize:16,padding:"3px 8px"}},"💰"),ce("button",{onClick:function(e){e.stopPropagation();regenerarRoteiro(s);},disabled:regenId===s.id,style:{background:"none",border:"1px solid var(--bo)",borderRadius:8,color:"var(--mu2)",padding:"4px 12px",fontSize:12,cursor:regenId===s.id?"wait":"pointer",fontFamily:"inherit"}},regenId===s.id?"Regenerando...":"Regenerar"),ce("button",{onClick:function(e){e.stopPropagation();setEditingScript(s);setEditInstr("");},style:{background:"rgba(155,142,255,.1)",border:"1px solid rgba(155,142,255,.3)",color:"#9B8EFF",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Ajustar"))
+                ce("div",{className:"sc-ft",style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},ce("button",{className:"cbtn"+(copiedId===s.id?" cp":""),onClick:function(){copySc(s);}},copiedId===s.id?"Copiado!":"Copiar roteiro"),ce("button",{onClick:function(e){e.stopPropagation();toggleLike(s.id);},title:s.liked?"Remover like":"Amei este roteiro",style:{background:"none",border:"1px solid "+(s.liked?"rgba(255,50,80,.4)":"var(--bo)"),borderRadius:8,cursor:"pointer",fontSize:16,padding:"3px 8px",transition:"transform .15s",transform:s.liked?"scale(1.2)":"scale(1)"}},s.liked?"❤️":"🤍"),ce("button",{onClick:function(e){e.stopPropagation();marcarVendeu(s);},title:s.vendeu?"Este vendeu (clique para desmarcar)":"Marcar que este vendeu (alimenta os proximos roteiros)",style:{background:s.vendeu?"rgba(45,222,152,.12)":"none",border:"1px solid "+(s.vendeu?"rgba(45,222,152,.45)":"var(--bo)"),borderRadius:8,cursor:"pointer",fontSize:16,padding:"3px 8px"}},"💰"),ce("button",{onClick:function(e){e.stopPropagation();regenerarRoteiro(s);},disabled:regenId===s.id,style:{background:"none",border:"1px solid var(--bo)",borderRadius:8,color:"var(--mu2)",padding:"4px 12px",fontSize:12,cursor:regenId===s.id?"wait":"pointer",fontFamily:"inherit"}},regenId===s.id?"Regenerando...":"Regenerar"),ce("button",{onClick:function(e){e.stopPropagation();setEditingScript(s);setEditInstr("");},style:{background:"rgba(155,142,255,.1)",border:"1px solid rgba(155,142,255,.3)",color:"#9B8EFF",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Ajustar"),ce("button",{onClick:function(e){e.stopPropagation();gerarCriativo(s);},title:"Gerar uma imagem de anuncio com este gancho",style:{background:"rgba(255,138,80,.12)",border:"1px solid rgba(255,138,80,.35)",color:"var(--ac2)",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"🎨 Imagem"))
               )
             );}))
           )
@@ -749,6 +761,7 @@ function App(){
     ),
     generating&&ce("div",{className:"ov"},ce("div",{className:"ov-card"},ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seus roteiros..."),ce("div",{className:"ov-p"},"Isso pode levar ate 1 minuto. Estamos lendo seu conteudo e criando os roteiros. Nao feche esta tela."),ce("div",{className:"ov-steps"},STEPS.map(function(s,i){return ce("div",{key:i,className:"ov-s"+(i<genStep?" dn":i===genStep?" ac":"")},ce("span",{className:"sdot"}),s);})))),
     toast&&ce("div",{className:"toast"},ce("span",null,toast.type==="err"?"!":"v")," ",toast.msg),
+    imgModal&&ce("div",{className:"ov",onClick:function(){if(!imgModal.loading)setImgModal(null);}},ce("div",{className:"ov-card",style:{maxWidth:430},onClick:function(e){e.stopPropagation();}},imgModal.loading?ce("div",null,ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seu criativo..."),ce("div",{className:"ov-p"},"Isso pode levar ate 1 minuto. Nao feche esta janela.")):ce("div",null,ce("img",{src:"data:image/png;base64,"+imgModal.b64,alt:"criativo",style:{width:"100%",borderRadius:12,marginBottom:14,display:"block"}}),ce("div",{style:{display:"flex",gap:8}},ce("a",{href:"data:image/png;base64,"+imgModal.b64,download:"criativo-mcp.png",className:"gbtn",style:{textDecoration:"none",textAlign:"center",flex:1,padding:12,fontSize:14}},"Baixar"),ce("button",{className:"abtn",onClick:function(){setImgModal(null);},style:{flex:1,justifyContent:"center"}},"Fechar"))))),
     editingScript&&ce("div",{className:"edit-drawer"},ce("div",{className:"edit-dh"},ce("div",{className:"edit-dt"},"Ajustar roteiro",editingScript.editado?ce("span",{className:"edit-badge"},"Editado"):null),ce("button",{className:"edit-dc",onClick:function(){setEditingScript(null);setEditInstr("");}},"x")),ce("div",{className:"edit-db"},ce("div",{className:"edit-fl"},ce("label",null,"Gancho"),ce("div",{className:"edit-fv"},editingScript.gancho)),ce("div",{className:"edit-fl"},ce("label",null,"Corpo"),ce("div",{className:"edit-fv"},editingScript.corpo)),ce("div",{className:"edit-fl"},ce("label",null,"CTA"),ce("div",{className:"edit-fv"},editingScript.cta)),ce("div",{className:"edit-box"},ce("div",{style:{fontSize:12,fontWeight:600,color:"#9B8EFF",marginBottom:10}},"O que voce quer ajustar?"),ce("textarea",{className:"edit-ta",placeholder:"Ex: inclua a frase X no gancho, mude o tom, adicione urgencia no CTA...",value:editInstr,onChange:function(e){setEditInstr(e.target.value);}}),ce("button",{className:"edit-sb",disabled:!editInstr.trim()||editGenerating,onClick:function(){handleEditScript(editingScript,editInstr);}},editGenerating?"Ajustando...":"Aplicar ajuste com IA"))))
   );
 }
