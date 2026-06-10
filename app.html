@@ -237,6 +237,23 @@ async function lerConteudoUrl(url){
   }catch(err){return null;}
 }
 
+async function revisarRoteiros(roteiros){
+  try{
+    if(!Array.isArray(roteiros)||!roteiros.length)return roteiros;
+    var prompt="Voce e um diretor de criacao revisando roteiros de Meta Ads feitos por um redator junior. Para CADA roteiro avalie com rigor: o gancho prende nos 3 primeiros segundos e cita algo ESPECIFICO do negocio? Soa como uma pessoa real falando, sem cara de IA (sem cliches como eleve, descomplique, transforme sua vida, imagine so, a verdade e que)? O corpo tem 1 argumento ou prova concreta? O CTA conecta com a dor do gancho e e especifico? Reescreva os roteiros fracos para ficarem mais especificos, naturais e persuasivos; mantenha os que ja estao bons. Responda APENAS com JSON valido sem markdown, um objeto {\"roteiros\":[...]} com a MESMA quantidade de roteiros e os mesmos campos id, titulo, pilar, funil, gancho, corpo, cta. NUNCA use aspas duplas dentro dos textos, use aspas simples. ROTEIROS PARA REVISAR: "+JSON.stringify({roteiros:roteiros});
+    var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:5000,model:"claude-sonnet-4-6"})});
+    if(!res.ok)return roteiros;
+    var data=await res.json();
+    if(data.error)return roteiros;
+    var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
+    var p;
+    try{p=JSON.parse(raw);}
+    catch(e1){var s=raw.indexOf("{"),en=raw.lastIndexOf("}");if(s>-1&&en>-1){try{p=JSON.parse(raw.substring(s,en+1));}catch(e2){return roteiros;}}else return roteiros;}
+    if(p&&Array.isArray(p.roteiros)&&p.roteiros.length)return p.roteiros;
+    return roteiros;
+  }catch(e){return roteiros;}
+}
+
 function buildVP(form,tipo,ex){
   var instr={ganchos:"5 ganchos de 1 frase cada, estilo Reels, direto e impactante",roteiros:"5 ganchos completos de 1-2 frases cada",ctas:"5 CTAs de 1 frase cada, especificos e diretos"};
   var proib=ex.length>0?" Nao repita estes ja usados: "+ex.join(" | ")+".":"";
@@ -379,7 +396,7 @@ function App(){
           } else throw new Error("Erro ao processar resposta da IA");
         }
       }catch(ex){throw new Error("Erro ao processar resposta da IA: "+ex.message);}
-      if(parsed&&Array.isArray(parsed.roteiros)){var _off=(rodada-1)*5;parsed.roteiros.forEach(function(s,i){s.id=_off+i+1;if(s.funil)s.funil=String(s.funil).toLowerCase().trim();});}
+      if(parsed&&Array.isArray(parsed.roteiros)){parsed.roteiros=await revisarRoteiros(parsed.roteiros);var _off=(rodada-1)*5;parsed.roteiros.forEach(function(s,i){s.id=_off+i+1;if(s.funil)s.funil=String(s.funil).toLowerCase().trim();});}
       var nr={numero:rodada,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
       var proj;
       if(activeProject&&view==="results"){
@@ -442,7 +459,7 @@ function App(){
         if(st>-1&&en>-1){parsed=JSON.parse(raw.substring(st,en+1));}
         else throw new Error("Erro ao processar resposta da IA");
       }
-      if(parsed&&Array.isArray(parsed.roteiros)){var _off=(rodada-1)*5;parsed.roteiros.forEach(function(s,i){s.id=_off+i+1;if(s.funil)s.funil=String(s.funil).toLowerCase().trim();});}
+      if(parsed&&Array.isArray(parsed.roteiros)){parsed.roteiros=await revisarRoteiros(parsed.roteiros);var _off=(rodada-1)*5;parsed.roteiros.forEach(function(s,i){s.id=_off+i+1;if(s.funil)s.funil=String(s.funil).toLowerCase().trim();});}
       var nr={numero:rodada,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
       var novasRodadas=hist.concat([nr]);
       var proj=Object.assign({},activeProject,{rodadas:novasRodadas});
