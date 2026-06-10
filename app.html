@@ -383,7 +383,7 @@ function App(){
         else if(messages[0]&&Array.isArray(messages[0].content)){var li=messages[0].content[messages[0].content.length-1];if(li&&li.type==="text")li.text+=aCtx;}
       }
       // CHAMADA 2 - Roteiros com contexto rico (analise ja aplicada acima)
-      setGenStep(1);var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:messages,max_tokens:6000,model:"claude-sonnet-4-6"})});
+      setGenStep(1);var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:messages,max_tokens:6000,model:"claude-opus-4-8"})});
       if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
       var data=await res.json();
       if(data.error)throw new Error(data.error.message||data.error);
@@ -469,7 +469,7 @@ function App(){
         var aCtx2=" ANALISE: DOR: "+analise2.dor_profunda+" | OBJECAO: "+analise2.objecao_principal+" | LINGUAGEM: "+analise2.linguagem_real+" | MECANISMO: "+analise2.mecanismo_unico;
         messages[0]=Object.assign({},messages[0],{content:messages[0].content+aCtx2});
       }
-      setGenStep(1);var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:messages,max_tokens:6000,model:"claude-sonnet-4-6"})});
+      setGenStep(1);var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:messages,max_tokens:6000,model:"claude-opus-4-8"})});
       if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
       var data=await res.json();
       if(data.error)throw new Error(data.error.message||data.error);
