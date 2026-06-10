@@ -238,6 +238,21 @@ async function lerConteudoUrl(url){
   }catch(err){return null;}
 }
 
+async function pesquisarMercado(ff){
+  try{
+    var prompt="Pesquise na web o mercado deste negocio para criar anuncios melhores. Negocio: "+(ff.produto||"")+". Publico: "+(ff.descricao||"")+". Descubra o que concorrentes desse nicho usam em anuncios, angulos e ganchos que funcionam, tendencias atuais e dores comuns do publico. Responda APENAS com JSON sem markdown: {tendencias:texto, angulos:texto, dores:texto, oportunidade:texto}. Sem aspas duplas dentro dos textos.";
+    var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:1500,model:"claude-sonnet-4-6",tools:[{type:"web_search_20260209",name:"web_search"}]})});
+    if(!res.ok)return null;
+    var data=await res.json();
+    if(data.error)return null;
+    var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
+    var s=raw.indexOf("{"),e=raw.lastIndexOf("}");
+    if(s<0||e<0)return null;
+    var o;try{o=JSON.parse(raw.substring(s,e+1));}catch(err){return null;}
+    return " PESQUISA DE MERCADO ATUAL (use para deixar os ganchos e angulos mais afiados e atuais): tendencias: "+(o.tendencias||"-")+" | angulos que funcionam: "+(o.angulos||"-")+" | dores comuns: "+(o.dores||"-")+" | oportunidade: "+(o.oportunidade||"-")+".";
+  }catch(e){return null;}
+}
+
 async function revisarRoteiros(roteiros){
   try{
     if(!Array.isArray(roteiros)||!roteiros.length)return roteiros;
@@ -383,6 +398,7 @@ function App(){
         else if(messages[0]&&Array.isArray(messages[0].content)){var li=messages[0].content[messages[0].content.length-1];if(li&&li.type==="text")li.text+=aCtx;}
       }
       // CHAMADA 2 - Roteiros com contexto rico (analise ja aplicada acima)
+      if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
       setGenStep(1);var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:messages,max_tokens:6000,model:"claude-opus-4-8"})});
       if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
       var data=await res.json();
@@ -469,6 +485,7 @@ function App(){
         var aCtx2=" ANALISE: DOR: "+analise2.dor_profunda+" | OBJECAO: "+analise2.objecao_principal+" | LINGUAGEM: "+analise2.linguagem_real+" | MECANISMO: "+analise2.mecanismo_unico;
         messages[0]=Object.assign({},messages[0],{content:messages[0].content+aCtx2});
       }
+      if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
       setGenStep(1);var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:messages,max_tokens:6000,model:"claude-opus-4-8"})});
       if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
       var data=await res.json();
@@ -683,6 +700,7 @@ function App(){
             ce("div",{className:"obj-q"},"Escolha o destino desejado - cada um gera um estilo diferente de roteiro e CTA."),
             ce("div",{className:"obj-g"},OBJS.map(function(o){return ce("div",{key:o.id,className:"obj-o"+(form.objetivo===o.id?" on":""),onClick:function(){setForm(function(f){return Object.assign({},f,{objetivo:o.id});}); }},ce("div",{className:"obj-ic"},o.ic),ce("div",null,ce("div",{className:"obj-lbl"},o.lb),ce("div",{className:"obj-ds"},o.ds)));}))
           ),
+          ce("div",{className:"sec"},ce("div",{onClick:function(){setForm(function(f){return Object.assign({},f,{pesquisarMercado:!f.pesquisarMercado});});},style:{display:"flex",alignItems:"center",gap:12,cursor:"pointer"}},ce("div",{style:{width:42,height:24,borderRadius:12,background:form.pesquisarMercado?"var(--ac)":"var(--sur2)",border:"1px solid var(--bo)",position:"relative",transition:"all .2s",flexShrink:0}},ce("div",{style:{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:form.pesquisarMercado?22:3,transition:"all .2s"}})),ce("div",null,ce("div",{style:{fontSize:13,fontWeight:600}},"Pesquisar o mercado antes de gerar"),ce("div",{style:{fontSize:11.5,color:"var(--mu)",marginTop:2,lineHeight:1.4}},"A IA pesquisa concorrentes e tendencias do nicho na web. Deixa os roteiros mais afiados e atuais, porem fica mais lento e tem um pequeno custo extra de busca.")))),
           ce("button",{className:"gbtn",onClick:handleGenerate,disabled:!form.objetivo||(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)},"Gerar Roteiros com IA"),
           (function(){var f=[];if(!form.objetivo)f.push("escolher o destino (passo 05)");if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)f.push("escolher como descrever o produto (passo 01)");else{if(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)f.push("escrever a descricao do produto");if(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)f.push("colar a URL");if(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)f.push("enviar ao menos uma foto");}return f.length?ce("div",{style:{marginTop:10,fontSize:12.5,color:"var(--ac2)",textAlign:"center"}},"Falta: "+f.join(" e ")):null;})()
         )
