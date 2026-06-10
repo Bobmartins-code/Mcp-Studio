@@ -302,8 +302,11 @@ function renderUsuarios(){
     return true;
   });
   lista.sort(function(a,b){
-    var va=a[sortUsersBy]||"";
-    var vb=b[sortUsersBy]||"";
+    var va,vb;
+    if(sortUsersBy==="_projetos"){va=(projMap[a.id]||{}).projetos||0;vb=(projMap[b.id]||{}).projetos||0;}
+    else if(sortUsersBy==="_roteiros"){va=(projMap[a.id]||{}).roteiros||0;vb=(projMap[b.id]||{}).roteiros||0;}
+    else if(sortUsersBy==="_status"){va=diasAtras(a.last_sign_in_at);vb=diasAtras(b.last_sign_in_at);}
+    else{va=a[sortUsersBy]||"";vb=b[sortUsersBy]||"";}
     return va<vb?-sortUsersDir:va>vb?sortUsersDir:0;
   });
   document.getElementById("users-count").textContent=lista.length+" usuario(s)";
@@ -350,8 +353,11 @@ function renderProjetos(){
     return true;
   });
   lista.sort(function(a,b){
-    var va=a[sortProjBy]||"";
-    var vb=b[sortProjBy]||"";
+    var va,vb;
+    if(sortProjBy==="_usuario"){va=(emailMap[a.user_id]||"").toLowerCase();vb=(emailMap[b.user_id]||"").toLowerCase();}
+    else if(sortProjBy==="_rodadas"){va=(a.rodadas||[]).length;vb=(b.rodadas||[]).length;}
+    else if(sortProjBy==="_roteiros"){va=(a.rodadas||[]).reduce(function(x,r){return x+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);vb=(b.rodadas||[]).reduce(function(x,r){return x+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);}
+    else{va=a[sortProjBy]||"";vb=b[sortProjBy]||"";}
     return va<vb?-sortProjDir:va>vb?sortProjDir:0;
   });
   var total=lista.length;
@@ -401,7 +407,7 @@ function renderProjetos(){
       }
     }
     pg+='<button class="pg-btn" onclick="mudarPagina('+(projPage+1)+')" '+(projPage===totalPages?'disabled':'')+'>&#8250;</button>';
-    pg+='<span class="pg-info">'+start+1+'-'+Math.min(start+projPerPage,total)+' de '+total+'</span>';
+    pg+='<span class="pg-info">'+(start+1)+'-'+Math.min(start+projPerPage,total)+' de '+total+'</span>';
     document.getElementById("projects-pagination").innerHTML=pg;
     document.getElementById("projects-pagination").style.display="flex";
   }else{
