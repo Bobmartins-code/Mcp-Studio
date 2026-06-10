@@ -276,6 +276,7 @@ function App(){
   var sH=useState(""),histBusca=sH[0],setHistBusca=sH[1];
   var sLP=useState(false),lendoPublico=sLP[0],setLendoPublico=sLP[1];
   var sPf=useState(null),perfil=sPf[0],setPerfil=sPf[1];
+  var sRG=useState(null),regenId=sRG[0],setRegenId=sRG[1];
   var sEG=useState(false),editGenerating=sEG[0],setEditGenerating=sEG[1];
   var s10=useState(null),toast=s10[0],setToast=s10[1];
   var s11=useState(null),varLoading=s11[0],setVarLoading=s11[1];
@@ -547,6 +548,36 @@ function App(){
     }catch(e){showToast("Nao consegui ler o material. Tente outro arquivo ou preencha manualmente.","err");}
     setLendoPublico(false);
   }
+  async function regenerarRoteiro(s){
+    if(!activeProject)return;
+    setRegenId(s.id);
+    try{
+      var f=activeProject.form||{};
+      var prompt="Voce e copywriter de Meta Ads. Escreva UM novo roteiro para Reels do pilar "+(s.pilar||"")+" (funil "+(s.funil||"")+") para este negocio. Produto: "+(f.produto||"")+". Publico: "+(f.descricao||"")+". Diferenciais: "+(f.diferenciais||"")+". Crie algo DIFERENTE do roteiro atual (gancho atual: "+s.gancho+"). Gancho hiper-especifico nos 3 primeiros segundos, linguagem de pessoa real sem cara de IA e sem traco longo, corpo com argumento concreto e CTA conectado a dor. Responda APENAS com JSON sem markdown: {titulo:texto, gancho:texto, corpo:texto, cta:texto}. Sem aspas duplas dentro dos textos.";
+      var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:1000,model:"claude-sonnet-4-6"})});
+      var data=await res.json();
+      if(data.error)throw new Error(data.error.message||data.error);
+      var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
+      var parsed;try{parsed=JSON.parse(raw);}catch(e1){var st=raw.indexOf("{"),en=raw.lastIndexOf("}");parsed=JSON.parse(raw.substring(st,en+1));}
+      var novo=Object.assign({},s,{gancho:parsed.gancho||s.gancho,corpo:parsed.corpo||s.corpo,cta:parsed.cta||s.cta,titulo:parsed.titulo||s.titulo,editado:true});
+      var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(sc){return sc.id===s.id?novo:sc;})})});});
+      var proj=Object.assign({},activeProject,{rodadas:rods});
+      supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);
+      setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});
+      setActiveProject(proj);
+      showToast("Roteiro regenerado!");
+    }catch(e){showToast("Erro ao regenerar. Tente de novo.","err");}
+    setRegenId(null);
+  }
+  function duplicarProjeto(p,e){
+    if(e)e.stopPropagation();
+    supaClient.from("projetos").insert({nome:(p.name||"Projeto")+" (copia)",objetivo:p.objetivo,form:p.form,rodadas:p.rodadas,user_id:currentUser.id}).select().single().then(function(ins){
+      if(ins.error){showToast("Erro ao duplicar","err");return;}
+      var novo={id:ins.data.id,name:ins.data.nome,objetivo:p.objetivo,date:new Date().toLocaleDateString("pt-BR"),form:p.form,rodadas:p.rodadas};
+      setProjects(function(prev){return [novo].concat(prev);});
+      showToast("Projeto duplicado!");
+    });
+  }
   function togSc(id){setOpenScripts(function(p){var n=Object.assign({},p);n[id]=!n[id];return n;});}
   function copySc(s){navigator.clipboard.writeText("ROTEIRO "+s.id+" - "+s.titulo+"\n\nGANCHO\n"+s.gancho+"\n\nCORPO\n"+s.corpo+"\n\nCTA\n"+s.cta);setCopiedId(s.id);setTimeout(function(){setCopiedId(null);},2000);showToast("Copiado!");}
   function copyAll(){if(!activeProject)return;var rod=activeProject.rodadas[activeProject.rodadas.length-1];navigator.clipboard.writeText(rod.resultado.roteiros.map(function(s,i){return "=== ROTEIRO "+(i+1)+" ===\n"+s.gancho+"\n"+s.corpo+"\n"+s.cta;}).join("\n\n"));showToast("Todos copiados!");}
@@ -670,7 +701,7 @@ function App(){
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl"},"Gancho"),ce("div",{className:"sc-bl-txt"},s.gancho)),
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl b"},"Corpo"),ce("div",{className:"sc-bl-txt"},s.corpo)),
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl c"},"CTA"),ce("div",{className:"sc-bl-txt"},s.cta)),
-                ce("div",{className:"sc-ft",style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},ce("button",{className:"cbtn"+(copiedId===s.id?" cp":""),onClick:function(){copySc(s);}},copiedId===s.id?"Copiado!":"Copiar roteiro"),ce("button",{onClick:function(e){e.stopPropagation();toggleLike(s.id);},title:s.liked?"Remover like":"Amei este roteiro",style:{background:"none",border:"1px solid "+(s.liked?"rgba(255,50,80,.4)":"var(--bo)"),borderRadius:8,cursor:"pointer",fontSize:16,padding:"3px 8px",transition:"transform .15s",transform:s.liked?"scale(1.2)":"scale(1)"}},s.liked?"❤️":"🤍"),ce("button",{onClick:function(e){e.stopPropagation();setEditingScript(s);setEditInstr("");},style:{background:"rgba(155,142,255,.1)",border:"1px solid rgba(155,142,255,.3)",color:"#9B8EFF",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Ajustar"))
+                ce("div",{className:"sc-ft",style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},ce("button",{className:"cbtn"+(copiedId===s.id?" cp":""),onClick:function(){copySc(s);}},copiedId===s.id?"Copiado!":"Copiar roteiro"),ce("button",{onClick:function(e){e.stopPropagation();toggleLike(s.id);},title:s.liked?"Remover like":"Amei este roteiro",style:{background:"none",border:"1px solid "+(s.liked?"rgba(255,50,80,.4)":"var(--bo)"),borderRadius:8,cursor:"pointer",fontSize:16,padding:"3px 8px",transition:"transform .15s",transform:s.liked?"scale(1.2)":"scale(1)"}},s.liked?"❤️":"🤍"),ce("button",{onClick:function(e){e.stopPropagation();regenerarRoteiro(s);},disabled:regenId===s.id,style:{background:"none",border:"1px solid var(--bo)",borderRadius:8,color:"var(--mu2)",padding:"4px 12px",fontSize:12,cursor:regenId===s.id?"wait":"pointer",fontFamily:"inherit"}},regenId===s.id?"Regenerando...":"Regenerar"),ce("button",{onClick:function(e){e.stopPropagation();setEditingScript(s);setEditInstr("");},style:{background:"rgba(155,142,255,.1)",border:"1px solid rgba(155,142,255,.3)",color:"#9B8EFF",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Ajustar"))
               )
             );}))
           )
@@ -681,7 +712,7 @@ function App(){
           ?ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"📂"),ce("div",{className:"emp-h"},"Nenhum projeto ainda"),ce("div",{className:"emp-p"},"Crie seu primeiro projeto."))
           :ce("div",null,
             ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18}},"Historico"),ce("input",{placeholder:"Buscar projeto...",value:histBusca,onChange:function(e){setHistBusca(e.target.value);},style:{background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:8,color:"var(--tx)",fontSize:13,padding:"8px 12px",outline:"none",minWidth:200,fontFamily:"'DM Sans',sans-serif"}})),
-            ce("div",{className:"hl"},projects.filter(function(p){return !histBusca||(p.name||"").toLowerCase().indexOf(histBusca.toLowerCase())>-1;}).map(function(p){return ce("div",{key:p.id,className:"hi",onClick:function(){setActiveProject(p);setView("results");}},ce("div",{style:{fontSize:20}},"🎬"),ce("div",{className:"hi-inf"},ce("div",{className:"hi-n"},p.name),ce("div",{className:"hi-m"},p.date)),ce("div",{className:"hi-b"},((p.rodadas&&p.rodadas.length)||1)*5+" roteiros"),ce("button",{onClick:function(e){renameProject(p.id,e);},title:"Renomear",style:{background:"none",border:"1px solid var(--bo)",borderRadius:6,color:"var(--mu2)",cursor:"pointer",padding:"4px 8px",fontSize:13,marginLeft:8}},"✏️"),ce("button",{onClick:function(e){deleteProject(p.id,e);},title:"Apagar",style:{background:"none",border:"1px solid var(--bo)",borderRadius:6,color:"var(--mu2)",cursor:"pointer",padding:"4px 8px",fontSize:13}},"🗑️"));})))
+            ce("div",{className:"hl"},projects.filter(function(p){return !histBusca||(p.name||"").toLowerCase().indexOf(histBusca.toLowerCase())>-1;}).map(function(p){return ce("div",{key:p.id,className:"hi",onClick:function(){setActiveProject(p);setView("results");}},ce("div",{style:{fontSize:20}},"🎬"),ce("div",{className:"hi-inf"},ce("div",{className:"hi-n"},p.name),ce("div",{className:"hi-m"},p.date)),ce("div",{className:"hi-b"},((p.rodadas&&p.rodadas.length)||1)*5+" roteiros"),ce("button",{onClick:function(e){renameProject(p.id,e);},title:"Renomear",style:{background:"none",border:"1px solid var(--bo)",borderRadius:6,color:"var(--mu2)",cursor:"pointer",padding:"4px 8px",fontSize:13,marginLeft:8}},"✏️"),ce("button",{onClick:function(e){duplicarProjeto(p,e);},title:"Duplicar",style:{background:"none",border:"1px solid var(--bo)",borderRadius:6,color:"var(--mu2)",cursor:"pointer",padding:"4px 8px",fontSize:13,marginLeft:6}},"📋"),ce("button",{onClick:function(e){deleteProject(p.id,e);},title:"Apagar",style:{background:"none",border:"1px solid var(--bo)",borderRadius:6,color:"var(--mu2)",cursor:"pointer",padding:"4px 8px",fontSize:13}},"🗑️"));})))
       ),
       view==="publico"&&ce("div",{className:"content"},ce("div",{className:"fwrap"},ce("div",{className:"fhead"},ce("h2",null,"Meu Publico"),ce("p",null,"Descreva seu publico e negocio uma vez. Todo projeto novo ja vem preenchido com isso, e voce pode ajustar a qualquer momento.")),ce("div",{className:"sec"},ce("div",{className:"fi"},ce("label",null,"Publico e negocio"),ce("textarea",{style:{minHeight:110},placeholder:"Quem voce atende, o que oferece e o que transforma na vida do cliente.",value:(perfil&&perfil.descricao)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{descricao:v});});}})),ce("div",{className:"fi"},ce("label",null,"Diferenciais"),ce("input",{placeholder:"Ex: entrega rapida, atendimento personalizado...",value:(perfil&&perfil.diferenciais)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{diferenciais:v});});}})),ce("div",{className:"fi"},ce("label",null,"Caracteristicas do produto"),ce("textarea",{style:{minHeight:70},placeholder:"Ex: feito a mao, sem gluten, garantia 30 dias...",value:(perfil&&perfil.caracteristicas)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{caracteristicas:v});});}})),ce("div",{className:"fi"},ce("label",null,"Ticket medio"),ce("input",{placeholder:"Ex: R$ 97,00",value:(perfil&&perfil.preco)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{preco:v});});}})),ce("div",{className:"fi"},ce("label",null,"Exemplo de conteudo que ja funcionou"),ce("textarea",{style:{minHeight:70},placeholder:"Cole um post ou legenda que teve bom resultado.",value:(perfil&&perfil.exemploConteudo)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{exemploConteudo:v});});}})),ce("button",{className:"gbtn",onClick:function(){salvarPerfil(perfil||{});}},"Salvar meu publico")))),
     ),

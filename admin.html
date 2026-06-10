@@ -187,6 +187,20 @@ async function initAdmin(){
 
 function logout(){window.location.href="app.html";}
 
+async function apagarUsuario(uid){
+  var u=allUsers.find(function(x){return x.id===uid;});
+  var email=(u&&u.email)||uid;
+  if(!confirm("Apagar o usuario "+email+" e TODOS os projetos dele? Esta acao nao pode ser desfeita."))return;
+  try{
+    var r=await supaClient.rpc("delete_user",{target:uid});
+    if(r.error)throw r.error;
+    alert("Usuario apagado.");
+    loadData();
+  }catch(e){
+    alert("Nao foi possivel apagar. Confirme se a funcao delete_user foi criada no Supabase. Detalhe: "+((e&&e.message)||e));
+  }
+}
+
 function fmt(dt){if(!dt)return"-";return new Date(dt).toLocaleString("pt-BR");}
 function fmtDate(dt){if(!dt)return"-";return new Date(dt).toLocaleDateString("pt-BR");}
 function diasAtras(dt){if(!dt)return 999;return(Date.now()-new Date(dt).getTime())/(1000*60*60*24);}
@@ -312,7 +326,7 @@ function renderUsuarios(){
     var p=projMap[u.id]||{projetos:0,roteiros:0};
     var dias=diasAtras(u.last_sign_in_at);
     var badge=dias<1?'<span class="badge ok">Hoje</span>':dias<7?'<span class="badge ac">Esta semana</span>':dias<30?'<span class="badge mu">Este mes</span>':'<span class="badge nu">Inativo</span>';
-    html+='<tr><td style="font-weight:500">'+u.email+'</td><td style="font-size:12px;color:var(--mu2)">'+fmt(u.created_at)+'</td><td style="font-size:12px;color:var(--mu2)">'+fmt(u.last_sign_in_at)+'</td><td>'+p.projetos+'</td><td>'+p.roteiros+'</td><td>'+badge+'</td></tr>';
+    html+='<tr><td style="font-weight:500">'+u.email+'</td><td style="font-size:12px;color:var(--mu2)">'+fmt(u.created_at)+'</td><td style="font-size:12px;color:var(--mu2)">'+fmt(u.last_sign_in_at)+'</td><td>'+p.projetos+'</td><td>'+p.roteiros+'</td><td>'+badge+' <button class="btn-sm" style="margin-left:6px;border-color:rgba(255,77,0,.3);color:#FF8A50" onclick="apagarUsuario(\''+u.id+'\')">Apagar</button></td></tr>';
   });
   html+='</tbody></table>';
   document.getElementById("users-table").innerHTML=html;
