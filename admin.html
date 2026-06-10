@@ -81,10 +81,7 @@ tr:hover td{background:var(--sur2)}
 <div id="pin-screen" class="pin-screen">
   <div class="pin-card">
     <div class="pin-title">MCP<span style="color:var(--ac)">Studio</span></div>
-    <div class="pin-sub">Painel Administrativo<br>Digite o PIN de acesso</div>
-    <input id="pin-input" class="pin-input" type="password" maxlength="6" placeholder="••••••" onkeydown="if(event.key==='Enter')checkPin()"/>
-    <button class="pin-btn" onclick="checkPin()">Entrar</button>
-    <div id="pin-err" class="pin-err" style="display:none">PIN incorreto.</div>
+    <div class="pin-sub" id="gate-msg">Verificando acesso...</div>
   </div>
 </div>
 
@@ -163,7 +160,7 @@ tr:hover td{background:var(--sur2)}
 var SUPA_URL="https://yutqrrcdlkocrpznryqi.supabase.co";
 var SUPA_KEY="sb_publishable_U3wOTwbeEvXtHOqP_I29VQ_ARH5CAkH";
 var supaClient=window.supabase.createClient(SUPA_URL,SUPA_KEY);
-var ADMIN_PIN="1234";
+var ADMIN_EMAIL="rrubensmartins@gmail.com";
 
 var allUsers=[], allProjetos=[], emailMap={};
 var sortUsersBy="last_sign_in_at", sortUsersDir=-1;
@@ -171,23 +168,24 @@ var sortProjBy="criado_em", sortProjDir=-1;
 var projPage=1, projPerPage=20;
 var filtroInicio=null, filtroFim=null;
 
-function checkPin(){
-  var v=document.getElementById("pin-input").value;
-  if(v===ADMIN_PIN){
+async function initAdmin(){
+  try{
+    var r=await supaClient.auth.getSession();
+    var sess=r.data&&r.data.session;
+    if(!sess){window.location.href="index.html";return;}
+    if(!sess.user||sess.user.email!==ADMIN_EMAIL){
+      document.getElementById("gate-msg").innerHTML="Acesso negado. Esta area e restrita ao administrador.<br><br><a href='app.html' style='color:var(--ac2)'>Voltar ao app</a>";
+      return;
+    }
     document.getElementById("pin-screen").style.display="none";
     document.getElementById("admin-panel").style.display="block";
     loadData();
-  }else{
-    document.getElementById("pin-err").style.display="block";
-    document.getElementById("pin-input").value="";
+  }catch(e){
+    document.getElementById("gate-msg").textContent="Erro ao verificar acesso. Tente recarregar.";
   }
 }
 
-function logout(){
-  document.getElementById("pin-screen").style.display="flex";
-  document.getElementById("admin-panel").style.display="none";
-  document.getElementById("pin-input").value="";
-}
+function logout(){window.location.href="app.html";}
 
 function fmt(dt){if(!dt)return"-";return new Date(dt).toLocaleString("pt-BR");}
 function fmtDate(dt){if(!dt)return"-";return new Date(dt).toLocaleDateString("pt-BR");}
@@ -432,6 +430,8 @@ function exportarCSV(){
   a.click();
   URL.revokeObjectURL(url);
 }
+
+initAdmin();
 </script>
 </body>
 </html>
