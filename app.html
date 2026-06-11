@@ -191,7 +191,7 @@ var TONS=[
   {id:"educativo",lb:"Educativo e autoridade",ds:"Ensina algo novo, constroi credibilidade"},
   {id:"inspirador",lb:"Inspirador e motivacional",ds:"Motiva, eleva, faz a pessoa se ver no resultado"}
 ];
-var STEPS=["Investigando seu publico e conteudo...","Criando os roteiros...","Revisando e melhorando a copy...","Finalizando..."];
+var STEPS=["Lendo seu publico e conteudo...","Criando os roteiros...","Finalizando..."];
 var ESTILOS=[
   {id:"minimalista",lb:"Minimalista",desc:"limpo, muito espaco em branco, poucas cores, tipografia grande e forte"},
   {id:"vibrante",lb:"Vibrante",desc:"cores fortes e energeticas, alto contraste, chamativo"},
@@ -411,7 +411,7 @@ function App(){
           } else throw new Error("Erro ao processar resposta da IA");
         }
       }catch(ex){throw new Error("Erro ao processar resposta da IA: "+ex.message);}
-      setGenStep(2);if(parsed&&Array.isArray(parsed.roteiros)){parsed.roteiros=await revisarRoteiros(parsed.roteiros);var _off=(rodada-1)*5;parsed.roteiros.forEach(function(s,i){s.id=_off+i+1;if(s.funil)s.funil=String(s.funil).toLowerCase().trim();});}
+      setGenStep(2);if(parsed&&Array.isArray(parsed.roteiros)){var _off=(rodada-1)*5;parsed.roteiros.forEach(function(s,i){s.id=_off+i+1;if(s.funil)s.funil=String(s.funil).toLowerCase().trim();});}
       var nr={numero:rodada,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
       var proj;
       if(activeProject&&view==="results"){
@@ -480,7 +480,7 @@ function App(){
         if(st>-1&&en>-1){parsed=JSON.parse(raw.substring(st,en+1));}
         else throw new Error("Erro ao processar resposta da IA");
       }
-      setGenStep(2);if(parsed&&Array.isArray(parsed.roteiros)){parsed.roteiros=await revisarRoteiros(parsed.roteiros);var _off=(rodada-1)*5;parsed.roteiros.forEach(function(s,i){s.id=_off+i+1;if(s.funil)s.funil=String(s.funil).toLowerCase().trim();});}
+      setGenStep(2);if(parsed&&Array.isArray(parsed.roteiros)){var _off=(rodada-1)*5;parsed.roteiros.forEach(function(s,i){s.id=_off+i+1;if(s.funil)s.funil=String(s.funil).toLowerCase().trim();});}
       var nr={numero:rodada,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
       var novasRodadas=hist.concat([nr]);
       var proj=Object.assign({},activeProject,{rodadas:novasRodadas});
