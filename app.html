@@ -199,6 +199,18 @@ var ESTILOS=[
   {id:"editorial",lb:"Editorial",desc:"estilo revista, fotografia forte e marcante, moderno e autoral"}
 ];
 
+async function streamGeneration(messages,onText){
+  var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:messages,max_tokens:6000,model:"claude-opus-4-8",stream:true})});
+  if(!res.ok){var e={};try{e=await res.json();}catch(_){}throw new Error((e&&e.error)||("Erro "+res.status));}
+  if(!res.body||!res.body.getReader){var t=await res.text();if(onText)onText(t);return t;}
+  var reader=res.body.getReader(),dec=new TextDecoder(),full="";
+  while(true){var rd=await reader.read();if(rd.done)break;full+=dec.decode(rd.value,{stream:true});if(onText)onText(full);}
+  return full;
+}
+function previewClean(t){
+  if(!t)return "";
+  return t.replace(/[{}\[\]]/g," ").replace(/"(personas|inteligencia|roteiros|nome|tipo|emoji|motivacao|dor|objecao|comunicacao|insight|bigIdea|mecanismo|diferencial|dores|desejos|objecoes|gatilhos|id|titulo|pilar|funil|gancho|corpo|cta)"\s*:/g,"").replace(/\\n/g," ").replace(/"/g,"").replace(/,(\s*)/g,"\n").replace(/\n{2,}/g,"\n").replace(/^\s+/,"");
+}
 function buildP(form,rod,hist,vencedores){
   var h=hist.length>0?" USADOS:"+hist.slice(-1).map(function(r){return r.roteiros?r.roteiros.slice(0,2).map(function(s){return s.gancho.substring(0,30);}).join("|"):"";}).join(""):"";
   var tons=(form.tons&&form.tons.length>0)?form.tons.map(function(id){var t=TONS.find(function(x){return x.id===id;});return t?t.lb:id;}).join(","):"variado";var proibidas=form.proibidas?"NUNCA USE:"+form.proibidas+". ":"";var caract=form.caracteristicas?"CARACTERISTICAS:"+form.caracteristicas+". ":"";var exemplo=form.exemploConteudo?"CONTEUDO QUE JA FUNCIONOU PARA ESTE CLIENTE (use como modelo de estrutura, gancho e vocabulario que deram certo; replique o que funciona, sem copiar literalmente):"+form.exemploConteudo+". ":"";
@@ -300,6 +312,7 @@ function App(){
   var sLP=useState(false),lendoPublico=sLP[0],setLendoPublico=sLP[1];
   var sLV=useState(false),lendoVideo=sLV[0],setLendoVideo=sLV[1];
   var sLL=useState(false),lendoLink=sLL[0],setLendoLink=sLL[1];
+  var sLT=useState(""),liveText=sLT[0],setLiveText=sLT[1];
   var sPf=useState(null),perfil=sPf[0],setPerfil=sPf[1];
   var sRG=useState(null),regenId=sRG[0],setRegenId=sRG[1];
   var sImg=useState(null),imgModal=sImg[0],setImgModal=sImg[1];
@@ -390,11 +403,8 @@ function App(){
       }
       // Analise + geracao numa unica chamada (Opus faz a analise profunda internamente)
       if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
-      setGenStep(1);var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:messages,max_tokens:6000,model:"claude-opus-4-8"})});
-      if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
-      var data=await res.json();
-      if(data.error)throw new Error(data.error.message||data.error);
-      var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"").trim();
+      setGenStep(1);setLiveText("");
+      var raw=(await streamGeneration(messages,function(t){setLiveText(t);})).replace(/```json|```/g,"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"").trim();
       var parsed;
       try{
         try{parsed=JSON.parse(raw);}
@@ -426,10 +436,10 @@ function App(){
         proj={id:insertResult.data.id,name:nomeProjeto,objetivo:form.objetivo,date:new Date().toLocaleDateString("pt-BR"),form:ff,rodadas:[nr]};
         setProjects(function(prev){return [proj].concat(prev);});
       }
-      setActiveProject(proj);setGenerating(false);setView("results");setActiveTab("roteiros");setOpenScripts({1:true});setVarResults({});
+      setActiveProject(proj);setLiveText("");setGenerating(false);setView("results");setActiveTab("roteiros");setOpenScripts({1:true});setVarResults({});
       showToast("Projeto gerado!");
     }catch(e){
-      setGenerating(false);
+      setLiveText("");setGenerating(false);
       var msg=e&&e.message||"";
       var erroMsg="Erro ao gerar: "+msg;
       if(msg.indexOf("overloaded")>-1||msg.indexOf("529")>-1)erroMsg="A IA esta sobrecarregada. Aguarde 30s e tente novamente.";
@@ -464,15 +474,12 @@ function App(){
       var ff=activeProject.form;
       var hist=activeProject.rodadas||[];
       var rodada=hist.length+1;
-      if(rodada>3){showToast("Todas as 3 rodadas ja foram geradas!","err");setGenerating(false);return;}
+      if(rodada>3){showToast("Todas as 3 rodadas ja foram geradas!","err");setLiveText("");setGenerating(false);return;}
       var messages=[{role:"user",content:buildP(ff,rodada,hist,(perfil&&perfil.vencedores)||[])}];
       // Analise + geracao numa unica chamada (Opus faz a analise profunda internamente)
       if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
-      setGenStep(1);var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:messages,max_tokens:6000,model:"claude-opus-4-8"})});
-      if(!res.ok){var errData={};try{errData=await res.json();}catch(ex){}throw new Error(errData.error||"Erro "+res.status);}
-      var data=await res.json();
-      if(data.error)throw new Error(data.error.message||data.error);
-      var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"").trim();
+      setGenStep(1);setLiveText("");
+      var raw=(await streamGeneration(messages,function(t){setLiveText(t);})).replace(/```json|```/g,"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"").trim();
       var parsed;
       try{parsed=JSON.parse(raw);}
       catch(ex1){
@@ -487,13 +494,13 @@ function App(){
       await supaClient.from("projetos").update({rodadas:novasRodadas}).eq("id",activeProject.id);
       setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});
       setActiveProject(proj);
-      setGenerating(false);
+      setLiveText("");setGenerating(false);
       setActiveTab("roteiros");
       setOpenScripts({});
       setSelected([]);
       showToast("Rodada "+rodada+" gerada! "+novasRodadas.length*5+" roteiros no total.");
     }catch(e){
-      setGenerating(false);
+      setLiveText("");setGenerating(false);
       var msg=e&&e.message||"";
       var erroMsg="Erro ao gerar: "+msg;
       if(msg.indexOf("overloaded")>-1)erroMsg="A IA esta sobrecarregada. Aguarde 30s e tente novamente.";
@@ -775,7 +782,7 @@ function App(){
       ),
       view==="publico"&&ce("div",{className:"content"},ce("div",{className:"fwrap"},ce("div",{className:"fhead"},ce("h2",null,"Meu Publico"),ce("p",null,"Descreva seu publico e negocio uma vez. Todo projeto novo ja vem preenchido com isso, e voce pode ajustar a qualquer momento.")),ce("div",{className:"sec"},ce("div",{className:"fi"},ce("label",null,"Publico e negocio"),ce("textarea",{style:{minHeight:110},placeholder:"Quem voce atende, o que oferece e o que transforma na vida do cliente.",value:(perfil&&perfil.descricao)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{descricao:v});});}})),ce("div",{className:"fi"},ce("label",null,"Diferenciais"),ce("input",{placeholder:"Ex: entrega rapida, atendimento personalizado...",value:(perfil&&perfil.diferenciais)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{diferenciais:v});});}})),ce("div",{className:"fi"},ce("label",null,"Caracteristicas do produto"),ce("textarea",{style:{minHeight:70},placeholder:"Ex: feito a mao, sem gluten, garantia 30 dias...",value:(perfil&&perfil.caracteristicas)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{caracteristicas:v});});}})),ce("div",{className:"fi"},ce("label",null,"Ticket medio"),ce("input",{placeholder:"Ex: R$ 97,00",value:(perfil&&perfil.preco)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{preco:v});});}})),ce("div",{className:"fi"},ce("label",null,"Exemplo de conteudo que ja funcionou"),ce("textarea",{style:{minHeight:70},placeholder:"Cole um post ou legenda que teve bom resultado.",value:(perfil&&perfil.exemploConteudo)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{exemploConteudo:v});});}})),ce("button",{className:"gbtn",onClick:function(){salvarPerfil(perfil||{});}},"Salvar meu publico")))),
     ),
-    generating&&ce("div",{className:"ov"},ce("div",{className:"ov-card"},ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seus roteiros..."),ce("div",{className:"ov-p"},"Isso pode levar ate 1 minuto. Estamos lendo seu conteudo e criando os roteiros. Nao feche esta tela."),ce("div",{className:"ov-steps"},STEPS.map(function(s,i){return ce("div",{key:i,className:"ov-s"+(i<genStep?" dn":i===genStep?" ac":"")},ce("span",{className:"sdot"}),s);})))),
+    generating&&ce("div",{className:"ov"},ce("div",{className:"ov-card"},ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seus roteiros..."),ce("div",{className:"ov-p"},"Isso pode levar ate 1 minuto. Nao feche esta tela."),ce("div",{className:"ov-steps"},STEPS.map(function(s,i){return ce("div",{key:i,className:"ov-s"+(i<genStep?" dn":i===genStep?" ac":"")},ce("span",{className:"sdot"}),s);})),liveText?ce("div",{style:{marginTop:18,textAlign:"left",background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:10,padding:"12px 14px",maxHeight:170,overflowY:"auto",fontSize:12.5,lineHeight:1.5,color:"var(--mu2)",whiteSpace:"pre-wrap",direction:"rtl"}},ce("div",{style:{direction:"ltr"}},ce("span",{style:{color:"var(--ac2)",fontWeight:600}},"A IA esta escrevendo... "),previewClean(liveText))):null)),
     toast&&ce("div",{className:"toast"},ce("span",null,toast.type==="err"?"!":"v")," ",toast.msg),
     imgModal&&ce("div",{className:"ov",onClick:function(){if(!imgModal.loading)setImgModal(null);}},ce("div",{className:"ov-card",style:{maxWidth:430},onClick:function(e){e.stopPropagation();}},imgModal.choosing?ce("div",null,ce("div",{className:"ov-h"},"Escolha o estilo do criativo"),ce("div",{className:"ov-p",style:{marginBottom:16}},"A IA gera uma imagem de anuncio com este gancho, no estilo que voce escolher."),ce("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}},ESTILOS.map(function(es){return ce("button",{key:es.id,onClick:function(){gerarCriativo(imgModal.roteiro,es.id);},style:{textAlign:"left",background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:10,padding:"12px",cursor:"pointer",fontFamily:"inherit",color:"var(--tx)"}},ce("div",{style:{fontWeight:600,fontSize:13,marginBottom:3}},es.lb),ce("div",{style:{fontSize:11,color:"var(--mu)",lineHeight:1.3}},es.desc));})),ce("button",{className:"abtn",onClick:function(){setImgModal(null);},style:{width:"100%",justifyContent:"center"}},"Cancelar")):imgModal.loading?ce("div",null,ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seu criativo..."),ce("div",{className:"ov-p"},"Isso pode levar ate 1 minuto. Nao feche esta janela.")):ce("div",null,ce("img",{src:"data:image/png;base64,"+imgModal.b64,alt:"criativo",style:{width:"100%",borderRadius:12,marginBottom:14,display:"block"}}),ce("div",{style:{display:"flex",gap:8}},ce("a",{href:"data:image/png;base64,"+imgModal.b64,download:"criativo-mcp.png",className:"gbtn",style:{textDecoration:"none",textAlign:"center",flex:1,padding:12,fontSize:14}},"Baixar"),ce("button",{className:"abtn",onClick:function(){setImgModal({roteiro:imgModal.roteiro,choosing:true});},style:{flex:1,justifyContent:"center"}},"Gerar outra"),ce("button",{className:"abtn",onClick:function(){setImgModal(null);},style:{flex:1,justifyContent:"center"}},"Fechar"))))),
     editingScript&&ce("div",{className:"edit-drawer"},ce("div",{className:"edit-dh"},ce("div",{className:"edit-dt"},"Ajustar roteiro",editingScript.editado?ce("span",{className:"edit-badge"},"Editado"):null),ce("button",{className:"edit-dc",onClick:function(){setEditingScript(null);setEditInstr("");}},"x")),ce("div",{className:"edit-db"},ce("div",{className:"edit-fl"},ce("label",null,"Gancho"),ce("div",{className:"edit-fv"},editingScript.gancho)),ce("div",{className:"edit-fl"},ce("label",null,"Corpo"),ce("div",{className:"edit-fv"},editingScript.corpo)),ce("div",{className:"edit-fl"},ce("label",null,"CTA"),ce("div",{className:"edit-fv"},editingScript.cta)),ce("div",{className:"edit-box"},ce("div",{style:{fontSize:12,fontWeight:600,color:"#9B8EFF",marginBottom:10}},"O que voce quer ajustar?"),ce("textarea",{className:"edit-ta",placeholder:"Ex: inclua a frase X no gancho, mude o tom, adicione urgencia no CTA...",value:editInstr,onChange:function(e){setEditInstr(e.target.value);}}),ce("button",{className:"edit-sb",disabled:!editInstr.trim()||editGenerating,onClick:function(){handleEditScript(editingScript,editInstr);}},editGenerating?"Ajustando...":"Aplicar ajuste com IA"))))

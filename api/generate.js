@@ -32,6 +32,65 @@ module.exports = async function handler(req, res) {
     const maxTokens = (reqMax && reqMax > 0) ? Math.min(reqMax, 8000) : 6000;
     // Ferramentas nativas (ex: web_fetch para ler URLs) — repassadas quando enviadas
     const tools = (req.body && Array.isArray(req.body.tools) && req.body.tools.length) ? req.body.tools : null;
+    const wantStream = !!(req.body && req.body.stream) && !tools;
+
+    // CAMINHO STREAMING: envia o texto da IA chegando ao vivo (sensacao de chat)
+    if (wantStream) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 58000);
+        let r;
+        try {
+            r = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+                body: JSON.stringify({
+                    model: model,
+                    max_tokens: maxTokens,
+                    system: "Voce gera JSON puro sem markdown. REGRA CRITICA: NUNCA use aspas duplas dentro dos valores de texto. Use apenas aspas simples quando precisar de citacao dentro de um texto. Todo o JSON deve ser valido e parseable.",
+                    messages: messages,
+                    stream: true
+                }),
+                signal: controller.signal
+            });
+        } catch (e) {
+            clearTimeout(timeout);
+            return res.status(500).json({ error: e.message });
+        }
+        if (!r.ok || !r.body) {
+            clearTimeout(timeout);
+            let errTxt = ""; try { errTxt = await r.text(); } catch (_) {}
+            return res.status(r.status || 500).json({ error: "Erro na IA", detail: errTxt.slice(0, 400) });
+        }
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("X-Accel-Buffering", "no");
+        if (res.flushHeaders) res.flushHeaders();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        try {
+            for await (const part of r.body) {
+                buffer += decoder.decode(part, { stream: true });
+                let idx;
+                while ((idx = buffer.indexOf("\n")) >= 0) {
+                    const line = buffer.slice(0, idx).trim();
+                    buffer = buffer.slice(idx + 1);
+                    if (line.indexOf("data:") === 0) {
+                        const payload = line.slice(5).trim();
+                        if (!payload || payload === "[DONE]") continue;
+                        try {
+                            const ev = JSON.parse(payload);
+                            if (ev.type === "content_block_delta" && ev.delta && typeof ev.delta.text === "string") {
+                                res.write(ev.delta.text);
+                            }
+                        } catch (_) {}
+                    }
+                }
+            }
+        } catch (e) { /* stream interrompido — cliente trata o que recebeu */ }
+        clearTimeout(timeout);
+        return res.end();
+    }
+
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 55000);
