@@ -8,6 +8,9 @@
     },
     "api/transcribe.js": {
       "maxDuration": 60
+    },
+    "api/igtranscribe.js": {
+      "maxDuration": 60
     }
   }
 }

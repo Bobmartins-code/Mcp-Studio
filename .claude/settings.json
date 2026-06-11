@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check api/igtranscribe.js)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('vercel.json','utf8'\\)\\);console.log\\('vercel.json OK'\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(git commit -q -m 'Adiciona transcricao da fala do video pelo link do Instagram \\(gratis, beta\\) *)"
+    ]
+  }
+}

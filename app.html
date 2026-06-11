@@ -299,6 +299,7 @@ function App(){
   var sH=useState(""),histBusca=sH[0],setHistBusca=sH[1];
   var sLP=useState(false),lendoPublico=sLP[0],setLendoPublico=sLP[1];
   var sLV=useState(false),lendoVideo=sLV[0],setLendoVideo=sLV[1];
+  var sLL=useState(false),lendoLink=sLL[0],setLendoLink=sLL[1];
   var sPf=useState(null),perfil=sPf[0],setPerfil=sPf[1];
   var sRG=useState(null),regenId=sRG[0],setRegenId=sRG[1];
   var sImg=useState(null),imgModal=sImg[0],setImgModal=sImg[1];
@@ -557,6 +558,22 @@ function App(){
     }catch(e){showToast("Nao consegui transcrever. Tente um arquivo menor ou so o audio.","err");}
     setLendoVideo(false);
   }
+  async function transcreverLink(){
+    var u=form.url;
+    if(!u){showToast("Cole o link do Instagram primeiro","err");return;}
+    setLendoLink(true);
+    try{
+      var res=await fetch("/api/igtranscribe",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({url:u})});
+      var data=await res.json();
+      if(!res.ok||data.error)throw new Error(data.error||("Erro "+res.status));
+      var txt=(data.text||"").trim();
+      if(!txt)throw new Error("O video nao tem fala para transcrever.");
+      setForm(function(f){return Object.assign({},f,{produto:(f.produto?f.produto+"\n\n":"")+"[Transcricao do video] "+txt});});
+      setInputModes(function(p){return Object.assign({},p,{texto:true});});
+      showToast("Fala do video transcrita e adicionada na descricao!");
+    }catch(e){showToast((e&&e.message)||"Nao consegui transcrever pelo link. Use o botao de enviar arquivo.","err");}
+    setLendoLink(false);
+  }
   async function lerPublicoArquivo(file){
     if(!file)return;
     if(file.size>8*1024*1024){showToast("Arquivo muito grande (max 8MB).","err");return;}
@@ -683,7 +700,7 @@ function App(){
               ce("div",{className:"itabs"},[{id:"texto",ic:"Descrever"},{id:"url",ic:"Colar URL"},{id:"imagem",ic:"Enviar Fotos"}].map(function(m){return ce("button",{key:m.id,className:"itab"+(inputModes[m.id]?" on":""),onClick:function(){togMode(m.id);}},( inputModes[m.id]?"v ":"")+m.ic);}))
             ),
             inputModes.texto&&ce("div",{className:"fi"},ce("label",null,"Descricao do produto"),ce("textarea",{placeholder:"Ex: Curso online de bolos decorados, 40 aulas, suporte no WhatsApp. Ideal para quem quer trabalhar em casa.",value:form.produto,onChange:function(e){setForm(function(f){return Object.assign({},f,{produto:e.target.value});});}})),
-            inputModes.url&&ce("div",{className:"fi"},ce("label",null,"URL do produto ou video/foto do Instagram"),ce("input",{placeholder:"https://seusite.com.br ou https://instagram.com/p/...",value:form.url,onChange:function(e){setForm(function(f){return Object.assign({},f,{url:e.target.value});});}}),(form.url&&(form.url.indexOf("instagram.com")>-1||form.url.indexOf("instagr.am")>-1))&&ce("div",{style:{fontSize:11,color:"var(--ok)",marginTop:4}},"v Instagram detectado -- a IA vai analisar produto, publico, tom e argumentos do conteudo")),
+            inputModes.url&&ce("div",{className:"fi"},ce("label",null,"URL do produto ou video/foto do Instagram"),ce("input",{placeholder:"https://seusite.com.br ou https://instagram.com/p/...",value:form.url,onChange:function(e){setForm(function(f){return Object.assign({},f,{url:e.target.value});});}}),(form.url&&(form.url.indexOf("instagram.com")>-1||form.url.indexOf("instagr.am")>-1))&&ce("div",{style:{fontSize:11,color:"var(--ok)",marginTop:4}},"v Instagram detectado -- a IA vai analisar produto, publico, tom e argumentos do conteudo"),(form.url&&(form.url.indexOf("instagram.com")>-1||form.url.indexOf("instagr.am")>-1))&&ce("button",{onClick:transcreverLink,disabled:lendoLink,style:{marginTop:10,alignSelf:"flex-start",border:"1px dashed var(--boh)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"var(--ac2)",background:"var(--sur2)",cursor:lendoLink?"wait":"pointer"}},lendoLink?"Transcrevendo a fala do video...":"Transcrever a fala deste video (tenta pelo link)")),
             inputModes.imagem&&ce("div",null,
               ce("div",{className:"iup"+(drag?" drag":""),onClick:function(){fileRef.current&&fileRef.current.click();},onDragOver:function(e){e.preventDefault();setDrag(true);},onDragLeave:function(){setDrag(false);},onDrop:function(e){e.preventDefault();setDrag(false);handleImages(e.dataTransfer.files);}},
                 ce("input",{ref:fileRef,type:"file",accept:"image/*",multiple:true,style:{display:"none"},onChange:function(e){handleImages(e.target.files);}}),
