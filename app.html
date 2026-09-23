@@ -386,7 +386,7 @@ function App(){
   function togTon(id){setForm(function(f){var ts=f.tons||[];var ni=ts.indexOf(id);var nt=ni>-1?ts.filter(function(x){return x!==id;}):ts.concat([id]);return Object.assign({},f,{tons:nt});});}
 
   async function handleGenerate(){
-    if(!form.objetivo){showToast("Selecione o destino no passo 05","err");return;}
+    if(!form.objetivo){showToast("Selecione o destino no passo 04","err");return;}
     if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem){showToast("Selecione ao menos uma forma de descrever o produto","err");return;}
     if(inputModes.texto&&!form.produto){showToast("Descreva seu produto no campo de texto","err");return;}
     if(inputModes.url&&!form.url){showToast("Insira a URL do produto","err");return;}
@@ -721,9 +721,14 @@ function App(){
       view==="briefing"&&ce("div",{className:"content"},
         ce("div",{className:"fwrap"},
           ce("div",{className:"fhead"},ce("h2",null,"Novo Projeto"),ce("p",null,"Preencha o briefing e a IA aplica o metodo MCP completo.")),
-          ce("div",{style:{background:"rgba(245,200,66,.08)",border:"1px solid rgba(245,200,66,.2)",borderRadius:12,padding:"12px 16px",marginBottom:18,fontSize:13,color:"var(--mu2)",lineHeight:1.5}},ce("span",{style:{color:"var(--gold)",fontWeight:600}},"Dica: "),"quanto mais detalhes voce der aqui (publico, diferenciais e, principalmente, um exemplo de conteudo que ja funcionou), melhores e mais especificos ficam os roteiros."),
+          ce("div",{style:{background:"rgba(245,200,66,.08)",border:"1px solid rgba(245,200,66,.2)",borderRadius:12,padding:"12px 16px",marginBottom:18,fontSize:13,color:"var(--mu2)",lineHeight:1.5}},ce("span",{style:{color:"var(--gold)",fontWeight:600}},"Dica: "),"quanto mais detalhes voce der sobre o produto e o publico, melhores e mais especificos ficam os roteiros. Diferenciais, ticket medio e exemplos de conteudo ficam salvos em Meu Publico e entram automaticamente."),
           ce("div",{className:"sec"},
-            ce("div",{className:"sec-t"},"01 - Produto ou Servico"),
+            ce("div",{className:"sec-t"},"01 - Qual metodo voce quer gerar agora?"),
+            ce("div",{className:"obj-q"},"Cada clique gera "+POR_RODADA+" roteiros do metodo escolhido. Depois voce pode gerar os outros metodos no mesmo projeto."),
+            ce("div",{className:"obj-g"},METODOS.map(function(m){return ce("div",{key:m.id,className:"obj-o"+(metodoSel===m.id?" on":""),onClick:function(){setMetodoSel(m.id);}},ce("div",{className:"obj-ic"},m.ic),ce("div",null,ce("div",{className:"obj-lbl"},m.lb+" - "+m.sub),ce("div",{className:"obj-ds"},m.ds)));}))
+          ),
+          ce("div",{className:"sec"},
+            ce("div",{className:"sec-t"},"02 - Produto ou Servico"),
             ce("div",{style:{margin:"0 0 14px"}},ce("label",{style:{display:"inline-flex",alignItems:"center",gap:8,cursor:lendoVideo?"wait":"pointer",border:"1px dashed var(--boh)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"var(--ac2)",background:"var(--sur2)"}},ce("input",{type:"file",accept:"video/*,audio/*",style:{display:"none"},disabled:lendoVideo,onChange:function(e){if(e.target.files&&e.target.files[0]){transcreverArquivo(e.target.files[0]);e.target.value="";}}}),lendoVideo?"Transcrevendo...":"Tem um video ou audio curto? Carregue e a IA transcreve")),
             ce("div",{style:{marginBottom:12}},
               ce("div",{style:{fontSize:12,fontWeight:500,color:"var(--mu2)",marginBottom:8}},"Selecione uma ou mais formas de descrever seu produto:"),
@@ -740,32 +745,17 @@ function App(){
             )
           ),
           ce("div",{className:"sec"},
-            ce("div",{className:"sec-t"},"02 - Publico alvo e sobre seu negocio"),
+            ce("div",{className:"sec-t"},"03 - Publico alvo"),
             ce("div",{className:"fi"},ce("label",null,"Descreva quem atende, o que oferece e o que transforma na vida do cliente"),ce("textarea",{style:{minHeight:110},placeholder:"Ex: Somos uma loja feminina em SP, atendemos mulheres 25-40 anos.",value:form.descricao,onChange:function(e){setForm(function(f){return Object.assign({},f,{descricao:e.target.value});})}})),
-            ce("div",{style:{margin:"0 0 12px"}},ce("label",{style:{display:"block",fontSize:12,fontWeight:500,color:"var(--mu2)",marginBottom:6}},"Tem um estudo de publico pronto? Carregue e a IA preenche o campo acima:"),ce("label",{style:{display:"inline-flex",alignItems:"center",gap:8,cursor:lendoPublico?"wait":"pointer",border:"1px dashed var(--boh)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"var(--ac2)",background:"var(--sur2)"}},ce("input",{type:"file",accept:".pdf,image/*",style:{display:"none"},disabled:lendoPublico,onChange:function(e){if(e.target.files&&e.target.files[0]){lerPublicoArquivo(e.target.files[0]);e.target.value="";}}}),lendoPublico?"Lendo o material...":"Carregar PDF ou foto do estudo")),
-            ce("div",{className:"fi"},ce("label",null,"Diferenciais (opcional)"),ce("input",{placeholder:"Ex: Entrega rapida, atendimento personalizado, exclusividade...",value:form.diferenciais,onChange:function(e){setForm(function(f){return Object.assign({},f,{diferenciais:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Caracteristicas do produto (opcional)"),ce("textarea",{style:{minHeight:70},placeholder:"Ex: feito a mao, sem gluten, aprovado por dermatologistas, garantia 30 dias...",value:form.caracteristicas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{caracteristicas:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Exemplo de conteudo que ja funcionou (muito recomendado)"),ce("textarea",{style:{minHeight:70},placeholder:"Cole um post ou legenda que teve bom resultado. A IA vai aprender seu estilo.",value:form.exemploConteudo||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{exemploConteudo:e.target.value});});}})),ce("div",{className:"fi"},ce("label",null,"Palavras ou frases que NAO quer usar (opcional)"),ce("input",{placeholder:"Ex: incrivel, revolucionario, nao perca essa chance...",value:form.proibidas||"",onChange:function(e){setForm(function(f){return Object.assign({},f,{proibidas:e.target.value});});}}))
+            ce("div",{style:{margin:"0 0 12px"}},ce("label",{style:{display:"block",fontSize:12,fontWeight:500,color:"var(--mu2)",marginBottom:6}},"Tem um estudo de publico pronto? Carregue e a IA preenche o campo acima:"),ce("label",{style:{display:"inline-flex",alignItems:"center",gap:8,cursor:lendoPublico?"wait":"pointer",border:"1px dashed var(--boh)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"var(--ac2)",background:"var(--sur2)"}},ce("input",{type:"file",accept:".pdf,image/*",style:{display:"none"},disabled:lendoPublico,onChange:function(e){if(e.target.files&&e.target.files[0]){lerPublicoArquivo(e.target.files[0]);e.target.value="";}}}),lendoPublico?"Lendo o material...":"Carregar PDF ou foto do estudo"))
           ),
           ce("div",{className:"sec"},
-            ce("div",{className:"sec-t"},"03 - Ticket medio"),
-            ce("div",{className:"fi"},ce("label",null,"Qual o valor medio do seu produto ou servico? (opcional)"),ce("input",{placeholder:"Ex: R$ 97,00  |  R$ 350,00  |  R$ 1.200,00",value:form.preco,onChange:function(e){setForm(function(f){return Object.assign({},f,{preco:e.target.value});})}}))
-          ),
-          ce("div",{className:"sec"},
-            ce("div",{className:"sec-t"},"04 - Tom de voz"),
-            ce("div",{className:"obj-q"},"Selecione 1 ou mais tons. A IA distribui pelos roteiros priorizando os que voce escolher."),
-            ce("div",{className:"ton-g"},TONS.map(function(t){var sel=(form.tons||[]).indexOf(t.id)>-1;return ce("div",{key:t.id,className:"ton-o"+(sel?" on":""),onClick:function(){togTon(t.id);}},ce("div",{className:"ton-lbl"},t.lb),ce("div",{className:"ton-ds"},t.ds));}))
-          ),
-          ce("div",{className:"sec"},
-            ce("div",{className:"sec-t"},"05 - Para onde voce quer levar as pessoas?"),
+            ce("div",{className:"sec-t"},"04 - Para onde voce quer levar as pessoas?"),
             ce("div",{className:"obj-q"},"Escolha o destino desejado - cada um gera um estilo diferente de roteiro e CTA."),
             ce("div",{className:"obj-g"},OBJS.map(function(o){return ce("div",{key:o.id,className:"obj-o"+(form.objetivo===o.id?" on":""),onClick:function(){setForm(function(f){return Object.assign({},f,{objetivo:o.id});}); }},ce("div",{className:"obj-ic"},o.ic),ce("div",null,ce("div",{className:"obj-lbl"},o.lb),ce("div",{className:"obj-ds"},o.ds)));}))
           ),
-          ce("div",{className:"sec"},
-            ce("div",{className:"sec-t"},"06 - Qual metodo voce quer gerar agora?"),
-            ce("div",{className:"obj-q"},"Cada clique gera "+POR_RODADA+" roteiros do metodo escolhido. Depois voce pode gerar os outros metodos no mesmo projeto."),
-            ce("div",{className:"obj-g"},METODOS.map(function(m){return ce("div",{key:m.id,className:"obj-o"+(metodoSel===m.id?" on":""),onClick:function(){setMetodoSel(m.id);}},ce("div",{className:"obj-ic"},m.ic),ce("div",null,ce("div",{className:"obj-lbl"},m.lb+" - "+m.sub),ce("div",{className:"obj-ds"},m.ds)));}))
-          ),
           ce("button",{className:"gbtn",onClick:handleGenerate,disabled:!form.objetivo||(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)},"Gerar "+POR_RODADA+" roteiros de "+metodoInfo(metodoSel).lb),
-          (function(){var f=[];if(!form.objetivo)f.push("escolher o destino (passo 05)");if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)f.push("escolher como descrever o produto (passo 01)");else{if(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)f.push("escrever a descricao do produto");if(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)f.push("colar a URL");if(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)f.push("enviar ao menos uma foto");}return f.length?ce("div",{style:{marginTop:10,fontSize:12.5,color:"var(--ac2)",textAlign:"center"}},"Falta: "+f.join(" e ")):null;})()
+          (function(){var f=[];if(!form.objetivo)f.push("escolher o destino (passo 04)");if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)f.push("escolher como descrever o produto (passo 02)");else{if(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)f.push("escrever a descricao do produto");if(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)f.push("colar a URL");if(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)f.push("enviar ao menos uma foto");}return f.length?ce("div",{style:{marginTop:10,fontSize:12.5,color:"var(--ac2)",textAlign:"center"}},"Falta: "+f.join(" e ")):null;})()
         )
       ),
       view==="results"&&activeProject&&function(){
