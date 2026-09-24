@@ -14,6 +14,9 @@
     },
     "api/meta.js": {
       "maxDuration": 120
+    },
+    "api/connect.js": {
+      "maxDuration": 120
     }
   }
 }

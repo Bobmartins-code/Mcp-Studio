@@ -129,6 +129,16 @@ tr:hover td{background:var(--sur2)}
       <div class="stat"><div class="stat-val" id="stat-hoje">-</div><div class="stat-lbl">Projetos hoje</div></div>
     </div>
 
+    <!-- REPORTEI CONNECT -->
+    <div class="section">
+      <div class="sec-head">
+        <div class="sec-title">🔌 Reportei Connect · contas das clientes</div>
+        <button class="refresh-btn" onclick="carregarConnect()">&#8635; Atualizar</button>
+      </div>
+      <div id="connect-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
+      <div style="overflow-x:auto" id="connect-table"></div>
+    </div>
+
     <!-- CONTAS META + TIME DE AGENTES -->
     <div class="section">
       <div class="sec-head">
@@ -274,6 +284,59 @@ async function atualizarAprendizado(){
   }finally{btn.disabled=false;}
 }
 
+// ===== Reportei Connect: ativar cliente, abrir a tela de conexao e ver o que foi conectado =====
+var connectCfg=null,connectClientes={},connectIntegracoes={};
+async function apiConnect(body){
+  var s=await supaClient.auth.getSession();var tk=s.data&&s.data.session&&s.data.session.access_token;
+  var r=await fetch("/api/connect",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify(body)});
+  var d={};try{d=await r.json();}catch(_){}
+  if(!r.ok||d.error)throw new Error(d.error||("Erro "+r.status));
+  return d;
+}
+async function carregarConnect(){
+  var box=document.getElementById("connect-status");
+  try{connectCfg=await apiConnect({acao:"status"});}catch(e){connectCfg=null;box.innerHTML='<span style="color:var(--ac2)">Reportei Connect respondeu com erro: '+escHtml(e.message)+'</span>';renderConnect();return;}
+  if(!connectCfg.configurado){box.innerHTML='<b style="color:var(--gold)">Falta a chave do Reportei Connect.</b> Ela entra no Vercel como CONNECT_API_KEY.';}
+  else{
+    var plats=(connectCfg.plataformas||[]).map(function(p){return p.name;}).join(", ");
+    box.innerHTML='Conta <b>'+escHtml(connectCfg.nome||"")+'</b> conectada · '+(connectCfg.pagante?'<b style="color:var(--ok)">plano ativo</b>':'em teste'+(connectCfg.teste_ate?' ate '+new Date(connectCfg.teste_ate).toLocaleDateString("pt-BR"):''))+' · '+(connectCfg.total_clientes||0)+' clientes<br><span style="font-size:12px">Plataformas liberadas: '+escHtml(plats||"-")+'. Clique em Ativar, depois em Conectar contas: abre a tela do Reportei para autorizar o Instagram e o Meta Ads da cliente (voce mesmo ou mandando o link para ela).</span>';
+  }
+  try{var rr=await supaClient.from("connect_clientes").select("user_id,customer_uuid,nome,criado_em");connectClientes={};(rr.data||[]).forEach(function(c){connectClientes[c.user_id]=c;});}catch(e){}
+  renderConnect();
+}
+function renderConnect(){
+  var el=document.getElementById("connect-table"),ok=!!(connectCfg&&connectCfg.configurado);
+  if(!allUsers.length||!ok){el.innerHTML="";return;}
+  var html='<table><thead><tr><th>Cliente</th><th>Connect</th><th>Contas conectadas</th><th></th></tr></thead><tbody>';
+  allUsers.forEach(function(u){
+    var c=connectClientes[u.id],ints=connectIntegracoes[u.id];
+    var contas=!c?"-":(ints?(ints.length?ints.map(function(i){return escHtml((i.plataforma_nome||i.plataforma)+": "+i.nome)+(i.status!=="active"?' <span style="color:var(--ac2)">('+escHtml(i.status)+')</span>':"");}).join("<br>"):"Nenhuma ainda"):'<a href="#" onclick="verConexoes(\''+u.id+'\');return false" style="color:var(--ac2)">Ver</a>');
+    var acoes=!c?'<button class="btn-filter" onclick="ativarConnect(\''+u.id+'\')">Ativar</button>':'<button class="btn-filter" onclick="abrirSessao(\''+u.id+'\',false)">Conectar contas</button> <button class="btn-sm" onclick="abrirSessao(\''+u.id+'\',true)">Copiar link</button>';
+    html+='<tr><td>'+escHtml(u.email)+'</td><td id="cs-'+u.id+'" style="font-size:12px;color:var(--mu2)">'+(c?"Ativa desde "+new Date(c.criado_em).toLocaleDateString("pt-BR"):"Nao ativada")+'</td><td style="font-size:12px;white-space:normal;max-width:320px">'+contas+'</td><td style="white-space:nowrap">'+acoes+'</td></tr>';
+  });
+  el.innerHTML=html+'</tbody></table>';
+}
+async function ativarConnect(uid){
+  var u=allUsers.find(function(x){return x.id===uid;}),cel=document.getElementById("cs-"+uid);
+  if(cel)cel.textContent="Ativando...";
+  try{await apiConnect({acao:"ativar",user_id:uid,nome:(u&&u.email)||"Cliente"});await carregarConnect();}catch(e){if(cel)cel.textContent="Erro: "+e.message;}
+}
+async function abrirSessao(uid,copiar){
+  var cel=document.getElementById("cs-"+uid);
+  // abre a aba ja no clique (senao o navegador bloqueia) e depois leva ao link
+  var aba=copiar?null:window.open("","_blank");
+  try{
+    var d=await apiConnect({acao:"sessao",user_id:uid});
+    if(copiar){await navigator.clipboard.writeText(d.link);if(cel)cel.textContent="Link copiado (vale ate "+new Date(d.expira).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"). Mande para a cliente.";}
+    else if(aba){aba.location.href=d.link;if(cel)cel.textContent="Tela de conexao aberta em outra aba. Depois clique em Atualizar.";}
+    delete connectIntegracoes[uid];
+  }catch(e){if(aba)aba.close();if(cel)cel.textContent="Erro: "+e.message;}
+}
+async function verConexoes(uid){
+  try{var d=await apiConnect({acao:"integracoes",user_id:uid});connectIntegracoes[uid]=d.integracoes||[];renderConnect();}
+  catch(e){var cel=document.getElementById("cs-"+uid);if(cel)cel.textContent="Erro: "+e.message;}
+}
+
 // ===== Contas Meta dos clientes + Time de agentes =====
 var metaCfg=null,metaContas={instagram:[],anuncios:[]},contasMeta={},metaState="";
 async function apiMeta(body){
@@ -377,6 +440,274 @@ async function analisarTodas(){
   try{for(var uid in contasMeta){var c=contasMeta[uid];if(c.ig_id||c.ad_account_id)await analisarConta(uid);}}finally{btn.disabled=false;}
 }
 
+async function apagarUsuario(uid){
+  var u=allUsers.find(function(x){return x.id===uid;});
+  var email=(u&&u.email)||uid;
+  if(!confirm("Apagar o usuario "+email+" e TODOS os projetos dele? Esta acao nao pode ser desfeita."))return;
+  try{
+    var r=await supaClient.rpc("delete_user",{target:uid});
+    if(r.error)throw r.error;
+    alert("Usuario apagado.");
+    loadData();
+  }catch(e){
+    alert("Nao foi possivel apagar. Confirme se a funcao delete_user foi criada no Supabase. Detalhe: "+((e&&e.message)||e));
+  }
+}
+
+function fmt(dt){if(!dt)return"-";return new Date(dt).toLocaleString("pt-BR");}
+function fmtDate(dt){if(!dt)return"-";return new Date(dt).toLocaleDateString("pt-BR");}
+function diasAtras(dt){if(!dt)return 999;return(Date.now()-new Date(dt).getTime())/(1000*60*60*24);}
+
+function onPeriodoChange(){
+  var v=document.getElementById("f-periodo").value;
+  document.getElementById("f-custom").style.display=v==="custom"?"flex":"none";
+}
+
+function aplicarFiltros(){
+  var p=document.getElementById("f-periodo").value;
+  var now=new Date();
+  filtroInicio=null; filtroFim=null;
+  if(p==="hoje"){filtroInicio=new Date(now.toDateString());filtroFim=new Date();}
+  else if(p==="7dias"){filtroInicio=new Date(now-7*86400000);filtroFim=new Date();}
+  else if(p==="30dias"){filtroInicio=new Date(now-30*86400000);filtroFim=new Date();}
+  else if(p==="custom"){
+    var di=document.getElementById("f-inicio").value;
+    var df=document.getElementById("f-fim").value;
+    if(di)filtroInicio=new Date(di);
+    if(df){filtroFim=new Date(df);filtroFim.setHours(23,59,59);}
+  }
+  projPage=1;
+  renderUsuarios();
+  renderProjetos();
+  atualizarStats();
+}
+
+function limparFiltros(){
+  document.getElementById("f-periodo").value="todos";
+  document.getElementById("f-custom").style.display="none";
+  document.getElementById("f-inicio").value="";
+  document.getElementById("f-fim").value="";
+  document.getElementById("busca-usuario").value="";
+  document.getElementById("busca-projeto").value="";
+  filtroInicio=null; filtroFim=null; projPage=1;
+  renderUsuarios(); renderProjetos(); atualizarStats();
+}
+
+function filtrarPorData(dt){
+  if(!dt)return true;
+  var d=new Date(dt);
+  if(filtroInicio&&d<filtroInicio)return false;
+  if(filtroFim&&d>filtroFim)return false;
+  return true;
+}
+
+async function loadData(){
+  document.getElementById("last-update").textContent="Atualizando...";
+  try{
+    var ru=await supaClient.rpc("get_all_users");
+    allUsers=ru.data||[];
+    var rp=await supaClient.rpc("get_all_projetos");
+    allProjetos=rp.data||[];
+    emailMap={};
+    allUsers.forEach(function(u){emailMap[u.id]=u.email;});
+    atualizarStats();
+    renderUsuarios();
+    renderProjetos();
+    carregarConnect();
+    carregarMeta();
+    carregarAprendizado();
+    document.getElementById("last-update").textContent="Ultima atualizacao: "+new Date().toLocaleString("pt-BR");
+  }catch(e){
+    document.getElementById("last-update").textContent="Erro: "+e.message;
+  }
+}
+
+function atualizarStats(){
+  var hoje=new Date().toISOString().split("T")[0];
+  var projFiltrados=allProjetos.filter(function(p){return filtrarPorData(p.criado_em);});
+  var usersFiltrados=allUsers.filter(function(u){return filtrarPorData(u.last_sign_in_at);});
+  var totalRot=projFiltrados.reduce(function(acc,p){return acc+(p.rodadas||[]).reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);},0);
+  var ativos=allUsers.filter(function(u){return diasAtras(u.last_sign_in_at)<7;}).length;
+  var projHoje=allProjetos.filter(function(p){return p.criado_em&&p.criado_em.startsWith(hoje);}).length;
+  document.getElementById("stat-users").textContent=allUsers.length;
+  document.getElementById("stat-projects").textContent=projFiltrados.length;
+  document.getElementById("stat-roteiros").textContent=totalRot;
+  document.getElementById("stat-ativos").textContent=ativos;
+  document.getElementById("stat-hoje").textContent=projHoje;
+}
+
+function getProjMap(){
+  var projFiltrados=allProjetos.filter(function(p){return filtrarPorData(p.criado_em);});
+  var m={};
+  projFiltrados.forEach(function(p){
+    var uid=p.user_id;
+    if(!m[uid]){m[uid]={projetos:0,roteiros:0,ultimo:p.criado_em};}
+    m[uid].projetos++;
+    m[uid].roteiros+=(p.rodadas||[]).reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
+    if(p.criado_em>m[uid].ultimo)m[uid].ultimo=p.criado_em;
+  });
+  return m;
+}
+
+function renderUsuarios(){
+  var busca=(document.getElementById("busca-usuario").value||"").toLowerCase();
+  var projMap=getProjMap();
+  var lista=allUsers.filter(function(u){
+    if(busca&&u.email.toLowerCase().indexOf(busca)<0)return false;
+    if(filtroInicio||filtroFim){return filtrarPorData(u.last_sign_in_at)||filtrarPorData(u.created_at);}
+    return true;
+  });
+  lista.sort(function(a,b){
+    var va,vb;
+    if(sortUsersBy==="_projetos"){va=(projMap[a.id]||{}).projetos||0;vb=(projMap[b.id]||{}).projetos||0;}
+    else if(sortUsersBy==="_roteiros"){va=(projMap[a.id]||{}).roteiros||0;vb=(projMap[b.id]||{}).roteiros||0;}
+    else if(sortUsersBy==="_status"){va=diasAtras(a.last_sign_in_at);vb=diasAtras(b.last_sign_in_at);}
+    else{va=a[sortUsersBy]||"";vb=b[sortUsersBy]||"";}
+    return va<vb?-sortUsersDir:va>vb?sortUsersDir:0;
+  });
+  document.getElementById("users-count").textContent=lista.length+" usuario(s)";
+  if(lista.length===0){document.getElementById("users-table").innerHTML='<div class="empty">Nenhum usuario encontrado</div>';return;}
+  var cols=[
+    {k:"email",lb:"Email"},
+    {k:"created_at",lb:"Cadastro"},
+    {k:"last_sign_in_at",lb:"Ultimo acesso"},
+    {k:"_projetos",lb:"Projetos"},
+    {k:"_roteiros",lb:"Roteiros"},
+    {k:"_status",lb:"Status"}
+  ];
+  var html='<table><thead><tr>';
+  cols.forEach(function(c){
+    var icon=sortUsersBy===c.k?(sortUsersDir===1?" ▲":" ▼"):" ↕";
+    html+='<th onclick="sortUsers(\''+c.k+'\')">'+c.lb+'<span class="sort-icon">'+icon+'</span></th>';
+  });
+  html+='</tr></thead><tbody>';
+  lista.forEach(function(u){
+    var p=projMap[u.id]||{projetos:0,roteiros:0};
+    var dias=diasAtras(u.last_sign_in_at);
+    var badge=dias<1?'<span class="badge ok">Hoje</span>':dias<7?'<span class="badge ac">Esta semana</span>':dias<30?'<span class="badge mu">Este mes</span>':'<span class="badge nu">Inativo</span>';
+    html+='<tr><td style="font-weight:500">'+u.email+'</td><td style="font-size:12px;color:var(--mu2)">'+fmt(u.created_at)+'</td><td style="font-size:12px;color:var(--mu2)">'+fmt(u.last_sign_in_at)+'</td><td>'+p.projetos+'</td><td>'+p.roteiros+'</td><td>'+badge+' <button class="btn-sm" style="margin-left:6px;border-color:rgba(255,77,0,.3);color:#FF8A50" onclick="apagarUsuario(\''+u.id+'\')">Apagar</button></td></tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById("users-table").innerHTML=html;
+}
+
+function sortUsers(col){
+  if(sortUsersBy===col)sortUsersDir*=-1;
+  else{sortUsersBy=col;sortUsersDir=-1;}
+  renderUsuarios();
+}
+
+function renderProjetos(){
+  var busca=(document.getElementById("busca-projeto").value||"").toLowerCase();
+  var lista=allProjetos.filter(function(p){
+    if(!filtrarPorData(p.criado_em))return false;
+    if(busca){
+      var email=(emailMap[p.user_id]||"").toLowerCase();
+      var nome=(p.nome||"").toLowerCase();
+      if(nome.indexOf(busca)<0&&email.indexOf(busca)<0)return false;
+    }
+    return true;
+  });
+  lista.sort(function(a,b){
+    var va,vb;
+    if(sortProjBy==="_usuario"){va=(emailMap[a.user_id]||"").toLowerCase();vb=(emailMap[b.user_id]||"").toLowerCase();}
+    else if(sortProjBy==="_rodadas"){va=(a.rodadas||[]).length;vb=(b.rodadas||[]).length;}
+    else if(sortProjBy==="_roteiros"){va=(a.rodadas||[]).reduce(function(x,r){return x+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);vb=(b.rodadas||[]).reduce(function(x,r){return x+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);}
+    else{va=a[sortProjBy]||"";vb=b[sortProjBy]||"";}
+    return va<vb?-sortProjDir:va>vb?sortProjDir:0;
+  });
+  var total=lista.length;
+  var totalPages=Math.max(1,Math.ceil(total/projPerPage));
+  if(projPage>totalPages)projPage=totalPages;
+  var start=(projPage-1)*projPerPage;
+  var page=lista.slice(start,start+projPerPage);
+  document.getElementById("projects-count").textContent=total+" projeto(s)";
+  if(page.length===0){document.getElementById("projects-table").innerHTML='<div class="empty">Nenhum projeto encontrado</div>';document.getElementById("projects-pagination").style.display="none";return;}
+  var cols=[
+    {k:"nome",lb:"Projeto"},
+    {k:"_usuario",lb:"Usuario"},
+    {k:"objetivo",lb:"Destino"},
+    {k:"_rodadas",lb:"Rodadas"},
+    {k:"_roteiros",lb:"Roteiros"},
+    {k:"criado_em",lb:"Data"}
+  ];
+  var html='<table><thead><tr>';
+  cols.forEach(function(c){
+    var icon=sortProjBy===c.k?(sortProjDir===1?" ▲":" ▼"):" ↕";
+    html+='<th onclick="sortProj(\''+c.k+'\')">'+c.lb+'<span class="sort-icon">'+icon+'</span></th>';
+  });
+  html+='</tr></thead><tbody>';
+  page.forEach(function(p){
+    var rods=p.rodadas||[];
+    var total=rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
+    html+='<tr>';
+    html+='<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.nome+'</td>';
+    html+='<td style="font-size:12px;color:var(--mu2)">'+(emailMap[p.user_id]||"-")+'</td>';
+    html+='<td><span class="badge mu">'+(p.objetivo||"-")+'</span></td>';
+    html+='<td>'+rods.length+'</td>';
+    html+='<td>'+total+'</td>';
+    html+='<td style="font-size:12px;color:var(--mu2)">'+fmt(p.criado_em)+'</td>';
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById("projects-table").innerHTML=html;
+  // Paginacao
+  if(totalPages>1){
+    var pg='';
+    pg+='<button class="pg-btn" onclick="mudarPagina('+(projPage-1)+')" '+(projPage===1?'disabled':'')+'>&#8249;</button>';
+    for(var i=1;i<=totalPages;i++){
+      if(i===1||i===totalPages||Math.abs(i-projPage)<=1){
+        pg+='<button class="pg-btn'+(i===projPage?' on':'')+'" onclick="mudarPagina('+i+')">'+i+'</button>';
+      }else if(Math.abs(i-projPage)===2){
+        pg+='<span class="pg-info">...</span>';
+      }
+    }
+    pg+='<button class="pg-btn" onclick="mudarPagina('+(projPage+1)+')" '+(projPage===totalPages?'disabled':'')+'>&#8250;</button>';
+    pg+='<span class="pg-info">'+(start+1)+'-'+Math.min(start+projPerPage,total)+' de '+total+'</span>';
+    document.getElementById("projects-pagination").innerHTML=pg;
+    document.getElementById("projects-pagination").style.display="flex";
+  }else{
+    document.getElementById("projects-pagination").style.display="none";
+  }
+}
+
+function sortProj(col){
+  if(sortProjBy===col)sortProjDir*=-1;
+  else{sortProjBy=col;sortProjDir=-1;}
+  renderProjetos();
+}
+
+function mudarPagina(p){
+  var totalPages=Math.ceil(allProjetos.length/projPerPage);
+  if(p<1||p>totalPages)return;
+  projPage=p;
+  renderProjetos();
+}
+
+function exportarCSV(){
+  var busca=(document.getElementById("busca-usuario").value||"").toLowerCase();
+  var projMap=getProjMap();
+  var lista=allUsers.filter(function(u){
+    if(busca&&u.email.toLowerCase().indexOf(busca)<0)return false;
+    return true;
+  });
+  var csv="Email,Cadastro,Ultimo acesso,Projetos,Roteiros,Status\n";
+  lista.forEach(function(u){
+    var p=projMap[u.id]||{projetos:0,roteiros:0};
+    var dias=diasAtras(u.last_sign_in_at);
+    var status=dias<1?"Hoje":dias<7?"Esta semana":dias<30?"Este mes":"Inativo";
+    csv+='"'+u.email+'","'+fmt(u.created_at)+'","'+fmt(u.last_sign_in_at)+'",'+p.projetos+','+p.roteiros+',"'+status+'"\n';
+  });
+  var blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  a.href=url;
+  a.download="mcp-studio-usuarios-"+new Date().toISOString().split("T")[0]+".csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+initAdmin();
 </script>
 </body>
 </html>
