@@ -11,6 +11,9 @@
     },
     "api/igtranscribe.js": {
       "maxDuration": 60
+    },
+    "api/meta.js": {
+      "maxDuration": 120
     }
   }
 }

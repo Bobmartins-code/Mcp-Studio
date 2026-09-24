@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Conectando a Meta</title>
+<style>
+:root{--bg:#0A0A0F;--tx:#F0EEE8;--mu:#9B9BAA}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--tx);font-family:system-ui,sans-serif;padding:16px;text-align:center}
+p{color:var(--mu);font-size:14px}
+</style>
+</head>
+<body>
+<div><h3 id="t">Conectando a Meta...</h3><p id="p">Pode fechar esta janela se ela nao fechar sozinha.</p></div>
+<script>
+// Retorno do login do Facebook: devolve o codigo para o painel admin que abriu esta janela
+(function(){
+  var q=new URLSearchParams(location.search);
+  var msg={tipo:"meta-login",code:q.get("code")||"",state:q.get("state")||"",erro:q.get("error_description")||q.get("error")||""};
+  if(window.opener){
+    window.opener.postMessage(msg,location.origin);
+    setTimeout(function(){window.close();},400);
+  }else{
+    document.getElementById("t").textContent=msg.erro?"Nao foi possivel conectar":"Quase la";
+    document.getElementById("p").textContent=msg.erro||"Volte ao painel admin e clique em Conectar Meta de novo.";
+  }
+})();
+</script>
+</body>
+</html>
