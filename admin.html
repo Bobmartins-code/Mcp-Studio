@@ -75,6 +75,82 @@ tr:hover td{background:var(--sur2)}
 .pg-btn:hover{color:var(--tx);border-color:var(--boh)}
 .pg-btn.on{background:var(--ac);border-color:var(--ac);color:#fff}
 .pg-info{font-size:12px;color:var(--mu2)}
+/* ---------- painel com menu lateral: lojas, projetos e demais abas ---------- */
+.adm{display:flex;min-height:100vh}
+.adm-nav{width:230px;flex-shrink:0;background:#0E0E14;border-right:1px solid var(--bo);padding:20px 12px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.adm-logo{display:flex;align-items:center;gap:10px;padding:0 8px 20px;font-family:'Syne',sans-serif;font-weight:800;font-size:17px}
+.adm-mark{width:32px;height:32px;border-radius:9px;background:var(--ac);display:flex;align-items:center;justify-content:center;color:#0A0A0F}
+.adm-lbl{font-size:11px;letter-spacing:.12em;color:var(--mu2);padding:4px 10px 8px}
+.adm-btn{text-align:left;background:none;border:none;color:#C9C7C0;font-size:14px;padding:11px 10px;border-radius:9px;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;text-decoration:none;white-space:nowrap}
+.adm-btn:hover{background:var(--sur2);color:var(--tx)}.adm-btn.on{background:rgba(255,77,0,.14);color:var(--ac2);font-weight:600}
+.adm-bx{background:var(--ac);color:#0A0A0F;font-size:11px;font-weight:700;border-radius:20px;padding:1px 8px}.adm-bx:empty{display:none}
+.adm-main{flex:1;min-width:0;padding:28px 32px;max-width:1360px}
+.aba{display:none}.aba.on{display:block}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.h1{font-family:'Syne',sans-serif;font-weight:800;font-size:28px}
+.sub{font-size:14px;color:var(--mu2);margin-top:6px}
+.btn-pri{height:44px;padding:0 18px;border-radius:10px;border:none;background:#D43D00;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+.btn-pri:hover{background:#E04400}.btn-pri:disabled{opacity:.5;cursor:wait}
+.btn-out{height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--boh);background:none;color:var(--tx);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap}
+.btn-out:hover{border-color:var(--ac2)}
+.btn-dots{width:36px;height:36px;border-radius:9px;border:1px solid var(--boh);background:none;color:#C9C7C0;font-size:18px;line-height:1;cursor:pointer}
+.busca{height:44px;width:260px;max-width:100%;background:var(--sur);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--tx);font-size:14px;padding:0 12px;outline:none;font-family:'DM Sans',sans-serif}
+.busca:focus{border-color:rgba(255,77,0,.5)}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
+.tile{background:var(--sur);border:1px solid var(--bo);border-radius:14px;padding:16px 18px}
+.tile-l{font-size:13px;color:var(--mu2)}.tile-v{font-family:'Syne',sans-serif;font-weight:700;font-size:28px;margin-top:6px}
+.ch{display:inline-block;font-size:12px;font-weight:600;border-radius:20px;padding:4px 10px;white-space:nowrap}
+.ch-ok{background:rgba(45,222,152,.12);color:var(--ok)}.ch-av{background:rgba(245,200,66,.12);color:var(--gold)}.ch-mu{background:rgba(255,255,255,.06);color:var(--mu2)}.ch-ac{background:rgba(255,77,0,.12);color:var(--ac2)}
+.av{width:40px;height:40px;border-radius:50%;background:#5A4636;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.mini{font-size:12px;color:var(--mu2);margin-top:4px}
+.lk{background:none;border:none;color:var(--ac2);font-size:13px;font-weight:600;cursor:pointer;padding:0;font-family:'DM Sans',sans-serif}
+.menu{position:fixed;z-index:300;width:260px;background:#1C1C24;border:1px solid var(--boh);border-radius:12px;padding:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);display:none}
+.menu button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--tx);font-size:14px;padding:10px 12px;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.menu button:hover{background:rgba(255,255,255,.06)}.menu .perigo{color:#FF6B5A}.menu hr{border:none;height:1px;background:rgba(255,255,255,.08);margin:4px 6px}
+.drawer-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;display:none}
+.drawer{position:fixed;right:0;top:0;height:100vh;width:560px;max-width:100vw;background:var(--sur);border-left:1px solid var(--boh);z-index:401;display:none;flex-direction:column}
+.dr-h{display:flex;justify-content:space-between;align-items:center;padding:22px 28px 14px}
+.dr-t{font-family:'Syne',sans-serif;font-weight:800;font-size:22px}
+.dr-b{flex:1;overflow-y:auto;padding:6px 28px 20px;display:flex;flex-direction:column;gap:20px}
+.dr-f{display:flex;justify-content:flex-end;gap:10px;padding:16px 28px;border-top:1px solid var(--bo)}
+.passo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;margin-bottom:12px}
+.passo span{width:24px;height:24px;border-radius:50%;background:var(--ac);color:#0A0A0F;font-size:13px;display:flex;align-items:center;justify-content:center}
+.campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.campo{display:flex;flex-direction:column;gap:6px;font-size:13px;color:#B8B6AF}
+.campo input,.campo select,.campo textarea{height:42px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:var(--bg);color:var(--tx);padding:0 12px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none}
+.campo textarea{height:auto;min-height:76px;padding:10px 12px;resize:vertical}
+.campo input:focus,.campo select:focus,.campo textarea:focus{border-color:rgba(255,77,0,.6)}
+.campo input[readonly]{color:var(--mu2)}
+.dica{font-size:12.5px;color:var(--mu2);line-height:1.5}
+.marca{display:flex;gap:10px;align-items:center;font-size:14px;min-height:44px;cursor:pointer}
+.marca input{width:18px;height:18px;accent-color:var(--ac)}
+.caixa{background:rgba(255,77,0,.08);border:1px solid rgba(255,77,0,.25);border-radius:12px;padding:14px;font-size:13.5px;line-height:1.5}
+.chips-f{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.chips-f label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mu2)}
+.chips-f select{height:38px;border-radius:20px;border:1px solid var(--boh);background:#15151C;color:var(--tx);padding:0 12px;font-size:13px;font-family:'DM Sans',sans-serif}
+.grade2{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;align-items:start}
+.painel{background:var(--sur);border:1px solid var(--bo);border-radius:16px;padding:16px;margin-bottom:14px}
+.painel-t{font-weight:700;font-size:15px;margin-bottom:12px}
+.at{display:flex;gap:10px;font-size:13.5px;line-height:1.45;color:#D9D7D0;margin-bottom:10px}
+.at i{width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0}
+.ev{font-size:13.5px;color:#D9D7D0;margin-bottom:10px}.ev div{font-size:12px;color:var(--mu2);margin-top:2px}
+.barra{flex:1;height:6px;border-radius:6px;background:#22222B;overflow:hidden;min-width:60px}.barra i{display:block;height:6px;background:var(--ok)}
+tr.clic{cursor:pointer}
+.rcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:18px}
+.rcard{background:var(--sur);border:1px solid var(--bo);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.rb{font-size:11px;letter-spacing:.08em;color:var(--ac2);font-weight:700}
+.rt{font-size:13.5px;line-height:1.45;margin-top:3px;color:#D9D7D0;white-space:pre-wrap}
+.toast-adm{position:fixed;bottom:20px;right:20px;background:var(--sur);border:1px solid var(--boh);border-radius:10px;padding:12px 16px;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.4);z-index:500;display:none;max-width:420px;line-height:1.45}
+@media(max-width:900px){
+  .adm{flex-direction:column}
+  .adm-nav{width:auto;height:auto;position:sticky;z-index:50;flex-direction:row;overflow-x:auto;padding:10px}
+  .adm-logo,.adm-lbl,.adm-nav .fim{display:none}
+  .adm-main{padding:18px 14px}
+  .tiles{grid-template-columns:1fr 1fr}
+  .grade2{grid-template-columns:1fr}
+  .campos{grid-template-columns:1fr}
+  .dr-h,.dr-b,.dr-f{padding-left:18px;padding-right:18px}
+}
 </style>
 </head>
 <body>
@@ -86,111 +162,158 @@ tr:hover td{background:var(--sur2)}
 </div>
 
 <div id="admin-panel" style="display:none">
-  <div class="topbar">
-    <div class="tb-logo">MCP<span>Studio</span></div>
-    <div class="tb-badge">Admin</div>
-    <div class="tb-right">
-      <button class="refresh-btn" onclick="loadData()">&#8635; Atualizar</button>
-      <button class="btn-sm" onclick="logout()">Sair</button>
-    </div>
-  </div>
-  <div class="content">
-    <div class="page-title">Painel Administrativo</div>
-    <div class="page-sub" id="last-update">Carregando dados...</div>
+ <div class="adm">
+  <nav class="adm-nav" aria-label="Menu do admin">
+    <div class="adm-logo"><div class="adm-mark">M</div><div>MCP<span style="color:var(--ac)">Studio</span></div></div>
+    <div class="adm-lbl">ADMIN</div>
+    <button class="adm-btn on" data-aba="lojas" onclick="abrirAba('lojas')">Lojas <span class="adm-bx" id="nav-lojas"></span></button>
+    <button class="adm-btn" data-aba="projetos" onclick="abrirAba('projetos')">Projetos e roteiros</button>
+    <button class="adm-btn" data-aba="visao" onclick="abrirAba('visao')">Visão geral</button>
+    <button class="adm-btn" data-aba="agente" onclick="abrirAba('agente')">Agente</button>
+    <button class="adm-btn" data-aba="conexoes" onclick="abrirAba('conexoes')">Conexões</button>
+    <button class="adm-btn" data-aba="seguranca" onclick="abrirAba('seguranca')">Segurança</button>
+    <div class="fim" style="flex:1"></div>
+    <a class="adm-btn fim" href="app.html">← Voltar ao app</a>
+    <button class="adm-btn fim" onclick="loadData()">&#8635; Atualizar tudo</button>
+  </nav>
 
-    <!-- FILTROS -->
-    <div class="filters">
-      <div class="filter-group">
-        <label>Periodo:</label>
-        <select id="f-periodo" onchange="onPeriodoChange()">
-          <option value="todos">Todos</option>
-          <option value="hoje">Hoje</option>
-          <option value="7dias">Ultimos 7 dias</option>
-          <option value="30dias">Ultimos 30 dias</option>
-          <option value="custom">Personalizado</option>
-        </select>
-      </div>
-      <div class="filter-group" id="f-custom" style="display:none">
-        <label>De:</label>
-        <input type="date" id="f-inicio"/>
-        <label>Ate:</label>
-        <input type="date" id="f-fim"/>
-      </div>
-      <button class="btn-filter" onclick="aplicarFiltros()">Filtrar</button>
-      <button class="btn-clear" onclick="limparFiltros()">Limpar</button>
-      <button class="btn-export" onclick="exportarCSV()">Exportar CSV</button>
-    </div>
-
-    <div class="stats-grid">
-      <div class="stat ac"><div class="stat-val" id="stat-users">-</div><div class="stat-lbl">Usuarios cadastrados</div></div>
-      <div class="stat ok"><div class="stat-val" id="stat-projects">-</div><div class="stat-lbl">Projetos gerados</div></div>
-      <div class="stat gold"><div class="stat-val" id="stat-roteiros">-</div><div class="stat-lbl">Roteiros gerados</div></div>
-      <div class="stat pu"><div class="stat-val" id="stat-ativos">-</div><div class="stat-lbl">Ativos (7 dias)</div></div>
-      <div class="stat"><div class="stat-val" id="stat-hoje">-</div><div class="stat-lbl">Projetos hoje</div></div>
-    </div>
-
-    <!-- SEGURANCA -->
-    <div class="section">
-      <div class="sec-head"><div class="sec-title">🔒 Seguranca da conta admin</div></div>
-      <div style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6"><div id="seguranca-status">Carregando...</div><div id="auditoria-lista"></div></div>
-    </div>
-
-    <!-- REPORTEI CONNECT -->
-    <div class="section">
-      <div class="sec-head">
-        <div class="sec-title">🔌 Reportei Connect · contas das clientes</div>
-        <button class="refresh-btn" onclick="carregarConnect()">&#8635; Atualizar</button>
-      </div>
-      <div id="connect-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
-      <div style="overflow-x:auto" id="connect-table"></div>
-    </div>
-
-    <!-- CONTAS META + TIME DE AGENTES -->
-    <div class="section">
-      <div class="sec-head">
-        <div class="sec-title">📊 Contas Meta dos clientes · Time de agentes</div>
-        <button class="refresh-btn" id="btn-analisar-todas" onclick="analisarTodas()" style="color:var(--ac2);border-color:rgba(255,77,0,.35)">Analisar todas as contas</button>
-      </div>
-      <div id="meta-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
-      <div style="overflow-x:auto" id="contas-meta-table"></div>
-    </div>
-
-    <!-- APRENDIZADO DO AGENTE -->
-    <div class="section">
-      <div class="sec-head">
-        <div class="sec-title">🧠 Aprendizado do Agente MCP</div>
-        <button class="refresh-btn" id="btn-aprender" onclick="atualizarAprendizado()" style="color:var(--ac2);border-color:rgba(255,77,0,.35)">Atualizar aprendizado do agente</button>
-      </div>
-      <div style="padding:14px 20px 6px;font-size:13px;color:var(--mu2);line-height:1.55">O agente estuda os videos que mais deram resultado (vendas nos anuncios, engajamento e compartilhamento no organico) nos dossies de todas as lojas e grava apenas <b>padroes por nicho</b>. Nao guarda nome de loja, cliente, video nem texto. Um padrao so e criado com dados de pelo menos 2 lojas diferentes do mesmo nicho.</div>
-      <div id="aprendizado-status" style="padding:6px 20px 12px;font-size:12.5px;color:var(--ac2)"></div>
-      <div id="aprendizado-table"></div>
-    </div>
-
-    <!-- USUARIOS -->
-    <div class="section">
-      <div class="sec-head">
-        <div class="sec-title">Todos os usuarios</div>
-        <div style="display:flex;gap:10px;align-items:center">
-          <input class="sec-search" id="busca-usuario" placeholder="Buscar por email..." oninput="renderUsuarios()"/>
-          <div class="sec-count" id="users-count"></div>
+  <main class="adm-main">
+    <!-- ================= LOJAS ================= -->
+    <section class="aba on" id="aba-lojas">
+      <div class="head">
+        <div><div class="h1">Lojas</div><div class="sub">Cada loja reúne Instagram, anúncios, dossiê do agente e o acesso da dona.</div></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input class="busca" id="busca-loja" placeholder="Buscar loja ou e-mail" aria-label="Buscar loja ou e-mail" oninput="renderLojas()"/>
+          <button class="btn-pri" onclick="abrirDrawerLoja()">+ Adicionar loja</button>
         </div>
       </div>
-      <div id="users-table"><div class="loading"><div class="spin"></div>Carregando...</div></div>
-    </div>
+      <div id="lojas-aviso"></div>
+      <div class="tiles" id="lojas-tiles"></div>
+      <div class="section"><div style="overflow-x:auto" id="lojas-tabela"><div class="loading"><div class="spin"></div>Carregando...</div></div></div>
+    </section>
 
-    <!-- PROJETOS -->
-    <div class="section">
-      <div class="sec-head">
-        <div class="sec-title">Projetos recentes</div>
-        <div style="display:flex;gap:10px;align-items:center">
-          <input class="sec-search" id="busca-projeto" placeholder="Buscar projeto ou usuario..." oninput="renderProjetos()"/>
-          <div class="sec-count" id="projects-count"></div>
+    <!-- ================= PROJETOS ================= -->
+    <section class="aba" id="aba-projetos">
+      <div id="projetos-lista">
+        <div class="head">
+          <div><div class="h1">Projetos</div><div class="sub">Tudo o que as lojas criaram, num lugar só.</div></div>
+          <input class="busca" id="busca-projeto" placeholder="Buscar projeto ou loja" aria-label="Buscar projeto ou loja" oninput="renderProjetos()"/>
+        </div>
+        <div class="chips-f">
+          <label>Loja <select id="pf-loja" onchange="renderProjetos()"><option value="">Todas</option></select></label>
+          <label>Período <select id="pf-per" onchange="renderProjetos()"><option value="">Todos</option><option value="7">Últimos 7 dias</option><option value="30" selected>Últimos 30 dias</option><option value="90">Últimos 90 dias</option></select></label>
+          <label>Situação <select id="pf-status" onchange="renderProjetos()"><option value="">Todas</option><option value="gravar">Com roteiro para gravar</option><option value="nada">Nada gravado ainda</option><option value="tudo">Tudo gravado</option></select></label>
+        </div>
+        <div class="grade2">
+          <div style="min-width:0">
+            <div class="tiles" style="grid-template-columns:repeat(3,minmax(0,1fr))" id="proj-tiles"></div>
+            <div class="section"><div style="overflow-x:auto" id="projects-table"><div class="loading"><div class="spin"></div>Carregando...</div></div></div>
+          </div>
+          <aside>
+            <div class="painel"><div class="painel-t">Precisa de atenção</div><div id="proj-atencao"></div></div>
+            <div class="painel"><div class="painel-t">Atividade recente</div><div id="proj-atividade"></div></div>
+          </aside>
         </div>
       </div>
-      <div id="projects-table"><div class="loading"><div class="spin"></div>Carregando...</div></div>
-      <div id="projects-pagination" class="pagination" style="display:none"></div>
-    </div>
-  </div>
+      <div id="projeto-detalhe" style="display:none"></div>
+    </section>
+
+    <!-- ================= VISAO GERAL ================= -->
+    <section class="aba" id="aba-visao">
+      <div class="head"><div><div class="h1">Visão geral</div><div class="sub" id="last-update">Carregando dados...</div></div></div>
+      <div class="filters">
+        <div class="filter-group">
+          <label>Periodo:</label>
+          <select id="f-periodo" onchange="onPeriodoChange()">
+            <option value="todos">Todos</option>
+            <option value="hoje">Hoje</option>
+            <option value="7dias">Ultimos 7 dias</option>
+            <option value="30dias">Ultimos 30 dias</option>
+            <option value="custom">Personalizado</option>
+          </select>
+        </div>
+        <div class="filter-group" id="f-custom" style="display:none">
+          <label>De:</label>
+          <input type="date" id="f-inicio"/>
+          <label>Ate:</label>
+          <input type="date" id="f-fim"/>
+        </div>
+        <button class="btn-filter" onclick="aplicarFiltros()">Filtrar</button>
+        <button class="btn-clear" onclick="limparFiltros()">Limpar</button>
+        <button class="btn-export" onclick="exportarCSV()">Exportar CSV</button>
+      </div>
+      <div class="stats-grid">
+        <div class="stat ac"><div class="stat-val" id="stat-users">-</div><div class="stat-lbl">Usuarios cadastrados</div></div>
+        <div class="stat ok"><div class="stat-val" id="stat-projects">-</div><div class="stat-lbl">Projetos gerados</div></div>
+        <div class="stat gold"><div class="stat-val" id="stat-roteiros">-</div><div class="stat-lbl">Roteiros gerados</div></div>
+        <div class="stat pu"><div class="stat-val" id="stat-ativos">-</div><div class="stat-lbl">Ativos (7 dias)</div></div>
+        <div class="stat"><div class="stat-val" id="stat-hoje">-</div><div class="stat-lbl">Projetos hoje</div></div>
+      </div>
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">Todos os usuarios</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input class="sec-search" id="busca-usuario" placeholder="Buscar por email..." oninput="renderUsuarios()"/>
+            <div class="sec-count" id="users-count"></div>
+          </div>
+        </div>
+        <div id="users-table"><div class="loading"><div class="spin"></div>Carregando...</div></div>
+      </div>
+    </section>
+
+    <!-- ================= AGENTE ================= -->
+    <section class="aba" id="aba-agente">
+      <div class="head"><div><div class="h1">Agente</div><div class="sub">O time de agentes estuda os números de cada loja e o aprendizado entre lojas alimenta os roteiros.</div></div></div>
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">📊 Contas Meta dos clientes · Time de agentes</div>
+          <button class="refresh-btn" id="btn-analisar-todas" onclick="analisarTodas()" style="color:var(--ac2);border-color:rgba(255,77,0,.35)">Analisar todas as contas</button>
+        </div>
+        <div id="meta-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
+        <div style="overflow-x:auto" id="contas-meta-table"></div>
+      </div>
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">🧠 Aprendizado do Agente MCP</div>
+          <button class="refresh-btn" id="btn-aprender" onclick="atualizarAprendizado()" style="color:var(--ac2);border-color:rgba(255,77,0,.35)">Atualizar aprendizado do agente</button>
+        </div>
+        <div style="padding:14px 20px 6px;font-size:13px;color:var(--mu2);line-height:1.55">O agente estuda os videos que mais deram resultado (vendas nos anuncios, engajamento e compartilhamento no organico) nos dossies de todas as lojas e grava apenas <b>padroes por nicho</b>. Nao guarda nome de loja, cliente, video nem texto. Um padrao so e criado com dados de pelo menos 2 lojas diferentes do mesmo nicho.</div>
+        <div id="aprendizado-status" style="padding:6px 20px 12px;font-size:12.5px;color:var(--ac2)"></div>
+        <div id="aprendizado-table"></div>
+      </div>
+    </section>
+
+    <!-- ================= CONEXOES ================= -->
+    <section class="aba" id="aba-conexoes">
+      <div class="head"><div><div class="h1">Conexões</div><div class="sub">Reportei Connect: por onde chegam os números do Instagram e dos anúncios de cada loja.</div></div></div>
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">🔌 Reportei Connect · contas das clientes</div>
+          <button class="refresh-btn" onclick="carregarConnect()">&#8635; Atualizar</button>
+        </div>
+        <div id="connect-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
+        <div style="overflow-x:auto" id="connect-table"></div>
+      </div>
+    </section>
+
+    <!-- ================= SEGURANCA ================= -->
+    <section class="aba" id="aba-seguranca">
+      <div class="head"><div><div class="h1">Segurança</div></div></div>
+      <div class="section">
+        <div class="sec-head"><div class="sec-title">🔒 Seguranca da conta admin</div></div>
+        <div style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6"><div id="seguranca-status">Carregando...</div><div id="auditoria-lista"></div></div>
+      </div>
+    </section>
+  </main>
+ </div>
+
+ <!-- menu de acoes de uma loja -->
+ <div class="menu" id="menu-loja" role="menu"></div>
+
+ <!-- gaveta: adicionar ou editar loja -->
+ <div class="drawer-ov" id="drawer-ov" onclick="fecharDrawerLoja()"></div>
+ <aside class="drawer" id="drawer-loja" aria-label="Loja"></aside>
+ <div class="toast-adm" id="toast-adm" role="status"></div>
 </div>
 
 <script>
@@ -225,6 +348,7 @@ async function initAdmin(){
 function abrirPainel(){
   document.getElementById("pin-screen").style.display="none";
   document.getElementById("admin-panel").style.display="block";
+  abrirAba((location.hash||"").replace("#","")||"lojas");
   loadData();
   carregarSeguranca();
 }
@@ -371,7 +495,7 @@ async function carregarConnect(){
     box.innerHTML='Conta <b>'+escHtml(connectCfg.nome||"")+'</b> conectada · '+(connectCfg.pagante?'<b style="color:var(--ok)">plano ativo</b>':'em teste'+(connectCfg.teste_ate?' ate '+new Date(connectCfg.teste_ate).toLocaleDateString("pt-BR"):''))+' · '+(connectCfg.total_clientes||0)+' clientes<br><span style="font-size:12px">Plataformas liberadas: '+escHtml(plats||"-")+'. Clique em Ativar, depois em Conectar contas: abre a tela do Reportei para autorizar o Instagram e o Meta Ads da cliente (voce mesmo ou mandando o link para ela).</span>';
   }
   if(connectCfg&&connectCfg.configurado){try{var rr=await apiConnect({acao:"listar"});connectClientes={};(rr.clientes||[]).forEach(function(c){connectClientes[c.user_id]=c;});}catch(e){}}
-  renderConnect();
+  renderConnect();renderLojas();
 }
 function renderConnect(){
   var el=document.getElementById("connect-table"),ok=!!(connectCfg&&connectCfg.configurado);
@@ -471,17 +595,25 @@ async function salvarContaMeta(uid,silencioso){
   return true;
 }
 function linhasOrg(lista,extra){return (lista||[]).map(function(v,i){return (i+1)+") "+v.tipo+" de "+String(v.data).substring(0,10)+(v.recente?" (ultimos 30 dias)":"")+" | indice "+v.indice+"x a media | alcance "+v.alcance+" | curtidas "+v.curtidas+" | comentarios "+v.comentarios+" | salvamentos "+v.salvamentos+" | compartilhamentos "+v.compartilhamentos+" | legenda: "+String(v.legenda||"").substring(0,280)+(v.transcricao?" | FALA DO VIDEO: "+String(v.transcricao).substring(0,700):"");}).join("\n");}
-function linhasAds(lista){return (lista||[]).map(function(a,i){return (i+1)+") "+a.nome+" | "+a.status+" | gasto "+a.gasto+" | resultados "+a.resultados+" (30d: "+a.resultados_30d+") | custo por resultado "+a.custo_por_resultado+(a.roas?" | ROAS "+a.roas:"")+" | taxa de gancho "+a.taxa_gancho+"% | retencao "+a.retencao+"% | CTR "+a.ctr+"% | "+(a.diagnostico||"")+" | texto: "+String(a.texto||a.titulo||"").substring(0,280)+(a.transcricao?" | FALA DO VIDEO: "+String(a.transcricao).substring(0,700):"");}).join("\n");}
+function linhasAds(lista){return (lista||[]).map(function(a,i){return (i+1)+") "+a.nome+" | gasto "+a.gasto+" | resultados "+a.resultados+" (30d: "+a.resultados_30d+") | custo por resultado "+a.custo_por_resultado+(a.roas?" | ROAS "+a.roas:"")+" | taxa de gancho "+a.taxa_gancho+"% | retencao "+a.retencao+"% | CTR "+a.ctr+"% | "+(a.diagnostico||"")+" | texto: "+String(a.texto||a.titulo||"").substring(0,280)+(a.transcricao?" | FALA DO VIDEO: "+String(a.transcricao).substring(0,700):"");}).join("\n");}
 async function analisarConta(uid){
-  var linha=document.getElementById("st-"+uid);
-  function log(t){if(linha)linha.textContent=t;}
+  function log(t){var l=document.getElementById("st-"+uid);if(l)l.textContent=t;setStatusLoja(uid,t);}
   if(document.getElementById("ig-"+uid)){var ok=await salvarContaMeta(uid,true);if(!ok)return;}
   var c=contasMeta[uid]||{};
-  if(!c.ig_id&&!c.ad_account_id){log("Escolha o Instagram e/ou a conta de anuncios primeiro.");return;}
+  // com a Meta conectada direto usa ela; senao usa os numeros que chegam pelo Reportei
+  var viaMeta=!!(metaCfg&&metaCfg.conexao&&(c.ig_id||c.ad_account_id));
   try{
     var org=null,ads=null;
-    if(c.ig_id){log("Agente Organico coletando os posts dos ultimos 90 dias...");org=await apiMeta({acao:"organico",ig_id:c.ig_id});}
-    if(c.ad_account_id){log("Agente de Anuncios coletando os anuncios dos ultimos 90 dias...");ads=await apiMeta({acao:"anuncios",ad_account_id:c.ad_account_id});}
+    if(viaMeta){
+      if(c.ig_id){log("Agente Organico coletando os posts dos ultimos 90 dias...");org=await apiMeta({acao:"organico",ig_id:c.ig_id});}
+      if(c.ad_account_id){log("Agente de Anuncios coletando os anuncios dos ultimos 90 dias...");ads=await apiMeta({acao:"anuncios",ad_account_id:c.ad_account_id});}
+    }else{
+      log("Lendo os números da loja...");
+      var rm=await supaClient.from("contas_meta").select("metricas").eq("user_id",uid).maybeSingle();
+      var met=rm&&rm.data&&rm.data.metricas;
+      org=orgDoReportei(met);ads=adsDoReportei(met);
+      if(!org&&!ads){log("Ainda não há números desta loja. Conecte o Instagram e os anúncios e use Atualizar dados agora.");return;}
+    }
     // transcreve a fala dos videos vencedores
     var alvos=[];
     if(org)org.videos.filter(function(v){return v.video&&v.media_url;}).slice(0,3).forEach(function(v){alvos.push({obj:v,body:{acao:"transcrever",url:v.media_url}});});
@@ -506,7 +638,12 @@ async function analisarConta(uid){
 }
 async function analisarTodas(){
   var btn=document.getElementById("btn-analisar-todas");btn.disabled=true;
-  try{for(var uid in contasMeta){var c=contasMeta[uid];if(c.ig_id||c.ad_account_id)await analisarConta(uid);}}finally{btn.disabled=false;}
+  try{
+    var ids={};
+    Object.keys(contasMeta).forEach(function(uid){var c=contasMeta[uid];if(c.ig_id||c.ad_account_id)ids[uid]=1;});
+    Object.keys(numeros).forEach(function(uid){if(numeros[uid].metricas_em)ids[uid]=1;});
+    for(var uid in ids)await analisarConta(uid);
+  }finally{btn.disabled=false;}
 }
 
 async function apagarUsuario(uid){
@@ -579,6 +716,7 @@ async function loadData(){
     allProjetos=rp.data||[];
     emailMap={};
     allUsers.forEach(function(u){emailMap[u.id]=u.email;});
+    await Promise.all([carregarLojas(),carregarRecadosAdm()]);
     atualizarStats();
     renderUsuarios();
     renderProjetos();
@@ -666,93 +804,6 @@ function sortUsers(col){
   renderUsuarios();
 }
 
-function renderProjetos(){
-  var busca=(document.getElementById("busca-projeto").value||"").toLowerCase();
-  var lista=allProjetos.filter(function(p){
-    if(!filtrarPorData(p.criado_em))return false;
-    if(busca){
-      var email=(emailMap[p.user_id]||"").toLowerCase();
-      var nome=(p.nome||"").toLowerCase();
-      if(nome.indexOf(busca)<0&&email.indexOf(busca)<0)return false;
-    }
-    return true;
-  });
-  lista.sort(function(a,b){
-    var va,vb;
-    if(sortProjBy==="_usuario"){va=(emailMap[a.user_id]||"").toLowerCase();vb=(emailMap[b.user_id]||"").toLowerCase();}
-    else if(sortProjBy==="_rodadas"){va=(a.rodadas||[]).length;vb=(b.rodadas||[]).length;}
-    else if(sortProjBy==="_roteiros"){va=(a.rodadas||[]).reduce(function(x,r){return x+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);vb=(b.rodadas||[]).reduce(function(x,r){return x+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);}
-    else{va=a[sortProjBy]||"";vb=b[sortProjBy]||"";}
-    return va<vb?-sortProjDir:va>vb?sortProjDir:0;
-  });
-  var total=lista.length;
-  var totalPages=Math.max(1,Math.ceil(total/projPerPage));
-  if(projPage>totalPages)projPage=totalPages;
-  var start=(projPage-1)*projPerPage;
-  var page=lista.slice(start,start+projPerPage);
-  document.getElementById("projects-count").textContent=total+" projeto(s)";
-  if(page.length===0){document.getElementById("projects-table").innerHTML='<div class="empty">Nenhum projeto encontrado</div>';document.getElementById("projects-pagination").style.display="none";return;}
-  var cols=[
-    {k:"nome",lb:"Projeto"},
-    {k:"_usuario",lb:"Usuario"},
-    {k:"objetivo",lb:"Destino"},
-    {k:"_rodadas",lb:"Rodadas"},
-    {k:"_roteiros",lb:"Roteiros"},
-    {k:"criado_em",lb:"Data"}
-  ];
-  var html='<table><thead><tr>';
-  cols.forEach(function(c){
-    var icon=sortProjBy===c.k?(sortProjDir===1?" ▲":" ▼"):" ↕";
-    html+='<th onclick="sortProj(\''+c.k+'\')">'+c.lb+'<span class="sort-icon">'+icon+'</span></th>';
-  });
-  html+='</tr></thead><tbody>';
-  page.forEach(function(p){
-    var rods=p.rodadas||[];
-    var total=rods.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros&&r.resultado.roteiros.length)||0);},0);
-    html+='<tr>';
-    html+='<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.nome)+'</td>';
-    html+='<td style="font-size:12px;color:var(--mu2)">'+escHtml(emailMap[p.user_id]||"-")+'</td>';
-    html+='<td><span class="badge mu">'+escHtml(p.objetivo||"-")+'</span></td>';
-    html+='<td>'+rods.length+'</td>';
-    html+='<td>'+total+'</td>';
-    html+='<td style="font-size:12px;color:var(--mu2)">'+fmt(p.criado_em)+'</td>';
-    html+='</tr>';
-  });
-  html+='</tbody></table>';
-  document.getElementById("projects-table").innerHTML=html;
-  // Paginacao
-  if(totalPages>1){
-    var pg='';
-    pg+='<button class="pg-btn" onclick="mudarPagina('+(projPage-1)+')" '+(projPage===1?'disabled':'')+'>&#8249;</button>';
-    for(var i=1;i<=totalPages;i++){
-      if(i===1||i===totalPages||Math.abs(i-projPage)<=1){
-        pg+='<button class="pg-btn'+(i===projPage?' on':'')+'" onclick="mudarPagina('+i+')">'+i+'</button>';
-      }else if(Math.abs(i-projPage)===2){
-        pg+='<span class="pg-info">...</span>';
-      }
-    }
-    pg+='<button class="pg-btn" onclick="mudarPagina('+(projPage+1)+')" '+(projPage===totalPages?'disabled':'')+'>&#8250;</button>';
-    pg+='<span class="pg-info">'+(start+1)+'-'+Math.min(start+projPerPage,total)+' de '+total+'</span>';
-    document.getElementById("projects-pagination").innerHTML=pg;
-    document.getElementById("projects-pagination").style.display="flex";
-  }else{
-    document.getElementById("projects-pagination").style.display="none";
-  }
-}
-
-function sortProj(col){
-  if(sortProjBy===col)sortProjDir*=-1;
-  else{sortProjBy=col;sortProjDir=-1;}
-  renderProjetos();
-}
-
-function mudarPagina(p){
-  var totalPages=Math.ceil(allProjetos.length/projPerPage);
-  if(p<1||p>totalPages)return;
-  projPage=p;
-  renderProjetos();
-}
-
 function exportarCSV(){
   var busca=(document.getElementById("busca-usuario").value||"").toLowerCase();
   var projMap=getProjMap();
@@ -774,6 +825,326 @@ function exportarCSV(){
   a.download="mcp-studio-usuarios-"+new Date().toISOString().split("T")[0]+".csv";
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ===== Abas do painel =====
+var ABAS=["lojas","projetos","visao","agente","conexoes","seguranca"];
+function abrirAba(id){
+  if(ABAS.indexOf(id)<0)id="lojas";
+  document.querySelectorAll(".aba").forEach(function(s){s.classList.toggle("on",s.id==="aba-"+id);});
+  document.querySelectorAll(".adm-btn[data-aba]").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-aba")===id);});
+  fecharMenu();
+  try{history.replaceState(null,"","#"+id);}catch(e){}
+  window.scrollTo(0,0);
+}
+function avisar(t,erro){var el=document.getElementById("toast-adm");if(!el)return;el.textContent=t;el.style.display="block";el.style.borderColor=erro?"rgba(255,77,0,.6)":"var(--boh)";clearTimeout(avisar.t);avisar.t=setTimeout(function(){el.style.display="none";},erro?9000:5000);}
+function iniciais(t){var p=String(t||"?").replace(/[^A-Za-zÀ-ÿ0-9 ]/g," ").trim().split(/\s+/).filter(Boolean);if(!p.length)return "?";return ((p[0][0]||"")+(p.length>1?p[p.length-1][0]:"")).toUpperCase();}
+function val(id){var e=document.getElementById(id);return e?String(e.value||"").trim():"";}
+function fmtCurto(dt){if(!dt)return "-";var d=new Date(dt);return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});}
+async function copiarTexto(t){try{await navigator.clipboard.writeText(t);}catch(e){window.prompt("Copie o link:",t);}}
+async function apiLojas(body){
+  var s=await supaClient.auth.getSession();var tk=s.data&&s.data.session&&s.data.session.access_token;
+  var r=await fetch("/api/lojas",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify(body)});
+  var d={};try{d=await r.json();}catch(_){}
+  if(!r.ok||d.error)throw new Error(d.error||("Erro "+r.status));
+  return d;
+}
+
+// ===== LOJAS: cada loja e o login da dona + dados, conexoes e numeros =====
+var lojas={},numeros={},statusLoja={},lojasErro=false;
+function nomeLoja(uid){var l=lojas[uid];if(l&&l.nome)return l.nome;return emailMap[uid]||"Loja";}
+async function carregarLojas(){
+  try{var r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em");if(r.error)throw r.error;lojas={};(r.data||[]).forEach(function(l){lojas[l.user_id]=l;});lojasErro=false;}
+  catch(e){lojasErro=true;}
+  try{
+    var c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,metricas_em,status,atualizado_em,conta:metricas->conta,avisos:metricas->avisos,posts:metricas->organico->total_posts,ads90:metricas->anuncios->p90->totais");
+    if(c.error)c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,status,atualizado_em");
+    numeros={};((c&&c.data)||[]).forEach(function(x){numeros[x.user_id]=x;});
+  }catch(e){}
+  renderLojas();preencherFiltroLojas();
+}
+function lojasOrdenadas(){
+  var busca=val("busca-loja").toLowerCase();
+  return allUsers.filter(function(u){if(!busca)return true;return (u.email||"").toLowerCase().indexOf(busca)>-1||nomeLoja(u.id).toLowerCase().indexOf(busca)>-1;})
+    .sort(function(a,b){var la=!!lojas[a.id],lb=!!lojas[b.id];if(la!==lb)return la?-1:1;return nomeLoja(a.id).localeCompare(nomeLoja(b.id),"pt-BR");});
+}
+function temConexao(n){var ct=(n&&n.conta)||{};return !!(ct.username||ct.anuncios||(n&&(n.ig_username||n.ad_account_nome)));}
+function renderLojas(){
+  var el=document.getElementById("lojas-tabela");if(!el)return;
+  document.getElementById("lojas-aviso").innerHTML=lojasErro?'<div class="caixa" style="margin-bottom:16px"><b>Falta criar as tabelas novas no banco.</b> Rode o arquivo supabase/lojas.sql no SQL Editor do Supabase.</div>':"";
+  var acessa=0,aguardando=0,falta=0;
+  allUsers.forEach(function(u){if(u.last_sign_in_at)acessa++;else aguardando++;if(!temConexao(numeros[u.id]))falta++;});
+  document.getElementById("nav-lojas").textContent=allUsers.length||"";
+  document.getElementById("lojas-tiles").innerHTML=[["Lojas",allUsers.length,""],["Dona já acessa",acessa,"var(--ok)"],["Aguardando 1º acesso",aguardando,"var(--gold)"],["Falta conectar",falta,"var(--ac2)"]].map(function(t){return '<div class="tile"><div class="tile-l">'+t[0]+'</div><div class="tile-v"'+(t[2]?' style="color:'+t[2]+'"':'')+'>'+t[1]+'</div></div>';}).join("");
+  var lista=lojasOrdenadas();
+  if(!lista.length){el.innerHTML='<div class="empty">Nenhuma loja encontrada.</div>';return;}
+  var html='<table><thead><tr><th>Loja</th><th>Instagram</th><th>Anúncios</th><th>Acesso da dona</th><th>Números</th><th></th></tr></thead><tbody>';
+  lista.forEach(function(u){
+    var l=lojas[u.id],n=numeros[u.id]||{},ct=n.conta||{},cc=connectClientes[u.id];
+    var conectar='<button class="lk" onclick="conectarLoja(\''+u.id+'\')">Conectar →</button>';
+    var ig=ct.username?'<span class="ch ch-ok">@'+escHtml(String(ct.username).replace(/^@/,""))+'</span>':n.ig_username?'<span class="ch ch-ok">@'+escHtml(n.ig_username)+'</span>':cc?'<span class="ch ch-av">Falta autorizar</span><div class="mini">'+conectar+'</div>':conectar;
+    var ads=ct.anuncios?'<span class="ch ch-ok">'+escHtml(ct.anuncios)+'</span>':n.ad_account_nome?'<span class="ch ch-ok">'+escHtml(n.ad_account_nome)+'</span>':cc?'<span class="ch ch-av">Falta autorizar</span>':'<span class="ch ch-mu">Não conectada</span>';
+    var acesso=u.last_sign_in_at?'<span class="ch ch-ok">Ativo</span><div class="mini">Entrou '+fmtCurto(u.last_sign_in_at)+'</div>':'<span class="ch ch-av">Aguardando 1º acesso</span><div class="mini"><button class="lk" onclick="copiarLinkAcesso(\''+u.id+'\')">Copiar link de acesso</button></div>';
+    var t90=n.ads90||null;
+    var num=n.metricas_em?fmtCurto(n.metricas_em)+'<div class="mini">'+(n.posts!=null?n.posts+" posts":"")+(t90&&t90.gasto!=null?(n.posts!=null?" · ":"")+"R$ "+Math.round(t90.gasto).toLocaleString("pt-BR")+" em 90d":"")+'</div>':'<span class="mini" style="margin:0">Ainda sem números</span>';
+    if((n.avisos||[]).length)num+='<div class="mini" style="color:var(--gold)" title="'+escHtml(n.avisos.join(" | "))+'">'+n.avisos.length+' aviso(s) da coleta</div>';
+    html+='<tr><td><div style="display:flex;gap:12px;align-items:center"><div class="av">'+escHtml(iniciais(nomeLoja(u.id)))+'</div><div style="min-width:0"><div style="font-weight:600;font-size:14.5px">'+escHtml(nomeLoja(u.id))+(u.id===ADMIN_ID?' <span class="ch ch-mu" style="font-size:10px">você</span>':'')+'</div><div class="mini">'+escHtml(l&&l.nicho?l.nicho+" · "+u.email:u.email)+'</div>'+(!l?'<div class="mini"><button class="lk" onclick="abrirDrawerLoja(\''+u.id+'\')">Completar dados da loja</button></div>':'')+'</div></div></td>'
+      +'<td>'+ig+'</td><td>'+ads+'</td><td>'+acesso+'</td><td style="font-size:13px">'+num+'<div class="mini" id="ls-'+u.id+'" style="color:var(--ac2);max-width:260px;white-space:normal">'+escHtml(statusLoja[u.id]||"")+'</div></td>'
+      +'<td style="white-space:nowrap;text-align:right"><button class="btn-out" onclick="verComoLoja(\''+u.id+'\')">Abrir loja</button> <button class="btn-dots" aria-label="Mais opções da loja" aria-haspopup="menu" onclick="abrirMenu(\''+u.id+'\',this)">⋯</button></td></tr>';
+  });
+  el.innerHTML=html+'</tbody></table>';
+}
+function setStatusLoja(uid,t){statusLoja[uid]=t;var el=document.getElementById("ls-"+uid);if(el)el.textContent=t;}
+function verComoLoja(uid,projetoId){window.open("app.html#ver="+uid+(projetoId?"&projeto="+projetoId:""),"_blank");}
+
+// menu ⋯ de cada loja
+var menuUid=null;
+function abrirMenu(uid,btn){
+  var m=document.getElementById("menu-loja");
+  if(menuUid===uid&&m.style.display==="block"){fecharMenu();return;}
+  menuUid=uid;
+  var itens=[["editar","Editar dados da loja"],["link","Copiar link de acesso da dona"],["conectar","Conectar Instagram e anúncios"],["atualizar","Atualizar dados agora"],["analisar","Analisar com o time de agentes"],["recado","Mandar recado para a loja"]];
+  if(uid!==ADMIN_ID)itens.push(["-"],["remover","Remover loja"]);
+  m.innerHTML=itens.map(function(i){return i[0]==="-"?"<hr>":'<button role="menuitem"'+(i[0]==="remover"?' class="perigo"':'')+' onclick="acaoLoja(\''+i[0]+'\')">'+i[1]+'</button>';}).join("");
+  m.style.display="block";
+  var r=btn.getBoundingClientRect(),top=r.bottom+6,left=Math.max(8,r.right-260);
+  if(top+m.offsetHeight>window.innerHeight-8)top=Math.max(8,r.top-m.offsetHeight-6);
+  m.style.top=top+"px";m.style.left=left+"px";
+}
+function fecharMenu(){var m=document.getElementById("menu-loja");if(m)m.style.display="none";menuUid=null;}
+document.addEventListener("click",function(e){var m=document.getElementById("menu-loja");if(!m||m.style.display!=="block")return;if(m.contains(e.target)||(e.target.closest&&e.target.closest(".btn-dots")))return;fecharMenu();});
+window.addEventListener("scroll",function(){fecharMenu();},true);
+document.addEventListener("keydown",function(e){if(e.key==="Escape"){fecharMenu();fecharDrawerLoja();}});
+async function acaoLoja(a){
+  var uid=menuUid;fecharMenu();if(!uid)return;
+  if(a==="editar")abrirDrawerLoja(uid);
+  else if(a==="link")copiarLinkAcesso(uid);
+  else if(a==="conectar")conectarLoja(uid);
+  else if(a==="atualizar")atualizarNumeros(uid);
+  else if(a==="analisar"){await analisarConta(uid);carregarLojas();}
+  else if(a==="recado")mandarRecado(uid);
+  else if(a==="remover")removerLoja(uid);
+}
+async function copiarLinkAcesso(uid){
+  setStatusLoja(uid,"Gerando link...");
+  try{
+    var d=await apiLojas({acao:"convite",user_id:uid});
+    await copiarTexto(d.link);setStatusLoja(uid,"");
+    avisar((d.ja_entrou?"Link para criar uma nova senha copiado. ":"Link de acesso copiado. ")+"Mande para "+d.email+". Ele vale por tempo limitado; se expirar, gere outro aqui.");
+  }catch(e){setStatusLoja(uid,"");avisar("Nao consegui gerar o link: "+e.message,true);}
+}
+async function conectarLoja(uid){
+  // abre a aba ja no clique (senao o navegador bloqueia) e depois leva a tela do Reportei
+  var aba=window.open("","_blank");
+  try{
+    if(!connectClientes[uid]){
+      setStatusLoja(uid,"Ativando no Reportei...");
+      await apiConnect({acao:"ativar",user_id:uid,nome:nomeLoja(uid)});
+      var rr=await apiConnect({acao:"listar"});connectClientes={};(rr.clientes||[]).forEach(function(c){connectClientes[c.user_id]=c;});
+    }
+    var d=await apiConnect({acao:"sessao",user_id:uid});
+    if(aba)aba.location.href=d.link;else window.open(d.link,"_blank");
+    setStatusLoja(uid,"Tela do Reportei aberta. Depois de autorizar, use ⋯ > Atualizar dados agora.");
+    avisar("Tela do Reportei aberta em outra aba. Autorize o Instagram e a conta de anúncios da loja e depois clique em Atualizar dados agora.");
+  }catch(e){if(aba)aba.close();setStatusLoja(uid,"Erro: "+e.message);avisar("Erro ao conectar: "+e.message,true);}
+}
+async function atualizarNumeros(uid){
+  setStatusLoja(uid,"Puxando posts e anúncios... pode levar 1 ou 2 minutos.");
+  try{
+    var d=await apiConnect({acao:"atualizar",user_id:uid});
+    var t="Atualizado: "+d.posts+" posts e "+d.anuncios+" anúncios."+((d.avisos||[]).length?" Avisos: "+d.avisos.join(" | "):"");
+    await carregarLojas();setStatusLoja(uid,t);
+  }catch(e){setStatusLoja(uid,"Erro: "+e.message);}
+}
+async function removerLoja(uid){
+  var nome=nomeLoja(uid),email=emailMap[uid]||"";
+  var conf=window.prompt("Remover a loja "+nome+" ("+email+")?\n\nIsso apaga a loja, os números, os projetos, os roteiros e o acesso da dona. Não dá para desfazer.\n\nPara confirmar, digite REMOVER:");
+  if(conf===null)return;
+  if(String(conf).trim().toUpperCase()!=="REMOVER"){avisar("Nada foi removido.");return;}
+  setStatusLoja(uid,"Removendo...");
+  try{await apiLojas({acao:"remover",user_id:uid});avisar("Loja removida.");await loadData();}
+  catch(e){setStatusLoja(uid,"Erro: "+e.message);avisar("Nao consegui remover: "+e.message,true);}
+}
+
+// gaveta: adicionar ou editar loja
+var drawerUid=null;
+function abrirDrawerLoja(uid){
+  drawerUid=uid||null;
+  var l=(uid&&lojas[uid])||{},email=uid?(emailMap[uid]||""):"";
+  var dr=document.getElementById("drawer-loja");
+  dr.innerHTML='<div class="dr-h"><div class="dr-t">'+(uid?"Dados da loja":"Adicionar loja")+'</div><button class="btn-dots" aria-label="Fechar" onclick="fecharDrawerLoja()">×</button></div>'
+    +'<div class="dr-b" id="dr-corpo">'
+    +'<section><div class="passo"><span>1</span>Dados da loja</div><div class="campos">'
+    +'<label class="campo">Nome da loja<input id="lj-nome" value="'+escHtml(l.nome||"")+'" placeholder="Ex: Loja Maria Flor" maxlength="120"/></label>'
+    +'<label class="campo">Nicho<select id="lj-nicho"><option value="">Escolha</option>'+NICHOS.map(function(n){return '<option'+(l.nicho===n?' selected':'')+'>'+escHtml(n)+'</option>';}).join("")+'</select></label>'
+    +'<label class="campo" style="grid-column:1/-1">Site ou link da loja<input id="lj-site" value="'+escHtml(l.site||"")+'" placeholder="https://"/></label>'
+    +'</div></section>'
+    +'<section><div class="passo"><span>2</span>Acesso da dona</div>'
+    +'<label class="campo">E-mail da dona da loja<input id="lj-email" type="email" value="'+escHtml(email)+'"'+(uid?' readonly':'')+' placeholder="dona@loja.com"/></label>'
+    +'<div class="dica" style="margin-top:8px">Quando ela entrar com esse e-mail, cai direto na loja já pronta: vídeos, anúncios e roteiros. Se ela já usa o app, a loja é ligada à conta dela.</div>'
+    +(uid?'':'<label class="marca" style="margin-top:6px"><input type="checkbox" id="lj-enviar"/>Enviar o convite por e-mail agora (senão você recebe um link para mandar pelo WhatsApp)</label>')
+    +'</section>'
+    +'<section><div class="passo"><span>3</span>Instagram e anúncios</div><div class="dica">Depois de salvar, clique em <b>Conectar Instagram e anúncios</b>: abre a tela do Reportei para autorizar as contas da loja (você mesmo ou mandando o link para a dona). Os números passam a ser atualizados todo dia às 6h.</div></section>'
+    +'<div id="lj-erro" style="color:var(--ac2);font-size:13px" role="alert"></div>'
+    +'</div><div class="dr-f" id="dr-rodape"><button class="btn-out" style="height:46px" onclick="fecharDrawerLoja()">Cancelar</button><button class="btn-pri" style="height:46px" id="lj-salvar" onclick="salvarLoja()">'+(uid?"Salvar":"Criar loja")+'</button></div>';
+  document.getElementById("drawer-ov").style.display="block";dr.style.display="flex";
+  setTimeout(function(){var i=document.getElementById("lj-nome");if(i)i.focus();},50);
+}
+function fecharDrawerLoja(){var o=document.getElementById("drawer-ov"),d=document.getElementById("drawer-loja");if(o)o.style.display="none";if(d)d.style.display="none";drawerUid=null;}
+async function salvarLoja(){
+  var nome=val("lj-nome"),nicho=val("lj-nicho"),site=val("lj-site"),email=val("lj-email").toLowerCase(),erro=document.getElementById("lj-erro"),btn=document.getElementById("lj-salvar");
+  if(!nome){erro.textContent="Informe o nome da loja.";return;}
+  if(!drawerUid&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){erro.textContent="Confira o e-mail da dona.";return;}
+  btn.disabled=true;erro.textContent="";
+  try{
+    if(drawerUid){
+      var up=await supaClient.from("lojas").upsert({user_id:drawerUid,nome:nome,nicho:nicho||null,site:site||null,atualizado_em:new Date().toISOString()},{onConflict:"user_id"});
+      if(up.error)throw up.error;
+      fecharDrawerLoja();avisar("Loja salva.");await carregarLojas();return;
+    }
+    var enviar=!!(document.getElementById("lj-enviar")&&document.getElementById("lj-enviar").checked);
+    var d=await apiLojas({acao:"criar",nome:nome,nicho:nicho,site:site,email:email,enviar_email:enviar});
+    await loadData();
+    mostrarLojaCriada(d,email,nome);
+  }catch(e){erro.textContent="Erro: "+((e&&e.message)||e);btn.disabled=false;}
+}
+function mostrarLojaCriada(d,email,nome){
+  drawerUid=d.user_id;
+  var corpo=document.getElementById("dr-corpo"),rod=document.getElementById("dr-rodape");
+  var acesso=d.ja_entrou?'<div class="dica">'+escHtml(email)+' já usa o app: a loja foi ligada à conta dela. Na próxima vez que ela entrar, já vê tudo.</div>'
+    :d.email_enviado?'<div class="dica">Enviamos o convite para <b>'+escHtml(email)+'</b>. Se não chegar em alguns minutos (peça para olhar o spam), gere um link abaixo e mande pelo WhatsApp.</div>':'';
+  var link=d.link?'<label class="campo">Link para a dona criar a senha<input id="lj-link" readonly value="'+escHtml(d.link)+'"/></label><button class="btn-out" style="height:44px" onclick="copiarTexto(document.getElementById(\'lj-link\').value).then(function(){avisar(\'Link copiado. Mande para a dona pelo WhatsApp ou e-mail.\');})">Copiar link</button><div class="dica">O link vale por tempo limitado. Se expirar, gere outro no menu ⋯ da loja.</div>'
+    :(!d.ja_entrou?'<button class="btn-out" style="height:44px" onclick="copiarLinkAcesso(\''+d.user_id+'\')">Gerar link para mandar pelo WhatsApp</button>':'');
+  corpo.innerHTML='<div style="display:flex;gap:12px;align-items:center"><div class="av" style="background:rgba(45,222,152,.14);color:var(--ok)">✓</div><div><div style="font-weight:700;font-size:17px">'+escHtml(nome)+' criada</div><div class="mini">'+escHtml(email)+'</div></div></div>'
+    +'<section><div class="passo"><span>1</span>Acesso da dona</div>'+acesso+'<div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">'+link+'</div></section>'
+    +'<section><div class="passo"><span>2</span>Instagram e anúncios</div><div class="dica" style="margin-bottom:10px">Abra a tela do Reportei e autorize o Instagram e a conta de anúncios da loja. Depois use ⋯ > Atualizar dados agora.</div><button class="btn-pri" onclick="conectarLoja(\''+d.user_id+'\')">Conectar Instagram e anúncios</button></section>';
+  rod.innerHTML='<button class="btn-out" style="height:46px" onclick="fecharDrawerLoja()">Concluir</button>';
+}
+
+// ===== PROJETOS: supervisao de tudo que as lojas criaram =====
+var projSel=null,recadosAdm=[];
+var MET_AMIGO={fftopo:"Atrair gente nova",ffmeio:"Mostrar a peça",fffundo:"Fechar a venda",dsb:"Despertar desejo",angulo:"Mostrar um detalhe"};
+function roteirosDe(p){var all=[];(p.rodadas||[]).forEach(function(r){((r.resultado&&r.resultado.roteiros)||[]).forEach(function(s){all.push(Object.assign({metodo:r.metodo},s));});});return all;}
+function gravadosDe(p){return roteirosDe(p).filter(function(s){return s.gravado;}).length;}
+function ultimaAtividade(p){var t=p.criado_em||"";roteirosDe(p).forEach(function(s){[s.copiado_em,s.gravado_em].forEach(function(x){if(x&&x>t)t=x;});});return t;}
+async function carregarRecadosAdm(){try{var r=await supaClient.from("recados").select("id,user_id,projeto_id,texto,criado_em,lido_em").order("criado_em",{ascending:false}).limit(500);recadosAdm=(r&&!r.error&&r.data)||[];}catch(e){recadosAdm=[];}}
+function preencherFiltroLojas(){
+  var s=document.getElementById("pf-loja");if(!s)return;var v=s.value,ids={};
+  allProjetos.forEach(function(p){ids[p.user_id]=1;});
+  s.innerHTML='<option value="">Todas</option>'+Object.keys(ids).map(function(id){return {id:id,n:nomeLoja(id)};}).sort(function(a,b){return a.n.localeCompare(b.n,"pt-BR");}).map(function(o){return '<option value="'+o.id+'"'+(o.id===v?" selected":"")+'>'+escHtml(o.n)+'</option>';}).join("");
+}
+function projetosFiltrados(){
+  var loja=val("pf-loja"),per=Number(val("pf-per"))||0,st=val("pf-status"),busca=val("busca-projeto").toLowerCase();
+  var desde=per?Date.now()-per*864e5:0;
+  return allProjetos.filter(function(p){
+    if(loja&&p.user_id!==loja)return false;
+    if(desde&&new Date(ultimaAtividade(p)).getTime()<desde)return false;
+    var n=roteirosDe(p).length,g=gravadosDe(p);
+    if(st==="gravar"&&!(n>g))return false;
+    if(st==="nada"&&g>0)return false;
+    if(st==="tudo"&&!(n&&g===n))return false;
+    if(busca&&(p.nome||"").toLowerCase().indexOf(busca)<0&&nomeLoja(p.user_id).toLowerCase().indexOf(busca)<0&&(emailMap[p.user_id]||"").toLowerCase().indexOf(busca)<0)return false;
+    return true;
+  }).sort(function(a,b){return ultimaAtividade(b).localeCompare(ultimaAtividade(a));});
+}
+function renderProjetos(){
+  var el=document.getElementById("projects-table");if(!el)return;
+  if(projSel){renderProjetoDetalhe();return;}
+  document.getElementById("projetos-lista").style.display="block";document.getElementById("projeto-detalhe").style.display="none";
+  var lista=projetosFiltrados(),tot=0,grav=0;
+  lista.forEach(function(p){tot+=roteirosDe(p).length;grav+=gravadosDe(p);});
+  document.getElementById("proj-tiles").innerHTML=[["Projetos",lista.length,""],["Roteiros gerados",tot,""],["Gravados",grav+' <span style="font-size:15px;color:var(--mu2);font-family:DM Sans,sans-serif">de '+tot+'</span>',"var(--ok)"]].map(function(t){return '<div class="tile"><div class="tile-l">'+t[0]+'</div><div class="tile-v"'+(t[2]?' style="color:'+t[2]+'"':'')+'>'+t[1]+'</div></div>';}).join("");
+  if(!lista.length)el.innerHTML='<div class="empty">Nenhum projeto com esses filtros.</div>';
+  else{
+    var html='<table><thead><tr><th>Projeto</th><th>Loja</th><th>Gravados</th><th>Última atividade</th><th></th></tr></thead><tbody>';
+    lista.slice(0,300).forEach(function(p){
+      var n=roteirosDe(p).length,g=gravadosDe(p),mets=[];
+      (p.rodadas||[]).forEach(function(r){var m=MET_AMIGO[r.metodo];if(m&&mets.indexOf(m)<0)mets.push(m);});
+      html+='<tr class="clic" onclick="abrirProjeto(\''+p.id+'\')"><td style="max-width:320px"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.nome||"Projeto")+'</div><div class="mini">'+escHtml((mets.join(", ")||"-")+" · "+n+" roteiros")+'</div></td>'
+        +'<td>'+escHtml(nomeLoja(p.user_id))+'</td>'
+        +'<td><div style="display:flex;align-items:center;gap:8px"><div class="barra"><i style="width:'+(n?Math.round(g/n*100):0)+'%"></i></div><span class="mini" style="margin:0">'+g+'/'+n+'</span></div></td>'
+        +'<td style="font-size:12.5px;color:var(--mu2)">'+fmtCurto(ultimaAtividade(p))+'</td><td style="color:var(--mu2)">›</td></tr>';
+    });
+    el.innerHTML=html+'</tbody></table>';
+  }
+  renderAtencao();renderAtividade();
+}
+function abrirProjeto(id){projSel=id;abrirAba("projetos");renderProjetos();}
+function fecharProjeto(){projSel=null;renderProjetos();}
+function renderAtencao(){
+  var el=document.getElementById("proj-atencao");if(!el)return;
+  var itens=[],agora=Date.now();
+  allProjetos.forEach(function(p){
+    var n=roteirosDe(p).length,g=gravadosDe(p),dias=Math.floor((agora-new Date(p.criado_em).getTime())/864e5);
+    if(n&&!g&&dias>=7)itens.push({c:"var(--ac2)",t:nomeLoja(p.user_id)+": "+(p.nome||"projeto")+" tem "+n+" roteiros parados há "+dias+" dias",id:p.id});
+  });
+  allUsers.forEach(function(u){
+    if(u.id===ADMIN_ID||!lojas[u.id])return;
+    if(!u.last_sign_in_at){itens.push({c:"var(--gold)",t:nomeLoja(u.id)+" ainda não entrou no app"});return;}
+    var ult=allProjetos.filter(function(p){return p.user_id===u.id;}).map(function(p){return new Date(ultimaAtividade(p)).getTime();}).sort(function(a,b){return b-a;})[0]||0;
+    if(!ult)itens.push({c:"var(--gold)",t:nomeLoja(u.id)+" ainda não criou nenhum roteiro"});
+    else if(agora-ult>14*864e5)itens.push({c:"var(--gold)",t:nomeLoja(u.id)+" não usa o app há mais de 14 dias"});
+  });
+  el.innerHTML=itens.length?itens.slice(0,8).map(function(it){return '<div class="at"'+(it.id?' style="cursor:pointer" onclick="abrirProjeto(\''+it.id+'\')"':'')+'><i style="background:'+it.c+'"></i><span>'+escHtml(it.t)+'</span></div>';}).join(""):'<div class="mini">Tudo em dia.</div>';
+}
+function renderAtividade(){
+  var el=document.getElementById("proj-atividade");if(!el)return;
+  var ev=[];
+  allProjetos.forEach(function(p){
+    var loja=nomeLoja(p.user_id);
+    ev.push({t:p.criado_em,txt:loja+" criou o projeto "+(p.nome||""),sub:"",id:p.id});
+    roteirosDe(p).forEach(function(s){
+      if(s.copiado_em)ev.push({t:s.copiado_em,txt:loja+" copiou um roteiro",sub:(p.nome||"")+" · "+(s.titulo||""),id:p.id});
+      if(s.gravado_em)ev.push({t:s.gravado_em,txt:loja+" marcou “Já gravei”",sub:(p.nome||"")+" · "+(s.titulo||""),id:p.id});
+    });
+  });
+  recadosAdm.forEach(function(r){if(r.lido_em)ev.push({t:r.lido_em,txt:nomeLoja(r.user_id)+" leu seu recado",sub:String(r.texto).slice(0,60),id:r.projeto_id});});
+  ev.sort(function(a,b){return String(b.t).localeCompare(String(a.t));});
+  el.innerHTML=ev.slice(0,10).map(function(e){return '<div class="ev"'+(e.id?' style="cursor:pointer" onclick="abrirProjeto(\''+e.id+'\')"':'')+'>'+escHtml(e.txt)+'<div>'+escHtml((e.sub?e.sub+" · ":"")+fmtCurto(e.t))+'</div></div>';}).join("")||'<div class="mini">Sem atividade ainda.</div>';
+}
+function renderProjetoDetalhe(){
+  var p=allProjetos.find(function(x){return x.id===projSel;}),box=document.getElementById("projeto-detalhe");
+  document.getElementById("projetos-lista").style.display="none";box.style.display="block";
+  if(!p){box.innerHTML='<button class="lk" onclick="fecharProjeto()">← Projetos</button><div class="empty">Projeto não encontrado.</div>';return;}
+  var rs=roteirosDe(p),g=gravadosDe(p),mets=[];
+  (p.rodadas||[]).forEach(function(r){var m=MET_AMIGO[r.metodo];if(m&&mets.indexOf(m)<0)mets.push(m);});
+  var rec=recadosAdm.filter(function(r){return r.projeto_id===p.id;});
+  var DEST={mensagens:"Chamar no WhatsApp ou direct",seguidores:"Seguir o perfil",site:"Ir para o site"};
+  box.innerHTML='<div class="mini" style="margin-bottom:10px"><button class="lk" onclick="fecharProjeto()">← Projetos</button> › '+escHtml(nomeLoja(p.user_id))+'</div>'
+    +'<div class="head" style="margin-bottom:14px"><div class="h1" style="font-size:26px">'+escHtml(p.nome||"Projeto")+'</div><button class="btn-out" style="height:44px" onclick="verComoLoja(\''+p.user_id+'\',\''+p.id+'\')">Ver como a loja vê</button></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px"><span class="ch ch-mu">Criado '+fmtCurto(p.criado_em)+'</span>'+(mets.length?'<span class="ch ch-mu">'+escHtml(mets.join(", "))+'</span>':'')+(p.objetivo?'<span class="ch ch-mu">'+escHtml(DEST[p.objetivo]||p.objetivo)+'</span>':'')+'<span class="ch '+(g?'ch-ok':'ch-mu')+'">'+g+' de '+rs.length+' gravados</span></div>'
+    +'<div class="rcards">'+rs.map(function(s,i){
+      var st=s.gravado?'<span class="ch ch-ok">Gravado</span>':(Number(s.copiado)>0?'<span class="ch ch-av">Copiado</span>':'<span class="ch ch-mu">Novo</span>');
+      var pe=[];if(s.copiado_em)pe.push("copiado "+fmtCurto(s.copiado_em));else if(Number(s.copiado)>0)pe.push("copiado "+s.copiado+"x");if(s.gravado_em)pe.push("gravado "+fmtCurto(s.gravado_em));if(s.vendeu)pe.push("marcou que vendeu");if(s.liked)pe.push("curtiu");
+      return '<div class="rcard"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="mini" style="margin:0">Roteiro '+(i+1)+(MET_AMIGO[s.metodo]?' · '+escHtml(MET_AMIGO[s.metodo]):'')+'</span>'+st+'</div><div style="font-weight:700;font-size:16px">'+escHtml(s.titulo||"")+'</div>'
+        +'<div><div class="rb">GANCHO</div><div class="rt">'+escHtml(s.gancho||"")+'</div></div><div><div class="rb">DESENVOLVIMENTO</div><div class="rt">'+escHtml(s.corpo||"")+'</div></div><div><div class="rb">CHAMADA</div><div class="rt">'+escHtml(s.cta||"")+'</div></div>'
+        +(pe.length?'<div class="mini" style="border-top:1px solid var(--bo);padding-top:10px">'+escHtml(pe.join(" · "))+'</div>':'')+'</div>';
+    }).join("")+'</div>'
+    +'<div class="painel"><div class="painel-t">Recado para a loja</div><div class="dica" style="margin-bottom:10px">Aparece para a dona na tela deste projeto e na lista de roteiros.</div>'
+    +rec.map(function(r){return '<div class="ev">'+escHtml(r.texto)+'<div>'+fmtCurto(r.criado_em)+(r.lido_em?' · lido '+fmtCurto(r.lido_em):' · ainda não lido')+'</div></div>';}).join("")
+    +'<label class="campo"><span class="mini" style="margin:0">Novo recado</span><textarea id="recado-texto" maxlength="1000" placeholder="Ex: grava o roteiro 2 essa semana, ele segue a linha do vídeo que mais bombou."></textarea></label><div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn-pri" onclick="enviarRecado(\''+p.user_id+'\',\''+p.id+'\')">Enviar recado</button></div></div>';
+}
+async function enviarRecado(uid,projetoId,texto){
+  var t=texto!=null?texto:val("recado-texto");
+  if(!t){avisar("Escreva o recado.",true);return;}
+  var r=await supaClient.from("recados").insert({user_id:uid,projeto_id:projetoId||null,texto:t.slice(0,1000)});
+  if(r.error){avisar("Nao consegui enviar: "+r.error.message,true);return;}
+  avisar("Recado enviado.");await carregarRecadosAdm();if(projSel)renderProjetoDetalhe();
+}
+function mandarRecado(uid){var t=window.prompt("Recado para "+nomeLoja(uid)+" (aparece no app dela):");if(t&&t.trim())enviarRecado(uid,null,t.trim());}
+
+// ===== numeros do Reportei no formato que o time de agentes ja entende =====
+function orgDoReportei(met){
+  var o=met&&met.organico;if(!o||!(o.posts||[]).length)return null;
+  var recente=Date.now()-30*864e5;
+  var ord=o.posts.filter(function(p){return p.alcance>0;}).map(function(p){return Object.assign({},p,{recente:!!(p.data&&new Date(p.data).getTime()>=recente)});}).sort(function(a,b){return (b.indice*(b.recente?1.3:1))-(a.indice*(a.recente?1.3:1));});
+  return {conta:{username:(met.conta&&met.conta.username)||"",seguidores:(met.conta&&met.conta.seguidores)||0,bio:""},periodo_dias:90,total_posts:o.total_posts,taxa_media:o.taxa_media,videos:ord.slice(0,12),piores:ord.slice(-3).reverse().filter(function(x){return ord.indexOf(x)>=12;}),publico:{},comentarios:[]};
+}
+function adsDoReportei(met){
+  var a=met&&met.anuncios&&met.anuncios.p90;if(!a||!(a.anuncios||[]).length)return null;
+  var r30={};((met.anuncios.p30&&met.anuncios.p30.anuncios)||[]).forEach(function(x){r30[x.id]=x.resultados;});
+  var l=a.anuncios.map(function(x){return Object.assign({},x,{resultados_30d:r30[x.id]||0});}).sort(function(x,y){return (y.resultados-x.resultados)||(y.gasto-x.gasto);});
+  return {conta:{nome:met.anuncios.conta},periodo_dias:90,tipo_resultado:a.tipo_resultado==="resultados"?"resultados da campanha":a.tipo_resultado,totais:a.totais,medias:a.medias,anuncios:l.slice(0,12),piores:l.slice(12).slice(-3).reverse(),segmentos:[]};
 }
 
 initAdmin();

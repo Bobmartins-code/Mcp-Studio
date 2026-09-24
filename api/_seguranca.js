@@ -46,6 +46,23 @@ async function banco(caminho, opcoes) {
     return txt ? JSON.parse(txt) : null;
 }
 
+// Contas de login (auth do Supabase) com a chave de servico: criar, convidar e apagar
+async function authAdmin(caminho, opcoes) {
+    const o = opcoes || {}, k = chaveServico();
+    const headers = { apikey: k, "Content-Type": "application/json" };
+    if (k.indexOf("sb_secret_") !== 0) headers.Authorization = "Bearer " + k;
+    const r = await fetch(SUPA_URL + "/auth/v1/" + caminho, { method: o.method || "GET", headers: headers, body: o.body ? JSON.stringify(o.body) : undefined });
+    const txt = await r.text();
+    let d = null;
+    try { d = txt ? JSON.parse(txt) : null; } catch (e) { d = { msg: txt.slice(0, 200) }; }
+    if (!r.ok) {
+        const e = new Error((d && (d.msg || d.message || d.error_description || d.error)) || ("Erro " + r.status + " no login"));
+        e.status = r.status; e.codigo = d && (d.error_code || d.code);
+        throw e;
+    }
+    return d;
+}
+
 // ---------- criptografia dos tokens ----------
 function chaveCripto() {
     const b = process.env.TOKENS_ENC_KEY;
@@ -74,4 +91,4 @@ async function auditar(adminId, acao, alvo, detalhe) {
     try { await banco("auditoria", { method: "POST", body: { admin_id: adminId, acao: acao, alvo: alvo || null, detalhe: detalhe || null } }); } catch (e) { console.error("[auditoria] " + e.message); }
 }
 
-module.exports = { SUPA_URL, SUPA_ANON, ADMIN_ID, validarAdmin, banco, criptografar, descriptografar, auditar };
+module.exports = { SUPA_URL, SUPA_ANON, ADMIN_ID, validarAdmin, banco, authAdmin, criptografar, descriptografar, auditar };

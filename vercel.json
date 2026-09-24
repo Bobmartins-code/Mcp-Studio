@@ -16,9 +16,21 @@
       "maxDuration": 120
     },
     "api/connect.js": {
-      "maxDuration": 120
+      "maxDuration": 300
+    },
+    "api/atualizar.js": {
+      "maxDuration": 300
+    },
+    "api/lojas.js": {
+      "maxDuration": 60
     }
   },
+  "crons": [
+    {
+      "path": "/api/atualizar",
+      "schedule": "0 9 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

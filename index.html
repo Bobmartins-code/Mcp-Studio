@@ -101,8 +101,8 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
   <!-- TELA NOVA SENHA -->
   <div id="screen-nova-senha" class="screen">
     <div class="card">
-      <div class="card-title">Nova senha</div>
-      <div class="card-sub">Digite sua nova senha abaixo.</div>
+      <div class="card-title" id="ns-titulo">Nova senha</div>
+      <div class="card-sub" id="ns-sub">Digite sua nova senha abaixo.</div>
       <div class="err" id="ns-err"></div>
       <div class="ok" id="ns-ok"></div>
       <div class="fi"><label>Nova senha</label><input type="password" id="ns-senha" placeholder="Minimo 6 caracteres"/><button type="button" class="link" style="align-self:flex-end;font-size:11px;margin-top:2px" onclick="togglePw('ns-senha',this)">mostrar</button></div>
@@ -117,6 +117,8 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 <script>
 var SUPA_URL="https://yutqrrcdlkocrpznryqi.supabase.co";
 var SUPA_KEY="sb_publishable_U3wOTwbeEvXtHOqP_I29VQ_ARH5CAkH";
+// o link de convite chega com o tipo no endereco; le antes do Supabase limpar
+var HASH0=String(location.hash||"");
 var supa=window.supabase.createClient(SUPA_URL,SUPA_KEY);
 
 function showScreen(s){document.querySelectorAll(".screen").forEach(function(e){e.classList.remove("active")});document.getElementById("screen-"+s).classList.add("active");}
@@ -127,14 +129,24 @@ function setLoad(id,on,txt){var b=document.getElementById(id);b.disabled=on;b.in
 function traduzErro(m){m=m||"";var l=m.toLowerCase();if(l.indexOf("invalid login credentials")>-1)return"Email ou senha incorretos.";if(l.indexOf("email not confirmed")>-1)return"Confirme seu email antes de entrar. Veja sua caixa de entrada (e tambem o spam).";if(l.indexOf("already registered")>-1||l.indexOf("already been registered")>-1)return"Este email ja tem conta. Tente fazer login.";if(l.indexOf("rate")>-1||l.indexOf("too many")>-1)return"Muitas tentativas. Aguarde um minuto e tente de novo.";if(l.indexOf("at least 6")>-1)return"A senha deve ter pelo menos 6 caracteres.";if(l.indexOf("network")>-1||l.indexOf("failed to fetch")>-1)return"Sem conexao. Verifique sua internet.";return m;}
 function togglePw(id,btn){var i=document.getElementById(id);if(i.type==="password"){i.type="text";btn.textContent="ocultar";}else{i.type="password";btn.textContent="mostrar";}}
 
-// Verifica se veio do link de recuperacao
+// Link de convite (loja cadastrada pelo admin) ou de recuperacao: a pessoa cria a senha antes de entrar
+var hashInicial=HASH0;
+var veioDeConvite=hashInicial.indexOf("type=invite")>-1;
+var criandoSenha=veioDeConvite||hashInicial.indexOf("type=recovery")>-1;
+if(hashInicial.indexOf("error_code=otp_expired")>-1||hashInicial.indexOf("error=access_denied")>-1){
+  showErr("login-err","Este link expirou ou ja foi usado. Peca um novo link para a equipe do MCP Studio, ou use \"Esqueci minha senha\".");
+}
+if(criandoSenha){
+  showScreen("nova-senha");
+  if(veioDeConvite){document.getElementById("ns-titulo").textContent="Crie sua senha";document.getElementById("ns-sub").textContent="Sua loja ja esta pronta no MCP Studio. Crie uma senha para entrar.";document.getElementById("btn-ns").textContent="Entrar na minha loja";}
+}
 supa.auth.onAuthStateChange(function(event,session){
   if(event==="PASSWORD_RECOVERY"){showScreen("nova-senha");}
-  else if(event==="SIGNED_IN"&&session){window.location.href="app.html";}
+  else if(event==="SIGNED_IN"&&session&&!criandoSenha){window.location.href="app.html";}
 });
 
 supa.auth.getSession().then(function(r){
-  if(r.data&&r.data.session){window.location.href="app.html";}
+  if(r.data&&r.data.session&&!criandoSenha){window.location.href="app.html";}
 });
 
 async function fazerLogin(){
@@ -175,10 +187,13 @@ async function salvarNovaSenha(){
   var senha2=document.getElementById("ns-senha2").value;
   if(!senha||senha.length<6){showErr("ns-err","A senha deve ter pelo menos 6 caracteres.");return;}
   if(senha!==senha2){showErr("ns-err","As senhas nao coincidem.");return;}
-  setLoad("btn-ns",true,"Salvar nova senha");
+  var rotulo=veioDeConvite?"Entrar na minha loja":"Salvar nova senha";
+  setLoad("btn-ns",true,rotulo);
+  var sess=await supa.auth.getSession();
+  if(!sess.data||!sess.data.session){showErr("ns-err","Este link expirou. Peca um novo link para a equipe do MCP Studio.");setLoad("btn-ns",false,rotulo);return;}
   var r=await supa.auth.updateUser({password:senha});
-  if(r.error){showErr("ns-err",traduzErro(r.error.message));setLoad("btn-ns",false,"Salvar nova senha");}
-  else{showOk("ns-ok","Senha alterada com sucesso!");setTimeout(function(){window.location.href="app.html";},1500);}
+  if(r.error){showErr("ns-err",traduzErro(r.error.message));setLoad("btn-ns",false,rotulo);}
+  else{criandoSenha=false;showOk("ns-ok",veioDeConvite?"Senha criada! Abrindo sua loja...":"Senha alterada com sucesso!");setTimeout(function(){window.location.href="app.html";},1200);}
 }
 
 document.addEventListener("keydown",function(e){
