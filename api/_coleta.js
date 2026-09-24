@@ -125,6 +125,24 @@ function linhasDaTabela(resp, metricas, campoDim) {
     return out;
 }
 
+// Acha o bloco do pedido na resposta. A documentacao mostra { <id>: {...} },
+// mas aceita tambem a resposta embrulhada (data/metrics/result) ou em lista.
+function blocoDaResposta(d, id) {
+    if (!d || typeof d !== "object") return null;
+    if (d[id]) return d[id];
+    for (const k of ["data", "metrics", "result", "results"]) {
+        const x = d[k];
+        if (x && typeof x === "object" && !Array.isArray(x) && x[id]) return x[id];
+        if (Array.isArray(x)) { const e = x.find(function (i) { return i && i.id === id; }); if (e) return e.data || e.result || e; }
+    }
+    if (Array.isArray(d)) { const e = d.find(function (i) { return i && i.id === id; }); if (e) return e.data || e.result || e; if (d.length === 1) return d[0]; }
+    const ks = Object.keys(d);
+    if (ks.length === 1 && d[ks[0]] && typeof d[ks[0]] === "object") return d[ks[0]];
+    return null;
+}
+// pedaco da resposta crua, para ver o formato quando nada foi lido
+function cru(d) { try { return JSON.stringify(d).slice(0, 800); } catch (e) { return String(d).slice(0, 200); } }
+
 // Pede uma tabela tentando listas de metricas da mais completa para a mais simples
 // (o Reportei recusa o pedido inteiro se uma metrica nao existir para a conta).
 async function pedirTabela(cli, integ, inicio, fim, base, listas, avisos) {
@@ -135,7 +153,8 @@ async function pedirTabela(cli, integ, inicio, fim, base, listas, avisos) {
         try {
             const d = await connect("/metrics/get-data", { method: "POST", customerToken: cli.api_token, timeout: 100000, body: { customer_integration: integ.uuid, start: inicio, end: fim, client_timezone: "America/Sao_Paulo", metrics: [w] } });
             const campo = (base.dimensions && base.dimensions[0] && (base.dimensions[0].field || base.dimensions[0])) || "";
-            return { linhas: linhasDaTabela(d && d[w.id], metricas, campo), bruto: d && d[w.id] };
+            const b = blocoDaResposta(d, w.id);
+            return { linhas: linhasDaTabela(b, metricas, campo), bruto: b, cru: cru(d) };
         } catch (e) { ultimoErro = e; }
     }
     avisos.push(base.reference_key + ": " + ((ultimoErro && ultimoErro.message) || "sem dados"));
@@ -145,10 +164,11 @@ async function pedirNumero(cli, integ, inicio, fim, base) {
     const w = Object.assign({}, base, { id: crypto.randomUUID() });
     try {
         const d = await connect("/metrics/get-data", { method: "POST", customerToken: cli.api_token, timeout: 60000, body: { customer_integration: integ.uuid, start: inicio, end: fim, client_timezone: "America/Sao_Paulo", metrics: [w] } });
-        return numero(d && d[w.id] && d[w.id].values);
+        const b = blocoDaResposta(d, w.id);
+        return numero(b && (b.values !== undefined ? b.values : b.value));
     } catch (e) { return null; }
 }
-function amostra(bruto) { try { const v = bruto && (bruto.values || bruto.data || bruto.rows); return JSON.stringify(Array.isArray(v) ? v[0] : bruto).slice(0, 600); } catch (e) { return ""; } }
+function amostra(r) { try { const v = r.bruto && (r.bruto.values || r.bruto.data || r.bruto.rows); if (Array.isArray(v) && v.length) return JSON.stringify(v.slice(0, 2)).slice(0, 800); return "sem linhas; resposta: " + (r.cru || "vazia"); } catch (e) { return "erro na amostra"; } }
 
 // ---------- ORGANICO ----------
 const IG_MEDIA = ["type", "reach", "impressions", "engagement", "engagement_rate", "likes", "comments", "saved", "total_interactions", "follows", "profile_visits", "shares", "created_at"];
@@ -196,7 +216,7 @@ async function coletarOrganico(cli, ig, inicio, fim, avisos) {
     return {
         conta: { username: ig.nome, seguidores: seguidores },
         taxa_media: arred(med * 100, 2), total_posts: posts.length, posts: posts.slice(0, 120),
-        amostra: { media: amostra(media.bruto), reels: amostra(reels.bruto) }
+        amostra: { media: amostra(media), reels: amostra(reels) }
     };
 }
 
@@ -256,7 +276,7 @@ async function coletarAnuncios(cli, fb, avisos) {
         return pedirTabela(cli, fb, inicio, fim, { id: "ads", reference_key: "fb_ads:ads", component: "datatable_v1", dimensions: [{ field: "ad" }], sort: ["-spend"] }, [ADS_COMPLETA, ADS_MEDIA, ADS_SIMPLES], avisos);
     }));
     Object.keys(periodos).forEach(function (k, i) { out[k] = montarAnuncios(res[i].linhas); });
-    out.amostra = amostra(res[2].bruto);
+    out.amostra = amostra(res[2]);
     return out;
 }
 

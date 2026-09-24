@@ -58,8 +58,8 @@ Para quem ja sente o problema e esta avaliando opcoes. Cada roteiro usa uma form
 METODO FULL FUNNEL FUNDO, DECISAO E PROVA (codigo fffundo, funil fundo)
 Para quem ja quer comprar mas trava. Cada roteiro responde a uma OBJECAO DIFERENTE (preco, tamanho ou caimento, qualidade, prazo de entrega, troca) com prova (garantia, troca, calculo de custo por uso, detalhe concreto do produto), remove o risco e empurra para a acao com urgencia honesta. Tom direto e confiante. Se nao houver prova social nos dados do negocio, use garantia, calculo ou detalhe do produto. pilar=Fundo - Decisao e Prova, funil=fundo.
 
-METODO DSB, DESEJO SOLUCAO BENEFICIO (codigo dsb, funil meio)
-Cada roteiro parte de um DESEJO profundo DIFERENTE da cliente (se sentir bonita, praticidade na rotina, ser elogiada, economizar). O gancho toca no desejo, o corpo apresenta o produto como a solucao com um detalhe concreto e o CTA fecha no beneficio sentido na pratica (no corpo, na rotina, na autoestima). Tom aspiracional mas concreto. pilar=DSB, funil=meio.
+METODO DSB, DOR SOLUCAO BENEFICIO (codigo dsb, funil meio)
+Cada roteiro parte de uma DOR real e DIFERENTE da cliente (roupa que marca ou aperta, nao saber o que vestir, peca que desbota ou perde a forma, gastar com o que nao usa, falta de tempo). O gancho nomeia a dor do jeito que ela fala, o corpo apresenta o produto como a solucao com um detalhe concreto e o CTA fecha no beneficio sentido na pratica (no corpo, na rotina, na autoestima). Tom empatico e concreto, sem exagerar o drama. pilar=DSB, funil=meio.
 
 METODO ANGULO, DIFERENCIAL CONCRETO (codigo angulo, funil meio)
 Cada roteiro foca em UM diferencial fisico ou tecnico real e DIFERENTE do produto (material, modelagem, caimento, ingrediente, funcionalidade, acabamento) e mostra como esse detalhe muda a experiencia. O gancho aponta o detalhe especifico. Os diferenciais sao distintos entre si. pilar=Angulo, funil=meio.

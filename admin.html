@@ -390,7 +390,7 @@ function logout(){window.location.href="app.html";}
 
 // ===== Apoio: nichos, metodos e chamadas da IA =====
 var NICHOS=["moda feminina","moda masculina","moda infantil","moda fitness","lingerie e moda intima","calcados","bolsas e acessorios","joias e bijuterias","beleza e cosmeticos","saude e suplementos","casa e decoracao","alimentos e doces","pet","servicos","cursos e infoprodutos","outros"];
-var MET_LB={fftopo:"Full Funnel Topo",ffmeio:"Full Funnel Meio",fffundo:"Full Funnel Fundo",dsb:"DSB",angulo:"Angulo"};
+var MET_LB={fftopo:"Full Funnel Topo",ffmeio:"Full Funnel Meio",fffundo:"Full Funnel Fundo",dsb:"DSB",angulo:"Ângulo"};
 function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo;var p=String(s.pilar||"").toLowerCase();if(p.indexOf("dsb")>-1||p.indexOf("desejo")>-1)return "dsb";if(p.indexOf("angulo")>-1||p.indexOf("ângulo")>-1||p.indexOf("diferencial")>-1)return "angulo";if(s.funil==="fundo")return "fffundo";if(s.funil==="meio")return "ffmeio";return "fftopo";}
 function nichoSalvo(p){if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.rodadas||[];for(var i=rs.length-1;i>=0;i--){if(rs[i].direcao&&rs[i].direcao.nicho)return rs[i].direcao.nicho;}return "";}
 function csvSeguro(t){t=String(t==null?"":t).replace(/"/g,'""');return /^[=+\-@]/.test(t)?"'"+t:t;}
@@ -949,7 +949,7 @@ function mostrarLojaCriada(d,email,nome){
 
 // ===== PROJETOS: supervisao de tudo que as lojas criaram =====
 var projSel=null,recadosAdm=[];
-var MET_AMIGO={fftopo:"Atrair gente nova",ffmeio:"Mostrar a peça",fffundo:"Fechar a venda",dsb:"Despertar desejo",angulo:"Mostrar um detalhe"};
+var MET_AMIGO={fftopo:"Full Funnel Topo",ffmeio:"Full Funnel Meio",fffundo:"Full Funnel Fundo",dsb:"DSB",angulo:"Ângulo"};
 function roteirosDe(p){var all=[];(p.rodadas||[]).forEach(function(r){((r.resultado&&r.resultado.roteiros)||[]).forEach(function(s){all.push(Object.assign({metodo:r.metodo},s));});});return all;}
 function gravadosDe(p){return roteirosDe(p).filter(function(s){return s.gravado;}).length;}
 function ultimaAtividade(p){var t=p.criado_em||"";roteirosDe(p).forEach(function(s){[s.copiado_em,s.gravado_em].forEach(function(x){if(x&&x>t)t=x;});});return t;}

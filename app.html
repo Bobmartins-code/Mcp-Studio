@@ -269,15 +269,15 @@ var OBJS=[
 // As regras completas de cada metodo ficam no Agente MCP (api/_agente-mcp.js).
 var POR_RODADA=3,MAX_RODADAS=5;
 var METODOS=[
-  {id:"fftopo",ic:"🧲",amigo:"Atrair gente nova",lb:"Full Funnel Topo",sub:"Consciencia",ds:"Para quem ainda nao conhece a loja: comeca numa situacao do dia a dia, desperta a dor e so depois apresenta a solucao."},
-  {id:"ffmeio",ic:"💡",amigo:"Mostrar a peça",lb:"Full Funnel Meio",sub:"Conceito Criativo",ds:"Para quem ja esta pensando: mostra o produto de um jeito criativo (comparacao, antes e depois, look completo, estilo de vida)."},
-  {id:"fffundo",ic:"✅",amigo:"Fechar a venda",lb:"Full Funnel Fundo",sub:"Decisao e Prova",ds:"Para quem ja quer comprar mas trava: derruba a duvida principal com garantia, calculo ou detalhe do produto."},
-  {id:"dsb",ic:"💫",amigo:"Despertar desejo",lb:"DSB",sub:"Desejo, Solucao, Beneficio",ds:"Parte do desejo da cliente, apresenta o produto como solucao e fecha no beneficio sentido na pratica."},
-  {id:"angulo",ic:"🎯",amigo:"Mostrar um detalhe",lb:"Angulo",sub:"Diferencial concreto",ds:"Cada roteiro foca em um detalhe real do produto (material, caimento, acabamento) e mostra por que ele faz diferenca."}
+  {id:"fftopo",ic:"🧲",amigo:"Full Funnel Topo",lb:"Full Funnel Topo",sub:"Consciência",ds:"Para quem ainda não conhece a loja: começa numa situação do dia a dia, desperta a dor e só depois apresenta a solução."},
+  {id:"ffmeio",ic:"💡",amigo:"Full Funnel Meio",lb:"Full Funnel Meio",sub:"Conceito Criativo",ds:"Para quem já está pensando: mostra o produto de um jeito criativo (comparação, antes e depois, look completo, estilo de vida)."},
+  {id:"fffundo",ic:"✅",amigo:"Full Funnel Fundo",lb:"Full Funnel Fundo",sub:"Decisão e Prova",ds:"Para quem já quer comprar mas trava: derruba a dúvida principal com garantia, cálculo ou detalhe do produto."},
+  {id:"dsb",ic:"💫",amigo:"DSB",lb:"DSB",sub:"Dor, Solução, Benefício",ds:"Parte de uma dor real da cliente, apresenta o produto como a solução e fecha no benefício sentido na prática."},
+  {id:"angulo",ic:"🎯",amigo:"Ângulo",lb:"Ângulo",sub:"Diferencial concreto",ds:"Cada roteiro foca em um detalhe real do produto (material, caimento, acabamento) e mostra por que ele faz diferença."}
 ];
 function metodoInfo(id){return METODOS.find(function(m){return m.id===id;})||METODOS[0];}
 // Roteiros antigos (antes das abas) nao tem metodo salvo: deduz pelo pilar
-function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo;var p=String(s.pilar||"").toLowerCase();if(p.indexOf("dsb")>-1||p.indexOf("desejo")>-1)return "dsb";if(p.indexOf("angulo")>-1||p.indexOf("ângulo")>-1||p.indexOf("diferencial")>-1)return "angulo";if(s.funil==="fundo")return "fffundo";if(s.funil==="meio")return "ffmeio";return "fftopo";}
+function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo;var p=String(s.pilar||"").toLowerCase();if(p.indexOf("dsb")>-1||p.indexOf("desejo")>-1||p.indexOf("dor, solu")>-1)return "dsb";if(p.indexOf("angulo")>-1||p.indexOf("ângulo")>-1||p.indexOf("diferencial")>-1)return "angulo";if(s.funil==="fundo")return "fffundo";if(s.funil==="meio")return "ffmeio";return "fftopo";}
 function todosRoteiros(p){var all=[];((p&&p.rodadas)||[]).forEach(function(r){((r.resultado&&r.resultado.roteiros)||[]).forEach(function(s){all.push(s);});});return all;}
 function contarRoteiros(p){return todosRoteiros(p).length;}
 function contarGravados(p){return todosRoteiros(p).filter(function(s){return s.gravado;}).length;}
@@ -1316,7 +1316,7 @@ function App(){
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"01 - Qual o objetivo do vídeo?"),
             ce("div",{className:"obj-q"},"Cada clique gera "+POR_RODADA+" roteiros com o objetivo escolhido. Depois você pode gerar os outros no mesmo projeto."),
-            ce("div",{className:"obj-g met"},METODOS.map(function(m){return ce("div",{key:m.id,className:"obj-o"+(metodoSel===m.id?" on":""),onClick:function(){setMetodoSel(m.id);}},ce("div",{className:"obj-ic"},m.ic),ce("div",null,ce("div",{className:"obj-lbl"},m.amigo),ce("div",{style:{fontSize:10.5,color:"var(--mu2)",marginBottom:3}},m.lb+" · "+m.sub),ce("div",{className:"obj-ds"},m.ds)));}))
+            ce("div",{className:"obj-g met"},METODOS.map(function(m){return ce("div",{key:m.id,className:"obj-o"+(metodoSel===m.id?" on":""),onClick:function(){setMetodoSel(m.id);}},ce("div",{className:"obj-ic"},m.ic),ce("div",null,ce("div",{className:"obj-lbl"},m.amigo),ce("div",{style:{fontSize:10.5,color:"var(--mu2)",marginBottom:3}},m.sub),ce("div",{className:"obj-ds"},m.ds)));}))
           ),
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"02 - Produto ou Servico"),
