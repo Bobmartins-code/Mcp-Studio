@@ -45,9 +45,13 @@ module.exports = async function handler(req, res) {
     // Respeita max_tokens do cliente com teto de seguranca (o raciocinio tambem conta nesse limite)
     const reqMax = req.body && Number(req.body.max_tokens);
     const maxTokens = (reqMax && reqMax > 0) ? Math.min(reqMax, 16000) : 6000;
-    // Ferramentas nativas (ex: web_fetch para ler URLs) — repassadas quando enviadas
-    const tools = (req.body && Array.isArray(req.body.tools) && req.body.tools.length) ? req.body.tools : null;
-    const wantStream = !!(req.body && req.body.stream) && !tools;
+    // Ferramentas nativas: so ler uma URL ou pesquisar na web, com uso limitado (nada vindo do navegador passa direto)
+    const FERRAMENTAS = { web_fetch_20260209: "web_fetch", web_search_20260209: "web_search" };
+    const pedidas = (req.body && Array.isArray(req.body.tools)) ? req.body.tools : [];
+    const tools = pedidas.filter(function (t) { return t && FERRAMENTAS[t.type]; }).slice(0, 2)
+        .map(function (t) { return { type: t.type, name: FERRAMENTAS[t.type], max_uses: 3 }; });
+    const usarFerramentas = tools.length > 0;
+    const wantStream = !!(req.body && req.body.stream) && !usarFerramentas;
 
     // CAMINHO STREAMING: envia o texto da IA chegando ao vivo (sensacao de chat)
     if (wantStream) {
@@ -121,7 +125,7 @@ module.exports = async function handler(req, res) {
                 max_tokens: maxTokens,
                 system: SYSTEM,
                 messages: messages
-            }, extra, tools ? { tools: tools } : {})),
+            }, extra, usarFerramentas ? { tools: tools } : {})),
             signal: controller.signal
         });
         clearTimeout(timeout);

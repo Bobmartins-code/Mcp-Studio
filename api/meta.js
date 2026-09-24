@@ -9,39 +9,17 @@
 //  Os agentes (no painel admin) leem esses dados e montam o dossie da conta.
 // =====================================================================
 
-const SUPA_URL = "https://yutqrrcdlkocrpznryqi.supabase.co";
-const SUPA_ANON = "sb_publishable_U3wOTwbeEvXtHOqP_I29VQ_ARH5CAkH";
-const ADMIN_EMAIL = "rrubensmartins@gmail.com";
+const { validarAdmin, banco, criptografar, descriptografar, auditar } = require("./_seguranca.js");
 const GRAPH = "https://graph.facebook.com/v23.0";
 const DIAS = 90;
 const ESCOPOS = "instagram_basic,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,read_insights,ads_read,business_management";
 
 // ---------- apoio ----------
-async function validarAdmin(token) {
-    if (!token) return null;
-    const r = await fetch(SUPA_URL + "/auth/v1/user", { headers: { apikey: SUPA_ANON, Authorization: "Bearer " + token } });
-    if (!r.ok) return null;
-    const u = await r.json();
-    return (u && u.email === ADMIN_EMAIL) ? u : null;
-}
-
-// Banco com a sessao do admin (as regras do banco so deixam o admin ler a conexao)
-async function supa(caminho, jwt, opcoes) {
-    const o = opcoes || {};
-    const r = await fetch(SUPA_URL + "/rest/v1/" + caminho, {
-        method: o.method || "GET",
-        headers: Object.assign({ apikey: SUPA_ANON, Authorization: "Bearer " + jwt, "Content-Type": "application/json" }, o.headers || {}),
-        body: o.body ? JSON.stringify(o.body) : undefined
-    });
-    const txt = await r.text();
-    if (!r.ok) throw new Error("Banco: " + txt.slice(0, 200));
-    return txt ? JSON.parse(txt) : null;
-}
-
-async function tokenMeta(jwt) {
-    const rows = await supa("meta_conexao?id=eq.1&select=access_token,expires_at", jwt);
+// token da Meta: so o servidor le (chave de servico) e ele fica criptografado no banco
+async function tokenMeta() {
+    const rows = await banco("meta_conexao?id=eq.1&select=access_token,expires_at");
     if (!rows || !rows.length) throw new Error("A Meta ainda nao foi conectada no painel admin.");
-    return rows[0].access_token;
+    return descriptografar(rows[0].access_token);
 }
 
 async function g(caminho, params, token) {
@@ -274,7 +252,7 @@ module.exports = async function handler(req, res) {
     try {
         if (b.acao === "config") {
             let conexao = null;
-            try { const rows = await supa("meta_conexao?id=eq.1&select=nome,expires_at,atualizado_em", jwt); conexao = (rows && rows[0]) || null; } catch (e) { conexao = null; }
+            try { const rows = await banco("meta_conexao?id=eq.1&select=nome,expires_at,atualizado_em"); conexao = (rows && rows[0]) || null; } catch (e) { conexao = null; }
             return res.status(200).json({ appId: APP_ID || null, configId: process.env.META_CONFIG_ID || null, escopos: ESCOPOS, conexao: conexao });
         }
         if (b.acao === "conectar") {
@@ -283,10 +261,11 @@ module.exports = async function handler(req, res) {
             const longo = await g("/oauth/access_token", { grant_type: "fb_exchange_token", client_id: APP_ID, client_secret: APP_SECRET, fb_exchange_token: curto.access_token }, "");
             const eu = await g("/me", { fields: "id,name" }, longo.access_token);
             const expira = new Date(Date.now() + num(longo.expires_in || 5184000) * 1000).toISOString();
-            await supa("meta_conexao", jwt, { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: { id: 1, access_token: longo.access_token, nome: eu.name, meta_user_id: eu.id, expires_at: expira, atualizado_em: new Date().toISOString() } });
+            await banco("meta_conexao", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: { id: 1, access_token: criptografar(longo.access_token), nome: eu.name, meta_user_id: eu.id, expires_at: expira, atualizado_em: new Date().toISOString() } });
+            await auditar(admin.id, "conectou a Meta", eu.name);
             return res.status(200).json({ ok: true, nome: eu.name, expires_at: expira });
         }
-        const token = await tokenMeta(jwt);
+        const token = await tokenMeta();
         if (b.acao === "contas") {
             const [paginas, anuncios] = await Promise.all([
                 paginar("/me/accounts", { fields: "name,instagram_business_account{id,username,profile_picture_url,followers_count}", limit: 100 }, token, 5).catch(function () { return []; }),

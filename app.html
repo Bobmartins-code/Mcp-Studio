@@ -411,6 +411,9 @@ function App(){
   var sCm=useState(null),contaMeta=sCm[0],setContaMeta=sCm[1];
   var sVt=useState("anuncios"),videosTab=sVt[0],setVideosTab=sVt[1];
   var sRf=useState(null),referencia=sRf[0],setReferenciaSt=sRf[1];
+  var sVc=useState(null),verComo=sVc[0],setVerComo=sVc[1];
+  var sLu=useState([]),listaClientes=sLu[0],setListaClientes=sLu[1];
+  var souAdmin=!!(currentUser&&currentUser.id==="1c4d2a2b-c60b-4e99-982b-5b4a09e8cc0f");
   var s17=useState({produto:"",descricao:"",objetivo:"",diferenciais:"",preco:"",url:"",tons:[]}),form=s17[0],setForm=s17[1];
   var stepRef=useRef(null),fileRef=useRef(null);
   var userEmail=(currentUser&&currentUser.email)||"Usuario";
@@ -430,7 +433,12 @@ function App(){
     try{
       var r=await supaClient.from("projetos").select("*").order("criado_em",{ascending:false});
       if(r.data&&r.data.length>0){
-        var ps=r.data.map(function(p){
+        var ps=r.data.map(mapearProjeto);
+        setProjects(ps);
+      }
+    }catch(e){console.log("Erro ao carregar projetos",e);}
+  }
+  function mapearProjeto(p){
           return {
             id:p.id,
             name:p.nome,
@@ -439,10 +447,33 @@ function App(){
             form:p.form||{produto:"",descricao:"",objetivo:"",diferenciais:"",preco:"",url:"",tons:[]},
             rodadas:p.rodadas||[]
           };
-        });
-        setProjects(ps);
-      }
-    }catch(e){console.log("Erro ao carregar projetos",e);}
+  }
+  // ---------- admin: navegar pela conta de uma cliente, somente leitura ----------
+  useEffect(function(){if(souAdmin)supaClient.rpc("get_all_users").then(function(r){setListaClientes((r&&r.data)||[]);});},[]);
+  async function entrarComoCliente(uid){
+    if(!uid){sairDoModoCliente();return;}
+    var u=listaClientes.find(function(x){return x.id===uid;});
+    try{
+      var rp=await supaClient.rpc("get_all_projetos");
+      if(rp.error||!rp.data)throw new Error("sem acesso");
+      var cm=await supaClient.from("contas_meta").select("ig_username,ad_account_nome,dossie,atualizado_em").eq("user_id",uid).maybeSingle();
+      setVerComo({id:uid,email:(u&&u.email)||"cliente"});
+      setProjects(rp.data.filter(function(p){return p.user_id===uid;}).map(mapearProjeto));
+      setContaMeta((cm&&cm.data)||null);
+      var d=(cm&&cm.data&&cm.data.dossie)||{};CONTA_AGENTE={texto:d.texto||"",nicho:d.nicho||""};
+      setActiveProject(null);setReferencia(null);setView("home");setSbOpen(false);
+      supaClient.from("auditoria").insert({admin_id:currentUser.id,acao:"visualizou a conta da cliente",alvo:uid}).then(function(){});
+    }catch(e){showToast("Nao foi possivel abrir a conta. Se a verificacao em 2 etapas estiver ativa, confirme o codigo no Painel Admin.","err");}
+  }
+  function sairDoModoCliente(){
+    setVerComo(null);setActiveProject(null);setReferencia(null);setContaMeta(null);CONTA_AGENTE={texto:"",nicho:""};
+    setProjects([]);carregarProjetos();carregarContaMeta();setView("home");
+  }
+  // bloqueia qualquer alteracao enquanto o admin olha a conta de uma cliente
+  function somenteLeitura(silencioso){
+    if(!verComo)return false;
+    if(!silencioso)showToast("Modo visualizacao: voce esta vendo a conta de "+verComo.email+". Nada pode ser gerado ou alterado aqui.","err");
+    return true;
   }
 
   async function carregarContaMeta(){try{var r=await supaClient.from("contas_meta").select("ig_username,ad_account_nome,dossie,atualizado_em").eq("user_id",currentUser.id).maybeSingle();if(r&&!r.error&&r.data){setContaMeta(r.data);var d=r.data.dossie||{};CONTA_AGENTE={texto:d.texto||"",nicho:d.nicho||""};}}catch(e){}}
@@ -457,7 +488,7 @@ function App(){
   }
   async function carregarPadroes(){try{var r=await supaClient.from("aprendizado_agente").select("nicho,metodo,padroes,amostras");if(r&&!r.error&&Array.isArray(r.data))setPadroesGlobais(r.data);}catch(e){}}
   async function carregarPerfil(){try{var r=await supaClient.from("perfil_publico").select("dados").eq("user_id",currentUser.id).maybeSingle();if(r&&r.data&&r.data.dados)setPerfil(r.data.dados);}catch(e){}}
-  async function salvarPerfil(dados){try{var r=await supaClient.from("perfil_publico").upsert({user_id:currentUser.id,dados:dados,atualizado_em:new Date().toISOString()},{onConflict:"user_id"}).select();if(r&&r.error)throw r.error;setPerfil(dados);showToast("Publico salvo! Os proximos projetos ja vem preenchidos.");}catch(e){showToast("Nao foi possivel salvar. Confirme se a tabela foi criada no Supabase.","err");}}
+  async function salvarPerfil(dados){if(somenteLeitura())return;try{var r=await supaClient.from("perfil_publico").upsert({user_id:currentUser.id,dados:dados,atualizado_em:new Date().toISOString()},{onConflict:"user_id"}).select();if(r&&r.error)throw r.error;setPerfil(dados);showToast("Publico salvo! Os proximos projetos ja vem preenchidos.");}catch(e){showToast("Nao foi possivel salvar. Confirme se a tabela foi criada no Supabase.","err");}}
 
   function showToast(msg,type){setToast({msg:msg,type:type||"ok"});setTimeout(function(){setToast(null);},type==="err"?7000:3000);}
   function handleImages(files){var arr=Array.from(files).slice(0,4);setImageFiles(arr);setImagePreviews(arr.map(function(f){return URL.createObjectURL(f);}));}
@@ -467,6 +498,7 @@ function App(){
   function togTon(id){setForm(function(f){var ts=f.tons||[];var ni=ts.indexOf(id);var nt=ni>-1?ts.filter(function(x){return x!==id;}):ts.concat([id]);return Object.assign({},f,{tons:nt});});}
 
   async function iniciarBriefing(){
+    if(somenteLeitura())return;
     if(!form.objetivo){showToast("Selecione o destino no passo 03","err");return;}
     if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem){showToast("Selecione ao menos uma forma de descrever o produto","err");return;}
     if(inputModes.texto&&!form.produto){showToast("Descreva seu produto no campo de texto","err");return;}
@@ -506,6 +538,7 @@ function App(){
     setDirecao(Object.assign({},base,{loading:false,campos:c||{objetivo:"",publico:"",mensagem:"",chamada:""},falhou:!c}));
   }
   function pedirDirecao(metodo){
+    if(somenteLeitura())return;
     if(!activeProject||generating)return;
     if((activeProject.rodadas||[]).length>=MAX_RODADAS){showToast("Limite de "+MAX_RODADAS+" geracoes por projeto atingido.","err");return;}
     var tok=++dirTok.current;
@@ -517,6 +550,7 @@ function App(){
   function confirmarDirecao(){var d=direcao;if(!d||d.loading)return;dirTok.current++;setDirecao(null);if(d.origem==="briefing")handleGenerate(d);else handleNextRound(d.metodo,d.campos);}
 
   async function handleGenerate(dir){
+    if(somenteLeitura())return;
     setGenerating(true);
     try{
       var ff=dir.ff,metodo=dir.metodo,campos=dir.campos||null;
@@ -579,7 +613,7 @@ function App(){
     parsed.roteiros.forEach(function(s,i){limparRoteiro(s);s.id=maxId+i+1;s.metodo=metodo;if(s.funil)s.funil=String(s.funil).toLowerCase().trim();});
   }
   function toggleLike(sid){if(!activeProject)return;var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(s){return s.id===sid?Object.assign({},s,{liked:!s.liked}):s;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);}
-  function salvarPerfilSilencioso(dados){setPerfil(dados);try{supaClient.from("perfil_publico").upsert({user_id:currentUser.id,dados:dados,atualizado_em:new Date().toISOString()},{onConflict:"user_id"}).then(function(){});}catch(e){}}
+  function salvarPerfilSilencioso(dados){if(somenteLeitura(true))return;setPerfil(dados);try{supaClient.from("perfil_publico").upsert({user_id:currentUser.id,dados:dados,atualizado_em:new Date().toISOString()},{onConflict:"user_id"}).then(function(){});}catch(e){}}
   function marcarVendeu(s){
     if(!activeProject)return;
     var novoVendeu=!s.vendeu;
@@ -593,8 +627,9 @@ function App(){
     salvarPerfilSilencioso(Object.assign({},perfil||{},{vencedores:venc.slice(0,12)}));
     showToast(novoVendeu?"Marcado como vendeu! Vai alimentar os proximos roteiros desta conta.":"Desmarcado.");
   }
-  async function handleEditScript(s,instrucao){setEditGenerating(true);try{var msg=[{role:"user",content:"Copywriter expert. Roteiro: GANCHO:"+s.gancho+" CORPO:"+s.corpo+" CTA:"+s.cta+" TITULO:"+s.titulo+" Instrucao:"+instrucao+" Reescreva aplicando a instrucao. Responda APENAS com JSON sem markdown: {gancho:...,corpo:...,cta:...,titulo:...}"}];var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:msg,max_tokens:6000,model:"claude-sonnet-5",effort:"medium"})});var data=await res.json();var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();var parsed;try{parsed=JSON.parse(raw);}catch(e1){var st=raw.indexOf("{"),en=raw.lastIndexOf("}");if(st<0||en<0)throw new Error("resposta invalida");parsed=JSON.parse(raw.substring(st,en+1));}var novo=limparRoteiro(Object.assign({},s,{gancho:parsed.gancho||s.gancho,corpo:parsed.corpo||s.corpo,cta:parsed.cta||s.cta,titulo:parsed.titulo||s.titulo,editado:true}));var _aj=[String(instrucao).trim().substring(0,140)].concat(((perfil&&perfil.ajustes)||[]).filter(function(a){return a!==String(instrucao).trim().substring(0,140);})).slice(0,10);salvarPerfilSilencioso(Object.assign({},perfil||{},{ajustes:_aj}));var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(sc){return sc.id===s.id?novo:sc;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);setEditingScript(novo);setEditInstr("");showToast("Roteiro atualizado!");}catch(e){showToast("Erro: "+e.message,"err");}setEditGenerating(false);}
+  async function handleEditScript(s,instrucao){if(somenteLeitura())return;setEditGenerating(true);try{var msg=[{role:"user",content:"Copywriter expert. Roteiro: GANCHO:"+s.gancho+" CORPO:"+s.corpo+" CTA:"+s.cta+" TITULO:"+s.titulo+" Instrucao:"+instrucao+" Reescreva aplicando a instrucao. Responda APENAS com JSON sem markdown: {gancho:...,corpo:...,cta:...,titulo:...}"}];var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:msg,max_tokens:6000,model:"claude-sonnet-5",effort:"medium"})});var data=await res.json();var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();var parsed;try{parsed=JSON.parse(raw);}catch(e1){var st=raw.indexOf("{"),en=raw.lastIndexOf("}");if(st<0||en<0)throw new Error("resposta invalida");parsed=JSON.parse(raw.substring(st,en+1));}var novo=limparRoteiro(Object.assign({},s,{gancho:parsed.gancho||s.gancho,corpo:parsed.corpo||s.corpo,cta:parsed.cta||s.cta,titulo:parsed.titulo||s.titulo,editado:true}));var _aj=[String(instrucao).trim().substring(0,140)].concat(((perfil&&perfil.ajustes)||[]).filter(function(a){return a!==String(instrucao).trim().substring(0,140);})).slice(0,10);salvarPerfilSilencioso(Object.assign({},perfil||{},{ajustes:_aj}));var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(sc){return sc.id===s.id?novo:sc;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);setEditingScript(novo);setEditInstr("");showToast("Roteiro atualizado!");}catch(e){showToast("Erro: "+e.message,"err");}setEditGenerating(false);}
   async function handleNextRound(metodo,campos){
+    if(somenteLeitura())return;
     if(!activeProject||generating)return;
     campos=campos||null;
     metodo=metodo||"fftopo";
@@ -639,6 +674,7 @@ function App(){
   }
 
   async function genVar(tipo){
+    if(somenteLeitura())return;
     if(!activeProject){showToast("Nenhum projeto ativo","err");return;}
     setVarLoading(tipo);
     try{
@@ -674,8 +710,8 @@ function App(){
     setVarLoading(null);
   }
 
-  function deleteProject(id,e){if(e)e.stopPropagation();if(!window.confirm("Apagar este projeto? Esta acao nao pode ser desfeita."))return;supaClient.from("projetos").delete().eq("id",id);setProjects(function(prev){return prev.filter(function(p){return p.id!==id;});});if(activeProject&&activeProject.id===id){setActiveProject(null);setView("home");}showToast("Projeto apagado.");}
-  function renameProject(id,e){if(e)e.stopPropagation();var p=projects.find(function(x){return x.id===id;});var novo=window.prompt("Novo nome do projeto:",(p&&p.name)||"");if(!novo||!novo.trim())return;novo=novo.trim();supaClient.from("projetos").update({nome:novo}).eq("id",id);setProjects(function(prev){return prev.map(function(x){return x.id===id?Object.assign({},x,{name:novo}):x;});});if(activeProject&&activeProject.id===id)setActiveProject(Object.assign({},activeProject,{name:novo}));showToast("Projeto renomeado.");}
+  function deleteProject(id,e){if(somenteLeitura()){if(e)e.stopPropagation();return;}if(e)e.stopPropagation();if(!window.confirm("Apagar este projeto? Esta acao nao pode ser desfeita."))return;supaClient.from("projetos").delete().eq("id",id);setProjects(function(prev){return prev.filter(function(p){return p.id!==id;});});if(activeProject&&activeProject.id===id){setActiveProject(null);setView("home");}showToast("Projeto apagado.");}
+  function renameProject(id,e){if(somenteLeitura()){if(e)e.stopPropagation();return;}if(e)e.stopPropagation();var p=projects.find(function(x){return x.id===id;});var novo=window.prompt("Novo nome do projeto:",(p&&p.name)||"");if(!novo||!novo.trim())return;novo=novo.trim();supaClient.from("projetos").update({nome:novo}).eq("id",id);setProjects(function(prev){return prev.map(function(x){return x.id===id?Object.assign({},x,{name:novo}):x;});});if(activeProject&&activeProject.id===id)setActiveProject(Object.assign({},activeProject,{name:novo}));showToast("Projeto renomeado.");}
   async function transcreverArquivo(file){
     if(!file)return;
     if(file.size>4*1024*1024){showToast("Arquivo muito grande (max 4MB). Use um clipe curto ou so o audio.","err");return;}
@@ -729,6 +765,7 @@ function App(){
     setLendoPublico(false);
   }
   async function gerarCriativo(s,estilo){
+    if(somenteLeitura())return;
     var f=(activeProject&&activeProject.form)||{};
     setImgModal({loading:true,roteiro:s});
     try{
@@ -742,6 +779,7 @@ function App(){
     }catch(e){setImgModal(null);showToast("Erro ao gerar imagem: "+((e&&e.message)||"tente de novo"),"err");}
   }
   async function regenerarRoteiro(s){
+    if(somenteLeitura())return;
     if(!activeProject)return;
     setRegenId(s.id);
     try{
@@ -764,7 +802,7 @@ function App(){
     }catch(e){showToast("Erro ao regenerar. Tente de novo.","err");}
     setRegenId(null);
   }
-  function duplicarProjeto(p,e){
+  function duplicarProjeto(p,e){if(somenteLeitura()){if(e)e.stopPropagation();return;}
     if(e)e.stopPropagation();
     supaClient.from("projetos").insert({nome:(p.name||"Projeto")+" (copia)",objetivo:p.objetivo,form:p.form,rodadas:p.rodadas,user_id:currentUser.id}).select().single().then(function(ins){
       if(ins.error){showToast("Erro ao duplicar","err");return;}
@@ -774,7 +812,7 @@ function App(){
     });
   }
   function togSc(id){setOpenScripts(function(p){var n=Object.assign({},p);n[id]=!n[id];return n;});}
-  function registrarCopia(s){if(!activeProject)return;var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(sc){return sc.id===s.id?Object.assign({},sc,{copiado:(Number(sc.copiado)||0)+1}):sc;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);}
+  function registrarCopia(s){if(somenteLeitura(true))return;if(!activeProject)return;var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(sc){return sc.id===s.id?Object.assign({},sc,{copiado:(Number(sc.copiado)||0)+1}):sc;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);}
   function copySc(s){registrarCopia(s);navigator.clipboard.writeText("ROTEIRO "+s.id+" - "+s.titulo+"\n\nGANCHO\n"+s.gancho+"\n\nCORPO\n"+s.corpo+"\n\nCTA\n"+s.cta);setCopiedId(s.id);setTimeout(function(){setCopiedId(null);},2000);showToast("Copiado!");}
   function copyAll(){if(!activeProject)return;var t=[],n=0;(activeProject.rodadas||[]).forEach(function(rod){((rod.resultado&&rod.resultado.roteiros)||[]).forEach(function(s){n++;t.push("=== ROTEIRO "+n+" ===\n"+s.gancho+"\n"+s.corpo+"\n"+s.cta);});});navigator.clipboard.writeText(t.join("\n\n"));showToast(n+" roteiros copiados!");}
   function baixarRoteiros(){if(!activeProject)return;var txt="ROTEIROS - "+activeProject.name+"\n\n";var n=0;(activeProject.rodadas||[]).forEach(function(rod){((rod.resultado&&rod.resultado.roteiros)||[]).forEach(function(s){n++;txt+="=== ROTEIRO "+n+(s.pilar?" ("+s.pilar+")":"")+" ===\nGANCHO: "+s.gancho+"\n\nCORPO: "+s.corpo+"\n\nCTA: "+s.cta+"\n\n----------------------------------------\n\n";});});var blob=new Blob([txt],{type:"text/plain;charset=utf-8;"});var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download=(activeProject.name||"roteiros").substring(0,40).replace(/[^a-zA-Z0-9-_ ]/g,"").trim()+".txt";a.click();URL.revokeObjectURL(url);showToast("Arquivo baixado!");}
@@ -831,6 +869,7 @@ function App(){
   var titles={home:"Dashboard",briefing:"Novo Projeto",results:(activeProject&&activeProject.name)||"Resultados",history:"Historico",videos:"Melhores Videos"};
 
   return ce("div",{className:"app"},
+    verComo&&ce("div",{style:{position:"fixed",top:0,left:0,right:0,zIndex:200,background:"#2DDE98",color:"#0A0A0F",fontSize:13,fontWeight:600,padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"center",gap:12,flexWrap:"wrap"}},"👁 Vendo a conta de "+verComo.email+" · somente leitura",ce("button",{onClick:sairDoModoCliente,style:{background:"#0A0A0F",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Voltar para minha conta")),
     ce("div",{className:"sb-ov"+(sbOpen?" op":""),onClick:function(){setSbOpen(false);}}),
     ce("aside",{className:"sb"+(sbOpen?" op":"")},
       ce("div",{className:"sb-logo"},ce("div",{className:"sb-mark"},"M"),ce("div",{className:"sb-name"},"MCP",ce("span",null,"Studio"))),
@@ -842,6 +881,7 @@ function App(){
         projects.slice(0,4).map(function(p){return ce("button",{key:p.id,className:"sb-btn"+(activeProject&&activeProject.id===p.id&&view==="results"?" on":""),onClick:function(){setActiveProject(p);setView("results");setSbOpen(false);}},ce("span",{style:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},p.name));})
       ),
       ce("button",{className:"sb-new",onClick:function(){setView("briefing");setSbOpen(false);}},"+ Novo projeto"),
+      souAdmin&&listaClientes.length>0&&ce("div",{style:{margin:"14px 12px 0"}},ce("div",{className:"sb-lbl",style:{padding:"0 0 6px"}},"Ver como cliente"),ce("select",{value:(verComo&&verComo.id)||"",onChange:function(e){entrarComoCliente(e.target.value);},style:{width:"100%",background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:8,color:"var(--tx)",fontSize:12,padding:"7px 8px",fontFamily:"inherit"}},ce("option",{value:""},"Minha conta"),listaClientes.filter(function(u){return u.id!==currentUser.id;}).map(function(u){return ce("option",{key:u.id,value:u.id},u.email);}))),
       ce("div",{className:"sb-foot"},
         ce("div",{className:"sb-user"},
           ce("div",{className:"sb-av"},userInitial),

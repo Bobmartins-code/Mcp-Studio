@@ -11,9 +11,7 @@
 //  So o admin usa. A chave e os tokens dos clientes nunca saem do servidor.
 // =====================================================================
 
-const SUPA_URL = "https://yutqrrcdlkocrpznryqi.supabase.co";
-const SUPA_ANON = "sb_publishable_U3wOTwbeEvXtHOqP_I29VQ_ARH5CAkH";
-const ADMIN_EMAIL = "rrubensmartins@gmail.com";
+const { validarAdmin, banco, criptografar, descriptografar, auditar } = require("./_seguranca.js");
 const CONNECT = "https://connect.reportei.com/api";
 const PLATAFORMAS = ["instagram_business", "facebook_ads"];
 
@@ -68,31 +66,11 @@ async function connect(caminho, opcoes) {
     }
 }
 
-// ---------- banco (com a sessao do admin; as regras do banco so deixam o admin ler os tokens) ----------
-async function validarAdmin(token) {
-    if (!token) return null;
-    const r = await fetch(SUPA_URL + "/auth/v1/user", { headers: { apikey: SUPA_ANON, Authorization: "Bearer " + token } });
-    if (!r.ok) return null;
-    const u = await r.json();
-    return (u && u.email === ADMIN_EMAIL) ? u : null;
-}
-
-async function supa(caminho, jwt, opcoes) {
-    const o = opcoes || {};
-    const r = await fetch(SUPA_URL + "/rest/v1/" + caminho, {
-        method: o.method || "GET",
-        headers: Object.assign({ apikey: SUPA_ANON, Authorization: "Bearer " + jwt, "Content-Type": "application/json" }, o.headers || {}),
-        body: o.body ? JSON.stringify(o.body) : undefined
-    });
-    const txt = await r.text();
-    if (!r.ok) throw new Error("Banco: " + txt.slice(0, 200));
-    return txt ? JSON.parse(txt) : null;
-}
-
-async function clienteDoUsuario(jwt, userId) {
-    const rows = await supa("connect_clientes?user_id=eq." + encodeURIComponent(userId) + "&select=customer_uuid,api_token,nome", jwt);
+// ---------- token da cliente: so o servidor le, e ele fica criptografado no banco ----------
+async function clienteDoUsuario(userId) {
+    const rows = await banco("connect_clientes?user_id=eq." + encodeURIComponent(userId) + "&select=customer_uuid,api_token,nome");
     if (!rows || !rows.length) throw new ErroConnect(404, { message: "Esta cliente ainda nao foi ativada no Reportei Connect." });
-    return rows[0];
+    return { customer_uuid: rows[0].customer_uuid, nome: rows[0].nome, api_token: descriptografar(rows[0].api_token) };
 }
 
 // ---------- rotas ----------
@@ -113,26 +91,35 @@ module.exports = async function handler(req, res) {
             return res.status(200).json({ configurado: true, nome: m.name, pagante: m.is_paying, teste_ate: m.trial_ends_at, total_clientes: m.total_customers, plataformas: m.available_integrations || [] });
         }
 
+        // lista quem ja foi ativada (sem os tokens)
+        if (b.acao === "listar") {
+            const rows = await banco("connect_clientes?select=user_id,customer_uuid,nome,criado_em");
+            // so os campos publicos saem daqui, nunca o token
+            return res.status(200).json({ clientes: (rows || []).map(function (c) { return { user_id: c.user_id, customer_uuid: c.customer_uuid, nome: c.nome, criado_em: c.criado_em }; }) });
+        }
+
         // cria a cliente no Connect e guarda o token dela na mesma hora (ele so aparece nesta resposta)
         if (b.acao === "ativar") {
             if (!b.user_id) throw new ErroConnect(400, { message: "Informe a cliente." });
-            const existe = await supa("connect_clientes?user_id=eq." + encodeURIComponent(b.user_id) + "&select=customer_uuid", jwt);
+            const existe = await banco("connect_clientes?user_id=eq." + encodeURIComponent(b.user_id) + "&select=customer_uuid");
             if (existe && existe.length) return res.status(200).json({ ok: true, ja_existia: true });
             const d = await connect("/customers", { method: "POST", body: { name: String(b.nome || "Cliente").slice(0, 255) } });
             const c = d.customer;
             try {
-                await supa("connect_clientes", jwt, { method: "POST", body: { user_id: b.user_id, customer_uuid: c.uuid, api_token: c.api_token, nome: c.name } });
+                await banco("connect_clientes", { method: "POST", body: { user_id: b.user_id, customer_uuid: c.uuid, api_token: criptografar(c.api_token), nome: c.name } });
             } catch (e) {
                 // sem o token salvo a cliente fica inutil: desfaz no Connect para nao deixar orfa
                 try { await connect("/customers/" + c.uuid, { method: "DELETE" }); } catch (_) {}
                 throw e;
             }
+            await auditar(admin.id, "ativou cliente no Reportei Connect", b.user_id);
             return res.status(200).json({ ok: true, customer_uuid: c.uuid, teste_ate: c.trial_ends_at });
         }
 
         // link da tela onde as contas (Instagram e Meta Ads) sao autorizadas
         if (b.acao === "sessao") {
-            const cli = await clienteDoUsuario(jwt, b.user_id);
+            const cli = await clienteDoUsuario(b.user_id);
+            await auditar(admin.id, "abriu tela de conexao de contas", b.user_id);
             const corpo = { locale: "pt_BR", close_on_finish: true, expires_in_minutes: 60, limits: [{ name: "available_integrations", value: PLATAFORMAS }] };
             if (b.redirect_url) { corpo.redirect_url = b.redirect_url; corpo.close_on_finish = false; }
             const d = await connect("/customer-integrations/session", { method: "POST", body: corpo, customerToken: cli.api_token });
@@ -141,7 +128,7 @@ module.exports = async function handler(req, res) {
 
         // o que a cliente ja conectou (e o uuid de cada conexao, que as metricas pedem)
         if (b.acao === "integracoes") {
-            const cli = await clienteDoUsuario(jwt, b.user_id);
+            const cli = await clienteDoUsuario(b.user_id);
             let pagina = 1, todas = [];
             while (pagina <= 5) {
                 const d = await connect("/customer-integrations?per_page=100&page=" + pagina, { customerToken: cli.api_token });
@@ -154,7 +141,7 @@ module.exports = async function handler(req, res) {
 
         // metricas de uma conexao num periodo
         if (b.acao === "metricas") {
-            const cli = await clienteDoUsuario(jwt, b.user_id);
+            const cli = await clienteDoUsuario(b.user_id);
             if (!b.integracao || !Array.isArray(b.metrics) || !b.metrics.length || !b.start || !b.end) throw new ErroConnect(400, { message: "Informe integracao, periodo e metricas." });
             const d = await connect("/metrics/get-data", { method: "POST", customerToken: cli.api_token, timeout: 100000, body: { customer_integration: b.integracao, start: b.start, end: b.end, client_timezone: "America/Sao_Paulo", metrics: b.metrics } });
             return res.status(200).json(d);
