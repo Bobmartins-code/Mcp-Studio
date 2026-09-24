@@ -18,6 +18,8 @@ function numero(v) {
     if (typeof v === "number") return isFinite(v) ? v : 0;
     if (Array.isArray(v)) return numero(v[0]);
     if (typeof v === "object") return numero(v.value != null ? v.value : v.values != null ? v.values : v.total != null ? v.total : v.count != null ? v.count : v.raw);
+    // numero cru da API ("1.031746", "63"): le direto, sem regra de milhar
+    if (/^\s*-?\d+(\.\d+)?\s*$/.test(String(v))) return parseFloat(v);
     const m = String(v).match(/-?[\d.,]+/);
     if (!m) return 0;
     let t = m[0];
@@ -28,7 +30,7 @@ function numero(v) {
     } else if ((t.match(/[.,]/g) || []).length > 1) {
         t = t.replace(/[.,]/g, "");
     } else if (/^-?[1-9]\d{0,2}[.,]\d{3}$/.test(t)) {
-        // um separador seguido de 3 digitos ("26.180", "1,066") e milhar
+        // texto formatado com um separador seguido de 3 digitos ("26.180", "1,066") e milhar
         t = t.replace(/[.,]/, "");
     } else {
         t = t.replace(",", ".");
@@ -154,7 +156,9 @@ async function pedirTabela(cli, integ, inicio, fim, base, listas, avisos) {
             const d = await connect("/metrics/get-data", { method: "POST", customerToken: cli.api_token, timeout: 100000, body: { customer_integration: integ.uuid, start: inicio, end: fim, client_timezone: "America/Sao_Paulo", metrics: [w] } });
             const campo = (base.dimensions && base.dimensions[0] && (base.dimensions[0].field || base.dimensions[0])) || "";
             const b = blocoDaResposta(d, w.id);
-            return { linhas: linhasDaTabela(b, metricas, campo), bruto: b, cru: cru(d) };
+            // o Reportei responde 200 com "warning" e sem linhas quando alguma metrica saiu da rede: tenta a proxima lista
+            if (b && b.warning && !b.values) { ultimoErro = new Error(b.warning); continue; }
+            return { linhas: linhasDaTabela(b, metricas, campo), bruto: b, cru: cru(d), metricas: metricas };
         } catch (e) { ultimoErro = e; }
     }
     avisos.push(base.reference_key + ": " + ((ultimoErro && ultimoErro.message) || "sem dados"));
@@ -168,16 +172,30 @@ async function pedirNumero(cli, integ, inicio, fim, base) {
         return numero(b && (b.values !== undefined ? b.values : b.value));
     } catch (e) { return null; }
 }
-function amostra(r) { try { const v = r.bruto && (r.bruto.values || r.bruto.data || r.bruto.rows); if (Array.isArray(v) && v.length) return JSON.stringify(v.slice(0, 2)).slice(0, 800); return "sem linhas; resposta: " + (r.cru || "vazia"); } catch (e) { return "erro na amostra"; } }
+function amostra(r) { try { const v = r.bruto && (r.bruto.values || r.bruto.data || r.bruto.rows); if (Array.isArray(v) && v.length) return JSON.stringify({ metricas: r.metricas, linhas: v.slice(0, 2) }).slice(0, 1200); return "sem linhas; resposta: " + (r.cru || "vazia"); } catch (e) { return "erro na amostra"; } }
 
 // ---------- ORGANICO ----------
-const IG_MEDIA = ["type", "reach", "impressions", "engagement", "engagement_rate", "likes", "comments", "saved", "total_interactions", "follows", "profile_visits", "shares", "created_at"];
-const IG_REELS = ["reach", "plays", "total_interactions", "engagement_rate", "likes", "saved", "comments", "shares", "created_at"];
+// o Instagram parou de entregar impressions, plays e video_views em 2025 (virou "views"):
+// tenta primeiro as metricas novas e vai simplificando se o Reportei recusar
+const IG_MEDIA = [
+    ["type", "reach", "views", "likes", "comments", "saved", "shares", "total_interactions", "follows", "profile_visits", "created_at"],
+    ["type", "reach", "views", "likes", "comments", "saved", "shares", "created_at"],
+    ["type", "reach", "likes", "comments", "saved", "shares", "total_interactions", "created_at"],
+    ["type", "reach", "likes", "comments", "saved", "shares", "created_at"],
+    ["reach", "likes", "comments", "created_at"]
+];
+const IG_REELS = [
+    ["reach", "views", "likes", "comments", "saved", "shares", "total_interactions", "created_at"],
+    ["reach", "views", "likes", "comments", "saved", "shares", "created_at"],
+    ["reach", "likes", "comments", "saved", "shares", "total_interactions", "created_at"],
+    ["reach", "likes", "comments", "saved", "shares", "created_at"],
+    ["reach", "likes", "comments", "created_at"]
+];
 
 async function coletarOrganico(cli, ig, inicio, fim, avisos) {
     const [media, reels, seguidores] = await Promise.all([
-        pedirTabela(cli, ig, inicio, fim, { id: "media", reference_key: "ig:media_datatable", component: "datatable_v1", dimensions: ["media"] }, [IG_MEDIA, ["type", "reach", "likes", "comments", "saved", "shares", "created_at"]], avisos),
-        pedirTabela(cli, ig, inicio, fim, { id: "reels", reference_key: "ig:reels_datatable", component: "datatable_v1", dimensions: ["reels"] }, [IG_REELS, ["reach", "plays", "likes", "comments", "shares", "created_at"]], avisos),
+        pedirTabela(cli, ig, inicio, fim, { id: "media", reference_key: "ig:media_datatable", component: "datatable_v1", dimensions: ["media"], sort: ["-reach"] }, IG_MEDIA, avisos),
+        pedirTabela(cli, ig, inicio, fim, { id: "reels", reference_key: "ig:reels_datatable", component: "datatable_v1", dimensions: ["reels"], sort: ["-reach"] }, IG_REELS, avisos),
         pedirNumero(cli, ig, inicio, fim, { id: "seg", reference_key: "ig:followers_count", component: "number_v1", metrics: ["followers"] })
     ]);
     const porChave = {}, posts = [];
@@ -186,7 +204,7 @@ async function coletarOrganico(cli, ig, inicio, fim, avisos) {
         const m = l.m, data = dataDe(m.created_at);
         const p = {
             id: "", tipo: tipoDe(m.type), data: data, legenda: textoDe(l.dim).slice(0, 400), miniatura: imagemDe(l.dim), link: linkDe(l.dim),
-            alcance: numero(m.reach), impressoes: numero(m.impressions), visualizacoes: 0, curtidas: numero(m.likes), comentarios: numero(m.comments),
+            alcance: numero(m.reach), impressoes: numero(m.impressions), visualizacoes: numero(m.views) || numero(m.video_views), curtidas: numero(m.likes), comentarios: numero(m.comments),
             salvamentos: numero(m.saved), compartilhamentos: numero(m.shares), interacoes: numero(m.total_interactions), seguiram: numero(m.follows), visitas_perfil: numero(m.profile_visits)
         };
         p.id = chave(l.dim, data);
@@ -200,7 +218,7 @@ async function coletarOrganico(cli, ig, inicio, fim, avisos) {
             porChave[k] = p; posts.push(p);
         }
         p.tipo = "Reels";
-        p.visualizacoes = numero(m.plays) || p.visualizacoes;
+        p.visualizacoes = numero(m.views) || numero(m.plays) || p.visualizacoes;
         if (!p.miniatura) p.miniatura = imagemDe(l.dim);
         if (!p.link) p.link = linkDe(l.dim);
     });
@@ -341,4 +359,4 @@ async function atualizarLoja(userId) {
     return resumoDaColeta(met);
 }
 
-module.exports = { coletarLoja, salvarMetricas, atualizarLoja, resumoDaColeta, numero, _interno: { linhasDaTabela, montarAnuncios, textoDe, imagemDe, linkDe, dataDe, tipoDe } };
+module.exports = { coletarLoja, salvarMetricas, atualizarLoja, resumoDaColeta, numero, _interno: { numero, linhasDaTabela, montarAnuncios, textoDe, imagemDe, linkDe, dataDe, tipoDe } };
