@@ -243,12 +243,33 @@ const ADS_COMPLETA = ["results", "cost_per_results", "spend", "reach", "impressi
 const ADS_MEDIA = ["results", "cost_per_results", "spend", "reach", "impressions", "clicks", "cpc", "inline_link_clicks", "actions:omni_purchase", "actions:onsite_conversion.messaging_conversation_started_7d"];
 const ADS_SIMPLES = ["results", "cost_per_results", "spend", "reach", "impressions", "clicks", "cpc"];
 
+// nome do resultado de cada campanha (a Meta manda em ingles no titulo da celula): [singular, plural]
+const NOMES_RESULTADO = [
+    [/purchase|compra/i, ["compra", "compras"]],
+    [/messag|conversation|conversa/i, ["conversa", "conversas"]],
+    [/profile.?visit|visita/i, ["visita ao perfil", "visitas ao perfil"]],
+    [/landing.?page/i, ["visita ao site", "visitas ao site"]],
+    [/link.?click|clique/i, ["clique no link", "cliques no link"]],
+    [/lead|cadastro/i, ["cadastro", "cadastros"]],
+    [/thruplay|video|v[ií]deo/i, ["visualização do vídeo", "visualizações do vídeo"]],
+    [/follow|like|seguidor/i, ["novo seguidor", "novos seguidores"]],
+    [/engagement|engajamento/i, ["engajamento", "engajamentos"]],
+    [/impression/i, ["impressão", "impressões"]],
+    [/reach|alcance/i, ["pessoa alcançada", "pessoas alcançadas"]]
+];
+function nomeDoResultado(cell) {
+    const t = String((cell && typeof cell === "object" && !Array.isArray(cell) && (cell.title || cell.label)) || "");
+    if (!t) return null;
+    const achado = NOMES_RESULTADO.find(function (n) { return n[0].test(t); });
+    return achado ? achado[1] : null;
+}
+
 function montarAnuncios(linhas) {
     const lista = linhas.map(function (l) {
         const m = l.m, nome = textoDe(l.dim) || "Anuncio";
         return {
             id: idDe(l.dim) || nome, nome: nome.slice(0, 160), miniatura: imagemDe(l.dim), link: linkDe(l.dim),
-            gasto: numero(m.spend), resultados_brutos: numero(m.results), alcance: numero(m.reach), impressoes: numero(m.impressions),
+            gasto: numero(m.spend), resultados_brutos: numero(m.results), res_nome: nomeDoResultado(m.results), alcance: numero(m.reach), impressoes: numero(m.impressions),
             cliques: numero(m.inline_link_clicks) || numero(m.clicks), cpc: numero(m.cpc) || null, ctr_bruto: numero(m.ctr), frequencia: numero(m.frequency) || null,
             compras: numero(m["actions:omni_purchase"]) || numero(m["actions:purchase"]), conversas: numero(m["actions:onsite_conversion.messaging_conversation_started_7d"]),
             receita: numero(m["action_values:omni_purchase"]), v3: numero(m["actions:video_view"]), thru: numero(m.video_thruplay_watched_actions)
@@ -276,10 +297,19 @@ function montarAnuncios(linhas) {
         a.gasto = arred(a.gasto, 2);
         delete a.ctr_bruto; delete a.v3; delete a.thru; delete a.resultados_brutos;
     });
+    lista.forEach(function (a) { if (tipo !== "resultados" || !a.res_nome) delete a.res_nome; });
     lista.sort(function (a, b) { return (b.resultados - a.resultados) || (b.gasto - a.gasto); });
+    // campanhas com objetivos diferentes (alcance, visitas, cliques) nao se somam num numero so
+    let resNome = null, misto = false;
+    if (tipo === "resultados") {
+        const nomes = {};
+        lista.forEach(function (a) { if (a.resultados > 0) nomes[a.res_nome ? a.res_nome[1] : "resultados"] = a.res_nome || null; });
+        const ks = Object.keys(nomes);
+        if (ks.length === 1) resNome = nomes[ks[0]]; else if (ks.length > 1) misto = true;
+    }
     return {
         tipo_resultado: tipo,
-        totais: { gasto: arred(tot.gasto, 2), resultados: totalRes, custo_medio: totalRes > 0 ? arred(tot.gasto / totalRes, 2) : null, compras: tot.compras, conversas: tot.conversas, receita: arred(tot.receita, 2), roas: tot.gasto && tot.receita ? arred(tot.receita / tot.gasto, 2) : null, alcance: tot.alcance, cliques: tot.cliques },
+        totais: { gasto: arred(tot.gasto, 2), resultados: totalRes, res_nome: resNome, misto: misto, custo_medio: totalRes > 0 ? arred(tot.gasto / totalRes, 2) : null, compras: tot.compras, conversas: tot.conversas, receita: arred(tot.receita, 2), roas: tot.gasto && tot.receita ? arred(tot.receita / tot.gasto, 2) : null, alcance: tot.alcance, cliques: tot.cliques },
         medias: { taxa_gancho: arred(med.gancho * 100, 1), retencao: arred(med.retencao * 100, 1), ctr: arred(med.ctr * 100, 2) },
         anuncios: lista.slice(0, 40)
     };

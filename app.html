@@ -303,7 +303,7 @@ function dadosLoja(cm){
 // anuncios do periodo; sem o periodo exato (dossie antigo), usa os 90 dias e avisa
 function adsDoPeriodo(dl,per){if(!dl||!dl.ads)return null;var a=dl.ads["p"+per];if(a&&(a.anuncios||[]).length)return {dados:a,per:per};var alt=dl.ads.p90||dl.ads.p30||dl.ads.p7;return alt?{dados:alt,per:dl.ads.p90?90:dl.ads.p30?30:7}:null;}
 function postsDoPeriodo(dl,per){var desde=Date.now()-per*864e5;return ((dl&&dl.posts)||[]).filter(function(p){return p.data&&new Date(p.data).getTime()>=desde;});}
-function rotRes(tipo,n){var um=n===1;if(tipo==="vendas")return um?"compra":"compras";if(tipo==="conversas")return um?"conversa":"conversas";return um?"resultado":"resultados";}
+function rotRes(tipo,n,nome){var um=n===1;if(tipo!=="vendas"&&tipo!=="conversas"&&nome&&nome.length===2)return um?nome[0]:nome[1];if(tipo==="vendas")return um?"compra":"compras";if(tipo==="conversas")return um?"conversa":"conversas";return um?"resultado":"resultados";}
 function quando(iso){if(!iso)return "";var d=new Date(iso),h=d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}),hoje=new Date();var ontem=new Date(Date.now()-864e5);if(d.toDateString()===hoje.toDateString())return "hoje às "+h;if(d.toDateString()===ontem.toDateString())return "ontem às "+h;return "em "+d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" às "+h;}
 function compacto(n){if(n==null)return "-";n=Number(n)||0;if(n>=1e6)return (n/1e6).toFixed(1).replace(".",",")+" mi";if(n>=1e4)return (n/1e3).toFixed(1).replace(".",",")+" mil";return n.toLocaleString("pt-BR");}
 function mediana(v){var a=v.filter(function(x){return isFinite(x)&&x>0;}).sort(function(x,y){return x-y;});if(!a.length)return 0;var m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2;}
@@ -1013,7 +1013,7 @@ function App(){
     var ap=adsDoPeriodo(dl,90),tr=ap&&ap.dados.tipo_resultado;
     var ads=ap?(ap.dados.anuncios||[]).filter(function(a){return a.resultados>0;}).slice(0,3):[];
     var posts=(dl.posts||[]).slice().sort(function(a,b){return (b.indice||0)-(a.indice||0);}).slice(0,3);
-    var itens=ads.map(function(a){return {tipo:"anuncio",x:a,nome:a.nome,info:numBR(a.resultados)+" "+rotRes(tr,a.resultados)};}).concat(posts.map(function(p){return {tipo:"organico",x:p,nome:String(p.legenda||p.tipo||"Post").substring(0,40),info:p.indice?fmtX(p.indice)+" a média":compacto(p.visualizacoes)+" visualizações"};}));
+    var itens=ads.map(function(a){return {tipo:"anuncio",x:a,nome:a.nome,info:numBR(a.resultados)+" "+rotRes(tr,a.resultados,a.res_nome)};}).concat(posts.map(function(p){return {tipo:"organico",x:p,nome:String(p.legenda||p.tipo||"Post").substring(0,40),info:p.indice?fmtX(p.indice)+" a média":compacto(p.visualizacoes)+" visualizações"};}));
     if(!itens.length)return null;
     return ce("div",{className:"sec"},ce("div",{className:"sec-t"},"Partir de um vídeo que deu certo (opcional)"),ce("div",{className:"obj-q"},"O agente cria roteiros novos a partir do que fez este vídeo dar resultado."),
       ce("div",{className:"refs"},itens.map(function(it,i){
@@ -1040,9 +1040,11 @@ function App(){
     if(ads){
       var t=ads.dados.totais||{},tr=ads.dados.tipo_resultado;
       cards.push(ce("button",{key:"ads",className:"kpi",onClick:function(){abrirVideo(null,"anuncios");}},
-        ce("span",{className:"kpi-l"},(tr==="vendas"?"Vendas pelos anúncios":tr==="conversas"?"Conversas pelos anúncios":"Resultado dos anúncios")+(ads.per!==per?" · últimos "+ads.per+" dias":"")),
-        ce("span",{className:"kpi-v"},numBR(t.resultados||0)+" "+rotRes(tr,t.resultados)),
-        ce("span",{className:"kpi-s"},brl(t.gasto)+" investidos"+(t.custo_medio?" · "+brl(t.custo_medio)+" por "+rotRes(tr,1):""))));
+        ce("span",{className:"kpi-l"},(tr==="vendas"?"Vendas pelos anúncios":tr==="conversas"?"Conversas pelos anúncios":t.misto?"Investido nos anúncios":"Resultado dos anúncios")+(ads.per!==per?" · últimos "+ads.per+" dias":"")),
+        t.misto
+          ?ce("span",{className:"kpi-v"},brl(t.gasto))
+          :ce("span",{className:"kpi-v"},numBR(t.resultados||0)+" "+rotRes(tr,t.resultados,t.res_nome)),
+        ce("span",{className:"kpi-s"},t.misto?numBR(t.alcance||0)+" pessoas alcançadas · "+numBR(t.cliques||0)+" cliques":brl(t.gasto)+" investidos"+(t.custo_medio?" · "+brl(t.custo_medio)+" por "+rotRes(tr,1,t.res_nome):""))));
     }
     if(dl&&(dl.posts||[]).length){
       cards.push(ce("button",{key:"org",className:"kpi",onClick:function(){abrirVideo(null,"organico");}},
@@ -1056,7 +1058,7 @@ function App(){
         ce("span",{style:{display:"flex",flexDirection:"column",gap:6,minWidth:0,flex:1}},
           ce("span",{style:{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}},dest.tipo==="ad"?dest.item.nome:(dest.item.legenda||dest.item.tipo)),
           ce("span",{style:{fontSize:13,color:"#C9C7C0"}},dest.tipo==="ad"
-            ?"Anúncio · "+numBR(dest.item.resultados)+" "+rotRes(dest.ads.tipo_resultado,dest.item.resultados)+(dest.item.custo_por_resultado?" · "+brl(dest.item.custo_por_resultado)+" cada":"")
+            ?"Anúncio · "+numBR(dest.item.resultados)+" "+rotRes(dest.ads.tipo_resultado,dest.item.resultados,dest.item.res_nome)+(dest.item.custo_por_resultado?" · "+brl(dest.item.custo_por_resultado)+" cada":"")
             :(dest.item.tipo||"Post")+" · "+compacto(dest.item.visualizacoes)+" visualizações"+(dest.item.indice?" · "+fmtX(dest.item.indice)+" a média":"")),
           ce("span",{style:{fontSize:13.5,fontWeight:600,color:"var(--ac2)",marginTop:"auto"}},"Ver detalhes →"))));
     return ce("div",{className:"content"},ce("div",{className:"pg"},
@@ -1117,9 +1119,9 @@ function App(){
     var a=ap.dados,tr=a.tipo_resultado,t=a.totais||{};
     var ord={resultado:function(x,y){return ((y.resultados||0)-(x.resultados||0))||((y.gasto||0)-(x.gasto||0));},custo:function(x,y){return (x.custo_por_resultado||1e12)-(y.custo_por_resultado||1e12);},gasto:function(x,y){return (y.gasto||0)-(x.gasto||0);}};
     var lista=(a.anuncios||[]).slice().sort(ord[ordemAds]||ord.resultado);
-    var plural=rotRes(tr,2);
+    var plural=rotRes(tr,2,t.res_nome);
     return ce("div",null,
-      ce("div",{className:"mgrid"},[[plural.charAt(0).toUpperCase()+plural.slice(1),numBR(t.resultados||0)],["Investido",brl(t.gasto)],["Por "+rotRes(tr,1),t.custo_medio?brl(t.custo_medio):"-"]].map(function(c){return ce("div",{key:c[0],className:"mcell"},ce("div",{className:"mcell-l"},c[0]),ce("div",{className:"mcell-v"},c[1]));})),
+      ce("div",{className:"mgrid"},(t.misto?[["Investido",brl(t.gasto)],["Alcance",numBR(t.alcance||0)],["Cliques",numBR(t.cliques||0)]]:[[plural.charAt(0).toUpperCase()+plural.slice(1),numBR(t.resultados||0)],["Investido",brl(t.gasto)],["Por "+rotRes(tr,1,t.res_nome),t.custo_medio?brl(t.custo_medio):"-"]]).map(function(c){return ce("div",{key:c[0],className:"mcell"},ce("div",{className:"mcell-l"},c[0]),ce("div",{className:"mcell-v"},c[1]));})),
       ce("div",{className:"chips rolar"},[{id:"resultado",lb:"Mais "+plural},{id:"custo",lb:"Menor custo"},{id:"gasto",lb:"Mais investimento"}].map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
       ce("div",{className:"chips"},chipsPeriodo(),ap.per!==periodo?ce("span",{style:{fontSize:12.5,color:"var(--gold)"}},"Mostrando os últimos "+ap.per+" dias"):null),
       lista.length
@@ -1127,8 +1129,8 @@ function App(){
           ce("span",{className:"thumb",style:{width:58,height:78,borderRadius:8}},img(x.miniatura)),
           ce("span",{style:{flex:1,display:"flex",flexDirection:"column",gap:3,minWidth:0}},
             ce("span",{style:{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},x.nome),
-            ce("span",{style:{fontSize:20,fontWeight:800}},numBR(x.resultados||0)+" "+rotRes(tr,x.resultados)),
-            ce("span",{style:{fontSize:12.5,color:"var(--mu2)"}},brl(x.gasto)+(x.custo_por_resultado?" · "+brl(x.custo_por_resultado)+" por "+rotRes(tr,1):"")+(tr==="vendas"&&x.conversas?" · "+numBR(x.conversas)+" conversas":""))),
+            ce("span",{style:{fontSize:20,fontWeight:800}},numBR(x.resultados||0)+" "+rotRes(tr,x.resultados,x.res_nome)),
+            ce("span",{style:{fontSize:12.5,color:"var(--mu2)"}},brl(x.gasto)+(x.custo_por_resultado?" · "+brl(x.custo_por_resultado)+" por "+rotRes(tr,1,x.res_nome):"")+(tr==="vendas"&&x.conversas?" · "+numBR(x.conversas)+" conversas":""))),
           ico("seta",18,"var(--mu2)"));}))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum anúncio com investimento nesse período.")
     );
@@ -1190,8 +1192,8 @@ function App(){
     return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:560}},topo,
       ce("div",{style:{display:"flex",gap:14,alignItems:"center",marginBottom:14}},ce("div",{className:"thumb",style:{width:72,height:96}},img(v.miniatura)),ce("div",{style:{fontWeight:700,fontSize:17,lineHeight:1.3,minWidth:0}},v.nome)),
       ce("div",{className:"card2",style:{padding:16,display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:10}},
-        ce("div",null,ce("div",{style:{fontSize:13,color:"var(--mu2)"}},"Resultado"),ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:28}},numBR(v.resultados||0)+" "+rotRes(tr,v.resultados))),
-        v.custo_por_resultado?ce("div",{style:{textAlign:"right"}},ce("div",{style:{fontSize:13,color:"var(--mu2)"}},"Por "+rotRes(tr,1)),ce("div",{style:{fontWeight:800,fontSize:20}},brl(v.custo_por_resultado))):null),
+        ce("div",null,ce("div",{style:{fontSize:13,color:"var(--mu2)"}},"Resultado"),ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:28}},numBR(v.resultados||0)+" "+rotRes(tr,v.resultados,v.res_nome))),
+        v.custo_por_resultado?ce("div",{style:{textAlign:"right"}},ce("div",{style:{fontSize:13,color:"var(--mu2)"}},"Por "+rotRes(tr,1,v.res_nome)),ce("div",{style:{fontWeight:800,fontSize:20}},brl(v.custo_por_resultado))):null),
       ce("div",{className:"mgrid"},grade.map(function(c){return ce("div",{key:c[0],className:"mcell"},ce("div",{className:"mcell-l"},c[0]),ce("div",{className:"mcell-v"},c[1]));})),
       barras.length?ce("div",{style:{marginBottom:16}},ce("div",{className:"sec-h"},"Onde o vídeo ganha ou perde"),
         barras.map(function(b){var max=Math.max(b[1],b[2])*1.3||1,bom=b[1]>=b[2];return ce("div",{key:b[0],style:{marginBottom:12}},ce("div",{style:{display:"flex",justifyContent:"space-between",gap:8,fontSize:13.5}},ce("span",null,b[0]),ce("span",{style:{fontWeight:700,color:bom?"var(--ok)":"var(--ac2)"}},String(b[1]).replace(".",",")+"%")),ce("div",{className:"bar"},ce("i",{style:{width:Math.min(100,b[1]/max*100)+"%",background:bom?"var(--ok)":"var(--ac2)"}}),ce("b",{style:{left:Math.min(99,b[2]/max*100)+"%"}})));}),
