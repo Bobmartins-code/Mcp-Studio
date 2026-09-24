@@ -129,6 +129,17 @@ tr:hover td{background:var(--sur2)}
       <div class="stat"><div class="stat-val" id="stat-hoje">-</div><div class="stat-lbl">Projetos hoje</div></div>
     </div>
 
+    <!-- APRENDIZADO DO AGENTE -->
+    <div class="section">
+      <div class="sec-head">
+        <div class="sec-title">🧠 Aprendizado do Agente MCP</div>
+        <button class="refresh-btn" id="btn-aprender" onclick="atualizarAprendizado()" style="color:var(--ac2);border-color:rgba(255,77,0,.35)">Atualizar aprendizado do agente</button>
+      </div>
+      <div style="padding:14px 20px 6px;font-size:13px;color:var(--mu2);line-height:1.55">O agente estuda os roteiros marcados como vendeu, amei ou copiados em todas as lojas e grava apenas <b>padroes por nicho e metodo</b>. Nao guarda nome de loja, cliente, video nem texto de roteiro. Um padrao so e criado quando aparece em pelo menos 3 roteiros de 2 lojas diferentes.</div>
+      <div id="aprendizado-status" style="padding:6px 20px 12px;font-size:12.5px;color:var(--ac2)"></div>
+      <div id="aprendizado-table"></div>
+    </div>
+
     <!-- USUARIOS -->
     <div class="section">
       <div class="sec-head">
@@ -186,6 +197,87 @@ async function initAdmin(){
 }
 
 function logout(){window.location.href="app.html";}
+
+// ===== Aprendizado do Agente MCP (padroes entre lojas, anonimos) =====
+var NICHOS=["moda feminina","moda masculina","moda infantil","moda fitness","lingerie e moda intima","calcados","bolsas e acessorios","joias e bijuterias","beleza e cosmeticos","saude e suplementos","casa e decoracao","alimentos e doces","pet","servicos","cursos e infoprodutos","outros"];
+var MET_LB={fftopo:"Full Funnel Topo",ffmeio:"Full Funnel Meio",fffundo:"Full Funnel Fundo",dsb:"DSB",angulo:"Angulo"};
+function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo;var p=String(s.pilar||"").toLowerCase();if(p.indexOf("dsb")>-1||p.indexOf("desejo")>-1)return "dsb";if(p.indexOf("angulo")>-1||p.indexOf("ângulo")>-1||p.indexOf("diferencial")>-1)return "angulo";if(s.funil==="fundo")return "fffundo";if(s.funil==="meio")return "ffmeio";return "fftopo";}
+function nichoSalvo(p){if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.rodadas||[];for(var i=rs.length-1;i>=0;i--){if(rs[i].direcao&&rs[i].direcao.nicho)return rs[i].direcao.nicho;}return "";}
+function escHtml(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+function statusAprendizado(t){document.getElementById("aprendizado-status").textContent=t;}
+async function chamarIA(prompt,maxTok){
+  var s=await supaClient.auth.getSession();var tk=s.data&&s.data.session&&s.data.session.access_token;
+  var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:maxTok||1500,model:"claude-sonnet-4-6"})});
+  var d=await res.json();
+  if(!res.ok||d.error)throw new Error((d.error&&(d.error.message||d.error))||("Erro "+res.status));
+  var raw=(d.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
+  var st=raw.indexOf("{"),en=raw.lastIndexOf("}");
+  if(st<0||en<0)throw new Error("Resposta da IA sem JSON");
+  return JSON.parse(raw.substring(st,en+1));
+}
+async function carregarAprendizado(){
+  var el=document.getElementById("aprendizado-table");
+  try{
+    var r=await supaClient.from("aprendizado_agente").select("*").order("nicho").order("metodo");
+    if(r.error)throw r.error;
+    var rows=r.data||[];
+    if(!rows.length){el.innerHTML='<div class="empty">Nenhum padrao aprendido ainda. Clique em "Atualizar aprendizado do agente".</div>';return;}
+    var html='<table><thead><tr><th>Nicho</th><th>Metodo</th><th>Padroes aprendidos</th><th>Roteiros</th><th>Lojas</th><th>Atualizado</th></tr></thead><tbody>';
+    rows.forEach(function(p){html+='<tr><td>'+escHtml(p.nicho==="geral"?"Todas as lojas":p.nicho)+'</td><td>'+escHtml(MET_LB[p.metodo]||p.metodo)+'</td><td style="white-space:normal;line-height:1.5;max-width:520px">'+escHtml(p.padroes).split(" | ").join("<br>• ").replace(/^/,"• ")+'</td><td>'+p.amostras+'</td><td>'+p.lojas+'</td><td>'+new Date(p.atualizado_em).toLocaleDateString("pt-BR")+'</td></tr>';});
+    el.innerHTML=html+'</tbody></table>';
+  }catch(e){
+    el.innerHTML='<div class="empty">A tabela do aprendizado ainda nao existe. Rode o arquivo supabase/aprendizado_agente.sql no SQL Editor do Supabase.</div>';
+  }
+}
+async function atualizarAprendizado(){
+  var btn=document.getElementById("btn-aprender");btn.disabled=true;
+  try{
+    if(!allProjetos.length)await loadData();
+    statusAprendizado("Lendo os roteiros com resultado de todas as lojas...");
+    // 1) roteiros com sinal de resultado (vendeu, amei, copiado)
+    var comSinal=[];
+    allProjetos.forEach(function(p,i){
+      var wins=[];
+      (p.rodadas||[]).forEach(function(r){((r.resultado&&r.resultado.roteiros)||[]).forEach(function(s){var pts=(s.vendeu?5:0)+(s.liked?2:0)+Math.min(Number(s.copiado)||0,3);if(pts>0&&s.gancho)wins.push({s:s,pts:pts});});});
+      if(wins.length)comSinal.push({k:"p"+i,p:p,wins:wins,nicho:nichoSalvo(p)});
+    });
+    if(!comSinal.length){statusAprendizado("Ainda nao ha roteiros marcados com vendeu, amei ou copiados.");return;}
+    // 2) identifica o nicho das lojas que ainda nao tem
+    var semNicho=comSinal.filter(function(x){return !x.nicho;});
+    for(var c=0;c<semNicho.length;c+=40){
+      statusAprendizado("Identificando o nicho das lojas ("+Math.min(c+40,semNicho.length)+" de "+semNicho.length+")...");
+      var lote=semNicho.slice(c,c+40);
+      var lista=lote.map(function(x){var f=x.p.form||{};return x.k+": "+String((f.produto||x.p.nome||"")+" "+(f.descricao||"")).substring(0,180);}).join("\n");
+      var o=await chamarIA("Classifique cada loja abaixo em exatamente um destes nichos: "+NICHOS.join(", ")+". Responda APENAS com JSON valido sem markdown, no formato {\"p0\":\"moda feminina\"}. LOJAS:\n"+lista,1500);
+      lote.forEach(function(x){var n=String(o[x.k]||"").toLowerCase().trim();x.nicho=NICHOS.indexOf(n)>-1?n:"outros";});
+    }
+    // 3) agrupa por nicho + metodo (e "geral" + metodo)
+    var grupos={};
+    function add(nicho,metodo,x,w){var ch=nicho+"|"+metodo;var g=grupos[ch]||(grupos[ch]={nicho:nicho,metodo:metodo,itens:[],lojas:{}});g.itens.push(w);g.lojas[x.p.user_id||x.k]=1;}
+    comSinal.forEach(function(x){x.wins.forEach(function(w){var m=metodoDoRoteiro(w.s);add(x.nicho,m,x,w);add("geral",m,x,w);});});
+    // protecao: so vira padrao o que aparece em 3+ roteiros de 2+ lojas diferentes
+    var validos=Object.keys(grupos).map(function(k){return grupos[k];}).filter(function(g){return g.itens.length>=3&&Object.keys(g.lojas).length>=2;});
+    if(!validos.length){statusAprendizado("Ainda nao ha dados suficientes. Cada padrao precisa de 3 roteiros com resultado vindos de pelo menos 2 lojas diferentes.");return;}
+    // 4) o agente extrai os padroes de cada grupo (sem copiar nada de nenhuma loja)
+    for(var i=0;i<validos.length;i++){
+      var g=validos[i],nLojas=Object.keys(g.lojas).length;
+      statusAprendizado("Estudando "+(g.nicho==="geral"?"todas as lojas":g.nicho)+" / "+(MET_LB[g.metodo]||g.metodo)+" ("+(i+1)+" de "+validos.length+")...");
+      var itens=g.itens.sort(function(a,b){return b.pts-a.pts;}).slice(0,25);
+      var txt=itens.map(function(w,j){return (j+1)+") ["+(w.s.vendeu?"VENDEU":"APROVADO")+"] gancho: "+w.s.gancho+" | corpo: "+(w.s.corpo||"")+" | cta: "+(w.s.cta||"");}).join("\n");
+      var prompt="Voce esta estudando roteiros de Reels que deram resultado em "+nLojas+" lojas diferentes"+(g.nicho==="geral"?"":" do nicho "+g.nicho)+", todos do metodo "+(MET_LB[g.metodo]||g.metodo)+". Extraia de 3 a 6 PADROES abstratos e reutilizaveis que explicam por que funcionaram: tipo de gancho, estrutura do corpo, tipo de prova ou argumento, estilo do CTA e tom. Roteiros marcados VENDEU pesam mais. REGRAS DE PRIVACIDADE OBRIGATORIAS: nunca cite marca, nome de loja, nome de produto, preco, cidade ou nome de pessoa, e nunca copie frases dos roteiros; descreva cada padrao de forma geral, aplicavel a qualquer loja do nicho. Cada padrao em 1 frase curta. Responda APENAS com JSON valido sem markdown: {\"padroes\":[\"...\"]}. NUNCA use aspas duplas dentro dos textos. ROTEIROS:\n"+txt;
+      var res=await chamarIA(prompt,1200);
+      var pads=(res.padroes||[]).map(function(t){return String(t).replace(/\s*\|\s*/g,", ").trim();}).filter(Boolean).slice(0,6);
+      if(!pads.length)continue;
+      var up=await supaClient.from("aprendizado_agente").upsert({chave:g.nicho+"|"+g.metodo,nicho:g.nicho,metodo:g.metodo,padroes:pads.join(" | "),amostras:g.itens.length,lojas:nLojas,atualizado_em:new Date().toISOString()},{onConflict:"chave"});
+      if(up.error)throw up.error;
+    }
+    statusAprendizado("Pronto! "+validos.length+" padroes atualizados. Os proximos roteiros de todas as clientes ja usam esse aprendizado.");
+    carregarAprendizado();
+  }catch(e){
+    var msg=(e&&e.message)||String(e);
+    statusAprendizado(msg.indexOf("aprendizado_agente")>-1||msg.indexOf("does not exist")>-1?"A tabela do aprendizado ainda nao existe. Rode o arquivo supabase/aprendizado_agente.sql no SQL Editor do Supabase.":"Erro: "+msg);
+  }finally{btn.disabled=false;}
+}
 
 async function apagarUsuario(uid){
   var u=allUsers.find(function(x){return x.id===uid;});
@@ -260,6 +352,7 @@ async function loadData(){
     atualizarStats();
     renderUsuarios();
     renderProjetos();
+    carregarAprendizado();
     document.getElementById("last-update").textContent="Ultima atualizacao: "+new Date().toLocaleString("pt-BR");
   }catch(e){
     document.getElementById("last-update").textContent="Erro: "+e.message;

@@ -200,7 +200,12 @@ function limparTexto(t){return typeof t==="string"?t.replace(/,?[ \t]*[\u2014\u2
 function limparRoteiro(s){["titulo","gancho","corpo","cta"].forEach(function(k){if(s[k])s[k]=limparTexto(s[k]);});return s;}
 // Memoria do Agente: pontua cada roteiro de todos os projetos pelos sinais da cliente
 // (vendeu vale mais, depois amei e copiei) e junta os ajustes que ela costuma pedir e o que ela descartou.
-function memoriaAgente(projects,perfil,metodo){
+// Nichos usados pelo aprendizado entre lojas (mesma lista do painel admin)
+var NICHOS=["moda feminina","moda masculina","moda infantil","moda fitness","lingerie e moda intima","calcados","bolsas e acessorios","joias e bijuterias","beleza e cosmeticos","saude e suplementos","casa e decoracao","alimentos e doces","pet","servicos","cursos e infoprodutos","outros"];
+function nichoDoProjeto(p){if(!p)return "";if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.rodadas||[];for(var i=rs.length-1;i>=0;i--){if(rs[i].direcao&&rs[i].direcao.nicho)return rs[i].direcao.nicho;}return "";}
+// Padroes aprendidos com varias lojas (anonimos, so padroes) para o nicho e metodo
+function padroesDoNicho(padroes,nicho,metodo){var out=[];(padroes||[]).forEach(function(p){if(p.metodo===metodo&&(p.nicho===nicho||p.nicho==="geral"))out.push(p);});out.sort(function(a,b){return (a.nicho==="geral")-(b.nicho==="geral");});return out;}
+function memoriaAgente(projects,perfil,metodo,padroes,nicho){
   var total=0,cands=[],vistos={};
   (projects||[]).forEach(function(p){todosRoteiros(p).forEach(function(s){
     total++;
@@ -216,7 +221,9 @@ function memoriaAgente(projects,perfil,metodo){
   if(top.length)partes.push("ROTEIROS QUE DERAM RESULTADO PARA ESTA CONTA (replique o padrao de gancho, estrutura e CTA, sem copiar o texto): "+top.map(function(c){var s=c.s;return "["+(s.vendeu?"VENDEU":"APROVADO")+(s.pilar?" | "+s.pilar:"")+" | gancho: "+String(s.gancho||"").substring(0,110)+" | cta: "+String(s.cta||"").substring(0,70)+"]";}).join(" "));
   if(ajustes.length)partes.push("AJUSTES QUE ESTA CLIENTE COSTUMA PEDIR (ja entregue assim de primeira): "+ajustes.join(" | "));
   if(descartados.length)partes.push("GANCHOS QUE ESTA CLIENTE DESCARTOU (evite esse estilo): "+descartados.map(function(g){return String(g).substring(0,80);}).join(" | "));
-  return {total:total,sinais:cands.length,texto:partes.length?" MEMORIA DO AGENTE (aprendido com "+total+" roteiros de todos os projetos desta conta): "+partes.join(" ")+".":""};
+  var pn=padroesDoNicho(padroes,nicho,metodo);
+  if(pn.length)partes.push("PADROES QUE ESTAO DANDO RESULTADO "+pn.map(function(p){return (p.nicho==="geral"?"EM TODAS AS LOJAS":"NO NICHO "+p.nicho.toUpperCase())+" (aprendido com "+p.amostras+" roteiros de varias lojas; use como direcao de abordagem e estrutura, nunca como texto pronto): "+p.padroes;}).join(" ; "));
+  return {total:total,sinais:cands.length,nicho:pn.length?nicho:"",texto:partes.length?" MEMORIA DO AGENTE (aprendido com "+total+" roteiros de todos os projetos desta conta): "+partes.join(" ")+".":""};
 }
 var TONS=[
   {id:"direto",lb:"Direto e objetivo",ds:"Vai ao ponto, sem enrolacao, foco no beneficio"},
@@ -285,7 +292,7 @@ var DIR_CAMPOS=[
 async function gerarDirecao(ff,metodo,imgs,memoria){
   var met=metodoInfo(metodo);
   var DEST={mensagens:"chamar no WhatsApp ou no direct",seguidores:"seguir o perfil no Instagram",site:"acessar o link ou o site para comprar"};
-  var txt="Voce e diretor de criacao de Meta Ads para lojas brasileiras. Antes de escrever roteiros de Reels, monte a DIRECAO do conteudo. NEGOCIO: produto: "+(ff.produto||"-")+" | publico: "+(ff.descricao||"inferir")+" | diferenciais: "+(ff.diferenciais||"-")+" | caracteristicas: "+(ff.caracteristicas||"-")+" | ticket medio: "+(ff.preco||"-")+" | destino do anuncio: "+(DEST[ff.objetivo]||DEST.site)+". METODO ESCOLHIDO: "+met.lb+" ("+met.sub+"): "+met.ds+(memoria||"")+" Responda APENAS com JSON valido sem markdown: {\"objetivo\":\"o que estes roteiros precisam fazer a pessoa pensar ou sentir, 1 frase\",\"publico\":\"quem exatamente e a pessoa nesta etapa do funil, com o momento de vida e a dor ou desejo dela, 1 frase\",\"mensagem\":\"a ideia central que todos os roteiros vao passar, 1 frase especifica deste negocio\",\"chamada\":\"a chamada final, curta, na linguagem do publico e coerente com o destino\"}. Frases curtas, linguagem simples, especificas deste negocio. NUNCA use aspas duplas dentro dos textos.";
+  var txt="Voce e diretor de criacao de Meta Ads para lojas brasileiras. Antes de escrever roteiros de Reels, monte a DIRECAO do conteudo. NEGOCIO: produto: "+(ff.produto||"-")+" | publico: "+(ff.descricao||"inferir")+" | diferenciais: "+(ff.diferenciais||"-")+" | caracteristicas: "+(ff.caracteristicas||"-")+" | ticket medio: "+(ff.preco||"-")+" | destino do anuncio: "+(DEST[ff.objetivo]||DEST.site)+". METODO ESCOLHIDO: "+met.lb+" ("+met.sub+"): "+met.ds+(memoria||"")+" Responda APENAS com JSON valido sem markdown: {\"objetivo\":\"o que estes roteiros precisam fazer a pessoa pensar ou sentir, 1 frase\",\"publico\":\"quem exatamente e a pessoa nesta etapa do funil, com o momento de vida e a dor ou desejo dela, 1 frase\",\"mensagem\":\"a ideia central que todos os roteiros vao passar, 1 frase especifica deste negocio\",\"chamada\":\"a chamada final, curta, na linguagem do publico e coerente com o destino\",\"nicho\":\"exatamente um destes: "+NICHOS.join(", ")+"\"}. Frases curtas, linguagem simples, especificas deste negocio. NUNCA use aspas duplas dentro dos textos.";
   var content=(imgs&&imgs.length)?imgs.concat([{type:"text",text:"As imagens acima sao do produto. "+txt}]):txt;
   try{
     var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:[{role:"user",content:content}],max_tokens:700,model:"claude-sonnet-4-6"})});
@@ -296,7 +303,7 @@ async function gerarDirecao(ff,metodo,imgs,memoria){
     if(s<0||e<0)return null;
     var o=JSON.parse(raw.substring(s,e+1));
     if(!o.objetivo&&!o.mensagem)return null;
-    return {objetivo:o.objetivo||"",publico:o.publico||"",mensagem:o.mensagem||"",chamada:o.chamada||""};
+    var ni=String(o.nicho||"").toLowerCase().trim();return {objetivo:o.objetivo||"",publico:o.publico||"",mensagem:o.mensagem||"",chamada:o.chamada||"",nicho:NICHOS.indexOf(ni)>-1?ni:(ff.nicho||"outros")};
   }catch(err){return null;}
 }
 
@@ -394,6 +401,7 @@ function App(){
   var sMet=useState("fftopo"),metodoSel=sMet[0],setMetodoSel=sMet[1];
   var sDir=useState(null),direcao=sDir[0],setDirecao=sDir[1];
   var dirTok=useRef(0);
+  var sPg=useState([]),padroesGlobais=sPg[0],setPadroesGlobais=sPg[1];
   var s17=useState({produto:"",descricao:"",objetivo:"",diferenciais:"",preco:"",url:"",tons:[]}),form=s17[0],setForm=s17[1];
   var stepRef=useRef(null),fileRef=useRef(null);
   var userEmail=(currentUser&&currentUser.email)||"Usuario";
@@ -404,7 +412,7 @@ function App(){
     setGenStep(0);
   },[generating]);
 
-  useEffect(function(){carregarProjetos();carregarPerfil();},[]);
+  useEffect(function(){carregarProjetos();carregarPerfil();carregarPadroes();},[]);
   useEffect(function(){
     if(view==="briefing"&&perfil&&!form.produto&&!form.descricao&&!form.diferenciais){setForm(function(f){return Object.assign({},f,{descricao:perfil.descricao||f.descricao,diferenciais:perfil.diferenciais||f.diferenciais,caracteristicas:perfil.caracteristicas||f.caracteristicas,preco:perfil.preco||f.preco,exemploConteudo:perfil.exemploConteudo||f.exemploConteudo});});}
   },[view,perfil]);
@@ -428,6 +436,7 @@ function App(){
     }catch(e){console.log("Erro ao carregar projetos",e);}
   }
 
+  async function carregarPadroes(){try{var r=await supaClient.from("aprendizado_agente").select("nicho,metodo,padroes,amostras");if(r&&!r.error&&Array.isArray(r.data))setPadroesGlobais(r.data);}catch(e){}}
   async function carregarPerfil(){try{var r=await supaClient.from("perfil_publico").select("dados").eq("user_id",currentUser.id).maybeSingle();if(r&&r.data&&r.data.dados)setPerfil(r.data.dados);}catch(e){}}
   async function salvarPerfil(dados){try{var r=await supaClient.from("perfil_publico").upsert({user_id:currentUser.id,dados:dados,atualizado_em:new Date().toISOString()},{onConflict:"user_id"}).select();if(r&&r.error)throw r.error;setPerfil(dados);showToast("Publico salvo! Os proximos projetos ja vem preenchidos.");}catch(e){showToast("Nao foi possivel salvar. Confirme se a tabela foi criada no Supabase.","err");}}
 
@@ -469,11 +478,12 @@ function App(){
     }catch(e){if(tok===dirTok.current){setDirecao(null);showToast("Erro ao preparar: "+(e&&e.message||""),"err");}}
   }
   async function montarDirecao(base,tok){
-    var mem=memoriaAgente(projects,perfil,base.metodo);
+    var mem=memoriaAgente(projects,perfil,base.metodo,padroesGlobais,(base.ff&&base.ff.nicho)||"");
     base=Object.assign({},base,{mem:{total:mem.total,sinais:mem.sinais}});
     setDirecao(Object.assign({},base,{loading:true,campos:null}));
     var c=await gerarDirecao(base.ff,base.metodo,base.imgs,mem.texto);
     if(tok!==dirTok.current)return;
+    if(c&&c.nicho&&padroesDoNicho(padroesGlobais,c.nicho,base.metodo).some(function(p){return p.nicho===c.nicho;}))base=Object.assign({},base,{mem:Object.assign({},base.mem,{nicho:c.nicho})});
     setDirecao(Object.assign({},base,{loading:false,campos:c||{objetivo:"",publico:"",mensagem:"",chamada:""},falhou:!c}));
   }
   function pedirDirecao(metodo){
@@ -496,9 +506,9 @@ function App(){
       var messages;
       if(dir.imgs&&dir.imgs.length){
         var txtExtra=ff.produto?" Informacoes adicionais: "+ff.produto:"";
-        messages=[{role:"user",content:dir.imgs.concat([{type:"text",text:"Analise as imagens do produto."+txtExtra+" Destino: "+ff.objetivo+". "+buildP(Object.assign({},ff,{produto:"[Produto nas imagens]"+txtExtra}),rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo).texto)}])}];
+        messages=[{role:"user",content:dir.imgs.concat([{type:"text",text:"Analise as imagens do produto."+txtExtra+" Destino: "+ff.objetivo+". "+buildP(Object.assign({},ff,{produto:"[Produto nas imagens]"+txtExtra}),rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo,padroesGlobais,(campos&&campos.nicho)||"").texto)}])}];
       }else{
-        messages=[{role:"user",content:buildP(ff,rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo).texto)}];
+        messages=[{role:"user",content:buildP(ff,rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo,padroesGlobais,(campos&&campos.nicho)||"").texto)}];
       }
       // Analise + geracao numa unica chamada (Opus faz a analise profunda internamente)
       if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
@@ -524,7 +534,7 @@ function App(){
       var nr={numero:rodada,metodo:metodo,direcao:campos,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
       var proj;
       var nomeProjeto=(ff.produto||ff.url||"Novo projeto").substring(0,40);
-      var insertResult=await supaClient.from("projetos").insert({nome:nomeProjeto,objetivo:form.objetivo,form:ff,rodadas:[nr],user_id:currentUser.id}).select().single();
+      var insertResult=await supaClient.from("projetos").insert({nome:nomeProjeto,objetivo:form.objetivo,form:(ff=Object.assign({},ff,campos&&campos.nicho?{nicho:campos.nicho}:{})),rodadas:[nr],user_id:currentUser.id}).select().single();
       if(insertResult.error){throw new Error("Erro ao salvar projeto: "+insertResult.error.message);}
       proj={id:insertResult.data.id,name:nomeProjeto,objetivo:form.objetivo,date:new Date().toLocaleDateString("pt-BR"),form:ff,rodadas:[nr]};
       setProjects(function(prev){return [proj].concat(prev);});
@@ -575,7 +585,7 @@ function App(){
       var hist=activeProject.rodadas||[];
       var rodada=hist.length+1;
       if(rodada>MAX_RODADAS){showToast("Limite de "+MAX_RODADAS+" geracoes por projeto atingido.","err");setLiveText("");setGenerating(false);return;}
-      var messages=[{role:"user",content:buildP(ff,rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo).texto)}];
+      var messages=[{role:"user",content:buildP(ff,rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo,padroesGlobais,(campos&&campos.nicho)||nichoDoProjeto(activeProject)).texto)}];
       // Analise + geracao numa unica chamada (Opus faz a analise profunda internamente)
       if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
       setGenStep(1);setLiveText("");
@@ -718,7 +728,7 @@ function App(){
     try{
       var f=activeProject.form||{};
       var _m=metodoInfo(metodoDoRoteiro(s));var prompt="Escreva UM novo roteiro para Reels seguindo o METODO "+_m.lb+" (codigo "+_m.id+") da sua base de metodos, pilar "+(s.pilar||"")+" (funil "+(s.funil||"")+"), para este negocio. Produto: "+(f.produto||"")+". Publico: "+(f.descricao||"")+". Diferenciais: "+(f.diferenciais||"")+". Crie algo DIFERENTE do roteiro atual (gancho atual: "+s.gancho+"). Gancho hiper-especifico nos 3 primeiros segundos, linguagem de pessoa real sem cara de IA e sem traco longo, corpo com argumento concreto e CTA conectado a dor. Responda APENAS com JSON sem markdown: {titulo:texto, gancho:texto, corpo:texto, cta:texto}. Sem aspas duplas dentro dos textos.";
-      prompt+=memoriaAgente(projects,perfil,metodoDoRoteiro(s)).texto;
+      prompt+=memoriaAgente(projects,perfil,metodoDoRoteiro(s),padroesGlobais,nichoDoProjeto(activeProject)).texto;
       var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:1000,model:"claude-sonnet-4-6"})});
       var data=await res.json();
       if(data.error)throw new Error(data.error.message||data.error);
@@ -895,7 +905,7 @@ function App(){
         :ce("div",null,
           ce("div",{style:{display:"inline-block",fontSize:11.5,fontWeight:600,color:"var(--ac2)",background:"rgba(255,77,0,.1)",border:"1px solid rgba(255,77,0,.25)",borderRadius:20,padding:"3px 11px",marginBottom:12}},metodoInfo(direcao.metodo).ic+" "+metodoInfo(direcao.metodo).lb),
           ce("div",{className:"ov-h",style:{marginBottom:6}},"Direcao do conteudo"),
-          direcao.mem&&ce("div",{style:{fontSize:12,color:"var(--ok)",marginBottom:8}},"🧠 Agente MCP: "+(direcao.mem.sinais>0?"usando o que aprendeu com "+direcao.mem.total+" roteiros dos seus projetos ("+direcao.mem.sinais+" com sinal de resultado)":"ainda aprendendo. Marque 💰 nos roteiros que venderam e ❤️ nos que voce gostou para ele melhorar")),
+          direcao.mem&&ce("div",{style:{fontSize:12,color:"var(--ok)",marginBottom:8}},"🧠 Agente MCP: "+(direcao.mem.sinais>0?"usando o que aprendeu com "+direcao.mem.total+" roteiros dos seus projetos ("+direcao.mem.sinais+" com sinal de resultado)":"ainda aprendendo. Marque 💰 nos roteiros que venderam e ❤️ nos que voce gostou para ele melhorar")+(direcao.mem.nicho?" + padroes que estao dando certo no nicho "+direcao.mem.nicho:"")),
           ce("div",{className:"ov-p",style:{marginBottom:18}},direcao.falhou?"Nao consegui montar a direcao automaticamente. Preencha o que quiser ou gere assim mesmo.":"Os "+POR_RODADA+" roteiros vao seguir esta direcao. Ajuste o que quiser antes de gerar."),
           DIR_CAMPOS.map(function(f){return ce("div",{key:f.k,style:{marginBottom:12}},ce("div",{style:{fontSize:10.5,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"var(--mu)",marginBottom:5}},f.lb),ce("textarea",{className:"edit-ta",style:{minHeight:54},placeholder:f.ph,value:(direcao.campos&&direcao.campos[f.k])||"",onChange:function(e){editarCampoDirecao(f.k,e.target.value);}}));}),
           ce("button",{className:"gbtn",onClick:confirmarDirecao},"Gerar "+POR_RODADA+" roteiros com esta direcao"),
