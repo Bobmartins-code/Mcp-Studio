@@ -184,16 +184,20 @@ var OBJS=[
 // Metodos de roteiro: a pessoa escolhe 1 por vez e cada clique gera 3 roteiros
 var POR_RODADA=3,MAX_RODADAS=5;
 var METODOS=[
+  {id:"fftopo",ic:"🧲",lb:"Full Funnel Topo",sub:"Consciencia",ds:"Para quem ainda nao conhece a loja: comeca numa situacao do dia a dia, desperta a dor e so depois apresenta a solucao.",
+    regra:"METODO FULL FUNNEL TOPO - CONSCIENCIA (funil topo): gere 3 roteiros para quem ainda nao conhece a loja e nem percebeu que tem o problema. Cada roteiro comeca por uma situacao DIFERENTE do dia a dia que faz a pessoa pensar isso sou eu, desperta a dor e so depois conecta a solucao de leve. Os 3 ganchos devem partir de situacoes bem distintas entre si. Tom provocador e proximo. Todos com pilar=Topo - Consciencia e funil=topo."},
+  {id:"ffmeio",ic:"💡",lb:"Full Funnel Meio",sub:"Conceito Criativo",ds:"Para quem ja esta pensando: mostra o produto de um jeito criativo (comparacao, antes e depois, look completo, estilo de vida).",
+    regra:"METODO FULL FUNNEL MEIO - CONCEITO CRIATIVO (funil meio): gere 3 roteiros para quem ja sente o problema e esta avaliando opcoes. Cada roteiro usa uma forma criativa DIFERENTE de mostrar o produto (comparacao, antes e depois, descoberta, uso ou look completo, estilo de vida, bastidor); o produto aparece de um jeito inesperado e fica claro por que ele e a melhor escolha. Todos com pilar=Meio - Conceito Criativo e funil=meio."},
+  {id:"fffundo",ic:"✅",lb:"Full Funnel Fundo",sub:"Decisao e Prova",ds:"Para quem ja quer comprar mas trava: derruba a duvida principal com garantia, calculo ou detalhe do produto.",
+    regra:"METODO FULL FUNNEL FUNDO - DECISAO E PROVA (funil fundo): gere 3 roteiros para quem ja quer comprar mas trava. Cada roteiro responde a uma OBJECAO DIFERENTE (ex: preco, tamanho ou caimento, qualidade, prazo de entrega, troca) com prova (garantia, troca, calculo de custo por uso, detalhe concreto do produto), remove o risco e empurra para a acao com urgencia honesta; tom direto e confiante. PROIBIDO inventar depoimento, nome de cliente, numero de vendas ou avaliacao: so use prova social se ela estiver escrita no contexto do negocio acima; se nao houver, use garantia, calculo ou detalhe do produto. Todos com pilar=Fundo - Decisao e Prova e funil=fundo."},
   {id:"dsb",ic:"💫",lb:"DSB",sub:"Desejo, Solucao, Beneficio",ds:"Parte do desejo da cliente, apresenta o produto como solucao e fecha no beneficio sentido na pratica.",
     regra:"METODO DSB-DESEJO SOLUCAO BENEFICIO (funil meio): gere 3 roteiros DSB, cada um partindo de um DESEJO profundo DIFERENTE da cliente (ex: se sentir bonita, praticidade na rotina, ser elogiada, economizar). Estrutura: o gancho toca no desejo, o corpo apresenta o produto como a solucao com um detalhe concreto, o CTA fecha no beneficio sentido na pratica (no corpo, na rotina, na autoestima). Tom aspiracional mas concreto. Todos com pilar=DSB e funil=meio."},
-  {id:"fullfunnel",ic:"🔻",lb:"Full Funnel",sub:"Topo, Meio e Fundo",ds:"Um roteiro para cada etapa do funil: quem ainda nao conhece, quem esta pensando e quem ja quer comprar.",
-    regra:"METODO FULL FUNNEL: gere 3 roteiros, 1 para cada etapa do funil, nesta ordem. 1) CONSCIENCIA (funil topo): o publico ainda nem percebeu que tem o problema; comeca por uma situacao do dia a dia que faz a pessoa pensar isso sou eu, desperta a dor e so depois conecta a solucao de leve; tom provocador; pilar=Consciencia, funil=topo. 2) CONCEITO CRIATIVO (funil meio): uma forma criativa de mostrar o produto (comparacao, antes e depois, descoberta, uso ou look completo, estilo de vida); o produto aparece de um jeito inesperado; pilar=Conceito Criativo, funil=meio. 3) DECISAO E PROVA (funil fundo): para quem ja quer comprar mas trava; responde a OBJECAO PRINCIPAL com prova (garantia, troca, calculo de custo por uso, dado do produto), remove o risco e empurra para a acao com urgencia honesta; tom direto e confiante; pilar=Decisao e Prova, funil=fundo. PROIBIDO inventar depoimento, nome de cliente, numero de vendas ou avaliacao: so use prova social se ela estiver escrita no contexto do negocio acima; se nao houver, use garantia, calculo ou detalhe do produto."},
   {id:"angulo",ic:"🎯",lb:"Angulo",sub:"Diferencial concreto",ds:"Cada roteiro foca em um detalhe real do produto (material, caimento, acabamento) e mostra por que ele faz diferenca.",
     regra:"METODO ANGULO-DIFERENCIAL CONCRETO (funil meio): gere 3 roteiros, cada um focado em UM diferencial fisico ou tecnico real e DIFERENTE do produto (material, modelagem, caimento, ingrediente, funcionalidade, acabamento) e mostrando como esse detalhe muda a experiencia; o gancho aponta o detalhe especifico. Os 3 diferenciais devem ser distintos entre si. Todos com pilar=Angulo e funil=meio."}
 ];
-function metodoInfo(id){return METODOS.find(function(m){return m.id===id;})||METODOS[1];}
+function metodoInfo(id){return METODOS.find(function(m){return m.id===id;})||METODOS[0];}
 // Roteiros antigos (antes das abas) nao tem metodo salvo: deduz pelo pilar
-function metodoDoRoteiro(s){if(s.metodo)return s.metodo;var p=String(s.pilar||"").toLowerCase();if(p.indexOf("dsb")>-1||p.indexOf("desejo")>-1)return "dsb";if(p.indexOf("angulo")>-1||p.indexOf("ângulo")>-1||p.indexOf("diferencial")>-1)return "angulo";return "fullfunnel";}
+function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo;var p=String(s.pilar||"").toLowerCase();if(p.indexOf("dsb")>-1||p.indexOf("desejo")>-1)return "dsb";if(p.indexOf("angulo")>-1||p.indexOf("ângulo")>-1||p.indexOf("diferencial")>-1)return "angulo";if(s.funil==="fundo")return "fffundo";if(s.funil==="meio")return "ffmeio";return "fftopo";}
 function todosRoteiros(p){var all=[];((p&&p.rodadas)||[]).forEach(function(r){((r.resultado&&r.resultado.roteiros)||[]).forEach(function(s){all.push(s);});});return all;}
 function contarRoteiros(p){return todosRoteiros(p).length;}
 var TONS=[
@@ -226,15 +230,16 @@ function previewClean(t){
   if(!t)return "";
   return t.replace(/[{}\[\]]/g," ").replace(/"(personas|inteligencia|roteiros|nome|tipo|emoji|motivacao|dor|objecao|comunicacao|insight|bigIdea|mecanismo|diferencial|dores|desejos|objecoes|gatilhos|id|titulo|pilar|funil|gancho|corpo|cta)"\s*:/g,"").replace(/\\n/g," ").replace(/"/g,"").replace(/,(\s*)/g,"\n").replace(/\n{2,}/g,"\n").replace(/^\s+/,"");
 }
-function buildP(form,rod,hist,vencedores,metodo){
+function buildP(form,rod,hist,vencedores,metodo,direcao){
   var met=metodoInfo(metodo);
+  var dirStr=(direcao&&(direcao.objetivo||direcao.publico||direcao.mensagem||direcao.chamada))?" DIRECAO DO CONTEUDO APROVADA PELO CLIENTE (siga obrigatoriamente em TODOS os roteiros): objetivo do conteudo: "+(direcao.objetivo||"-")+" | publico desta peca: "+(direcao.publico||"-")+" | mensagem principal: "+(direcao.mensagem||"-")+" | chamada (base do CTA de cada roteiro; adapte as palavras ao roteiro mantendo a ideia e o destino): "+(direcao.chamada||"-")+".":"";
   var h=hist.length>0?" USADOS:"+hist.slice(-1).map(function(r){return r.roteiros?r.roteiros.slice(0,2).map(function(s){return s.gancho.substring(0,30);}).join("|"):"";}).join(""):"";
   var tons=(form.tons&&form.tons.length>0)?form.tons.map(function(id){var t=TONS.find(function(x){return x.id===id;});return t?t.lb:id;}).join(","):"variado";var proibidas=form.proibidas?"NUNCA USE:"+form.proibidas+". ":"";var caract=form.caracteristicas?"CARACTERISTICAS:"+form.caracteristicas+". ":"";var exemplo=form.exemploConteudo?"CONTEUDO QUE JA FUNCIONOU PARA ESTE CLIENTE (use como modelo de estrutura, gancho e vocabulario que deram certo; replique o que funciona, sem copiar literalmente):"+form.exemploConteudo+". ":"";
   var ganchos=hist.reduce(function(a,r){return a.concat(((r.resultado&&r.resultado.roteiros)||r.roteiros||[]).map(function(s){return s.gancho.substring(0,50);}));},[]);var gStr=ganchos.length>0?" GANCHOS JA USADOS-NUNCA repita:"+ganchos.join("|")+" ":"";var liked=hist.reduce(function(a,r){return a.concat(((r.resultado&&r.resultado.roteiros)||r.roteiros||[]).filter(function(s){return s.liked;}));},[]);var lStr=liked.length>0?" ESTILO PREFERIDO:"+liked.slice(0,3).map(function(s){return "["+s.gancho.substring(0,40)+"]";}).join("|")+" ":"";var extra=rod>1?" RODADA "+rod+gStr+lStr+"gere roteiros TOTALMENTE DIFERENTES.":"";
   var jaFeitos=hist.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros)||[]).length;},0);var idIni=jaFeitos+1,idFim=jaFeitos+POR_RODADA;
   var venc=(vencedores&&vencedores.length)?" EXEMPLOS QUE JA VENDERAM PARA ESTA CONTA (replique o padrao de gancho e de estrutura que funcionou, sem copiar literalmente): "+vencedores.slice(0,5).map(function(v){return "["+((v.gancho||"").substring(0,90))+" | CTA: "+((v.cta||"").substring(0,60))+"]";}).join(" ")+". ":"";
   var DESTINOS={mensagens:{nome:"o cliente CHAMAR NO WHATSAPP / DIRECT para conversar (venda por conversa)",cta:"o CTA deve convidar a pessoa a mandar mensagem, ex: 'chama no direct que te mando os tamanhos' ou 'me chama no whats'; NUNCA mande clicar em link nem seguir o perfil"},seguidores:{nome:"o cliente SEGUIR O PERFIL no Instagram (construir audiencia)",cta:"o CTA deve convidar a pessoa a seguir o perfil, ex: 'segue aqui que todo dia eu mostro um look novo' ou 'me segue pra nao perder'; NUNCA mande chamar no direct nem clicar em link"},site:{nome:"o cliente ACESSAR A PAGINA DO PRODUTO / SITE / LINK DA BIO para comprar ou ver mais",cta:"o CTA deve direcionar para o link/site, ex: 'clica no link e garante o seu', 'acessa pelo link da bio' ou 'corre que o link ta aqui embaixo'; NUNCA mande chamar no direct nem seguir o perfil"}};var destInfo=DESTINOS[form.objetivo]||DESTINOS.site;
-  return "Voce e o melhor copywriter de Meta Ads do Brasil. Seu trabalho e gerar roteiros para Reels que parecem uma conversa real, nao um anuncio. O cliente vai usar esses roteiros para gravar videos."+" ANTES DE ESCREVER, faca internamente (sem mostrar no resultado) uma analise profunda deste negocio: a dor emocional mais intensa do publico (o sentimento por tras do problema), o momento exato em que a pessoa decide comprar, a objecao principal que trava a venda, a linguagem real e as palavras que esse publico usa no dia a dia, o mecanismo unico do produto (por que ele funciona) e um insight surpreendente que poucos enxergam. Cada GANCHO deve nascer de um desses pontos, o CORPO deve responder a objecao principal com prova ou mecanismo real, e o CTA deve usar a linguagem real do publico."+" CONTEXTO DO NEGOCIO: Produto/Servico: "+form.produto+" | DESTINO / OBJETIVO FINAL deste anuncio (para onde o CTA deve levar a pessoa): "+destInfo.nome+". REGRA OBRIGATORIA DE DESTINO: "+destInfo.cta+". Todos os roteiros devem respeitar ESTE destino no CTA, sem excecao. | Publico e negocio: "+(form.descricao||"inferir")+" | Diferenciais: "+(form.diferenciais||"inferir")+" | Ticket medio: "+(form.preco||"inferir")+" | Tom de voz: "+tons+". "+caract+proibidas+exemplo+venc+extra+" REGRA DE OURO - ESPECIFICIDADE OBRIGATORIA: Cada gancho DEVE mencionar um dado, situacao ou detalhe ESPECIFICO do negocio acima. PROIBIDO gancho que funcione para qualquer outro negocio. Teste: se o gancho funciona para um concorrente qualquer, esta errado. Reescreva ate ser unico para este negocio."+" EXEMPLO DE GANCHO RUIM (generico, proibido): 'Voce sabia que pode mudar sua vida com um produto incrivel?' ou 'Ja pensou em ter resultados melhores?'"+" EXEMPLO DE GANCHO BOM (especifico, obrigatorio): use dados reais como preco, tempo, quantidade, nome do produto, situacao do publico descrito - igual ao estilo: 'Seu closet tem 50 pecas mas voce usa as mesmas 5 todo dia' ou 'Voce gasta 100 reais em 5 pecas que rasgam em 3 meses'"+" REGRAS DO CORPO: deve ter 1 argumento solido - dado, calculo, psicologia ou mecanismo real do produto. Minimo 3 frases densas. Conectar com o gancho. Linguagem coloquial brasileira real."+" REGRAS DO CTA: conectar diretamente com a dor do gancho. Especifico: 'conhece nossa short courino fivela?' e melhor que 'clica no link'. 25-35 palavras por secao."+" "+met.regra+" ESTRUTURA DE CADA ROTEIRO: GANCHO=dor ou desejo hiper-especifico nos 3 primeiros segundos usando a LINGUAGEM REAL do publico; nunca abrir com Voce sabia, Ola, Imagine ou Descubra; tipos de gancho permitidos: pergunta, identificacao com o problema, descoberta, POV, quebra de padrao, percepcao comum. CORPO=1 argumento solido com dado, mecanismo ou prova real, conecta com o gancho, mostra a transformacao, de 2 a 4 frases. CTA=conecta com a dor do gancho mais uma acao especifica e SEMPRE coerente com o DESTINO informado no contexto acima (nunca um CTA de outro destino, nunca generico tipo 'clica no link' solto). Cada roteiro com cerca de 20 a 30 segundos de fala. NATURALIDADE-NAO PODE SOAR GERADO POR IA: escreva como um brasileiro real falando, nao como um texto publicitario; varie o tamanho das frases, use contracoes naturais (pra, ta, to), pode ter uma leve imperfeicao como na fala. PROIBIDO tom corporativo, frases simetricas, listas de tres decorativas, o traco longo (—) entre frases (use virgula, ponto ou frases curtas), hashtags, excesso de emoji e cliches de IA como eleve, descomplique, transforme sua vida, voce merece, imagine so, a verdade e que, vamos combinar. Cada frase tem que soar dita por uma pessoa, nao escrita por um robo."+" NESTA RODADA "+rod+": gere 2 personas e EXATAMENTE "+POR_RODADA+" roteiros seguindo o METODO acima. Numere os roteiros com id sequencial de "+idIni+" a "+idFim+". Nas proximas rodadas, gere roteiros TOTALMENTE DIFERENTES dos anteriores."+" RESPONDA APENAS COM JSON VALIDO SEM MARKDOWN, exatamente neste formato: {\"personas\":[{\"nome\":\"...\",\"tipo\":\"...\",\"emoji\":\"1 emoji\",\"motivacao\":\"...\",\"dor\":\"...\",\"objecao\":\"...\",\"comunicacao\":\"...\"}],\"inteligencia\":{\"insight\":\"...\",\"bigIdea\":\"...\",\"mecanismo\":\"...\",\"diferencial\":\"...\",\"dores\":[\"...\"],\"desejos\":[\"...\"],\"objecoes\":[\"...\"],\"gatilhos\":[\"...\"]},\"roteiros\":[{\"id\":"+idIni+",\"titulo\":\"titulo curto\",\"pilar\":\"nome do pilar\",\"funil\":\"meio\",\"gancho\":\"...\",\"corpo\":\"...\",\"cta\":\"...\"}]}"+" O campo funil DEVE ser exatamente um destes valores em minusculo: topo, meio ou fundo, conforme indicado no METODO. NUNCA use aspas duplas dentro dos valores de texto, use aspas simples.";
+  return "Voce e o melhor copywriter de Meta Ads do Brasil. Seu trabalho e gerar roteiros para Reels que parecem uma conversa real, nao um anuncio. O cliente vai usar esses roteiros para gravar videos."+" ANTES DE ESCREVER, faca internamente (sem mostrar no resultado) uma analise profunda deste negocio: a dor emocional mais intensa do publico (o sentimento por tras do problema), o momento exato em que a pessoa decide comprar, a objecao principal que trava a venda, a linguagem real e as palavras que esse publico usa no dia a dia, o mecanismo unico do produto (por que ele funciona) e um insight surpreendente que poucos enxergam. Cada GANCHO deve nascer de um desses pontos, o CORPO deve responder a objecao principal com prova ou mecanismo real, e o CTA deve usar a linguagem real do publico."+" CONTEXTO DO NEGOCIO: Produto/Servico: "+form.produto+" | DESTINO / OBJETIVO FINAL deste anuncio (para onde o CTA deve levar a pessoa): "+destInfo.nome+". REGRA OBRIGATORIA DE DESTINO: "+destInfo.cta+". Todos os roteiros devem respeitar ESTE destino no CTA, sem excecao. | Publico e negocio: "+(form.descricao||"inferir")+" | Diferenciais: "+(form.diferenciais||"inferir")+" | Ticket medio: "+(form.preco||"inferir")+" | Tom de voz: "+tons+". "+caract+proibidas+exemplo+venc+extra+" REGRA DE OURO - ESPECIFICIDADE OBRIGATORIA: Cada gancho DEVE mencionar um dado, situacao ou detalhe ESPECIFICO do negocio acima. PROIBIDO gancho que funcione para qualquer outro negocio. Teste: se o gancho funciona para um concorrente qualquer, esta errado. Reescreva ate ser unico para este negocio."+" EXEMPLO DE GANCHO RUIM (generico, proibido): 'Voce sabia que pode mudar sua vida com um produto incrivel?' ou 'Ja pensou em ter resultados melhores?'"+" EXEMPLO DE GANCHO BOM (especifico, obrigatorio): use dados reais como preco, tempo, quantidade, nome do produto, situacao do publico descrito - igual ao estilo: 'Seu closet tem 50 pecas mas voce usa as mesmas 5 todo dia' ou 'Voce gasta 100 reais em 5 pecas que rasgam em 3 meses'"+" REGRAS DO CORPO: deve ter 1 argumento solido - dado, calculo, psicologia ou mecanismo real do produto. Minimo 3 frases densas. Conectar com o gancho. Linguagem coloquial brasileira real."+" REGRAS DO CTA: conectar diretamente com a dor do gancho. Especifico: 'conhece nossa short courino fivela?' e melhor que 'clica no link'. 25-35 palavras por secao."+" "+met.regra+dirStr+" ESTRUTURA DE CADA ROTEIRO: GANCHO=dor ou desejo hiper-especifico nos 3 primeiros segundos usando a LINGUAGEM REAL do publico; nunca abrir com Voce sabia, Ola, Imagine ou Descubra; tipos de gancho permitidos: pergunta, identificacao com o problema, descoberta, POV, quebra de padrao, percepcao comum. CORPO=1 argumento solido com dado, mecanismo ou prova real, conecta com o gancho, mostra a transformacao, de 2 a 4 frases. CTA=conecta com a dor do gancho mais uma acao especifica e SEMPRE coerente com o DESTINO informado no contexto acima (nunca um CTA de outro destino, nunca generico tipo 'clica no link' solto). Cada roteiro com cerca de 20 a 30 segundos de fala. NATURALIDADE-NAO PODE SOAR GERADO POR IA: escreva como um brasileiro real falando, nao como um texto publicitario; varie o tamanho das frases, use contracoes naturais (pra, ta, to), pode ter uma leve imperfeicao como na fala. PROIBIDO tom corporativo, frases simetricas, listas de tres decorativas, o traco longo (—) entre frases (use virgula, ponto ou frases curtas), hashtags, excesso de emoji e cliches de IA como eleve, descomplique, transforme sua vida, voce merece, imagine so, a verdade e que, vamos combinar. Cada frase tem que soar dita por uma pessoa, nao escrita por um robo."+" NESTA RODADA "+rod+": gere 2 personas e EXATAMENTE "+POR_RODADA+" roteiros seguindo o METODO acima. Numere os roteiros com id sequencial de "+idIni+" a "+idFim+". Nas proximas rodadas, gere roteiros TOTALMENTE DIFERENTES dos anteriores."+" RESPONDA APENAS COM JSON VALIDO SEM MARKDOWN, exatamente neste formato: {\"personas\":[{\"nome\":\"...\",\"tipo\":\"...\",\"emoji\":\"1 emoji\",\"motivacao\":\"...\",\"dor\":\"...\",\"objecao\":\"...\",\"comunicacao\":\"...\"}],\"inteligencia\":{\"insight\":\"...\",\"bigIdea\":\"...\",\"mecanismo\":\"...\",\"diferencial\":\"...\",\"dores\":[\"...\"],\"desejos\":[\"...\"],\"objecoes\":[\"...\"],\"gatilhos\":[\"...\"]},\"roteiros\":[{\"id\":"+idIni+",\"titulo\":\"titulo curto\",\"pilar\":\"nome do pilar\",\"funil\":\"meio\",\"gancho\":\"...\",\"corpo\":\"...\",\"cta\":\"...\"}]}"+" O campo funil DEVE ser exatamente um destes valores em minusculo: topo, meio ou fundo, conforme indicado no METODO. NUNCA use aspas duplas dentro dos valores de texto, use aspas simples.";
 }
 function buildAnalise(form){
   var p="Voce e um estrategista de marketing especialista em comportamento do consumidor brasileiro.";
@@ -247,6 +252,30 @@ function buildAnalise(form){
   p+="\"insight_surpreendente\":\"verdade sobre este mercado que a maioria nao fala\"}";
   p+=" NEGOCIO: "+form.produto+" | PUBLICO: "+(form.descricao||"inferir")+" | DIFERENCIAIS: "+(form.diferenciais||"inferir")+".";
   return p;
+}
+
+var DIR_CAMPOS=[
+  {k:"objetivo",lb:"Objetivo do conteudo",ph:"O que estes roteiros precisam fazer a pessoa pensar ou sentir"},
+  {k:"publico",lb:"Publico",ph:"Quem e a pessoa nesta etapa e o que ela esta vivendo"},
+  {k:"mensagem",lb:"Mensagem principal",ph:"A ideia central que os roteiros vao passar"},
+  {k:"chamada",lb:"Chamada",ph:"A acao final que voce quer que a pessoa tome"}
+];
+async function gerarDirecao(ff,metodo,imgs){
+  var met=metodoInfo(metodo);
+  var DEST={mensagens:"chamar no WhatsApp ou no direct",seguidores:"seguir o perfil no Instagram",site:"acessar o link ou o site para comprar"};
+  var txt="Voce e diretor de criacao de Meta Ads para lojas brasileiras. Antes de escrever roteiros de Reels, monte a DIRECAO do conteudo. NEGOCIO: produto: "+(ff.produto||"-")+" | publico: "+(ff.descricao||"inferir")+" | diferenciais: "+(ff.diferenciais||"-")+" | caracteristicas: "+(ff.caracteristicas||"-")+" | ticket medio: "+(ff.preco||"-")+" | destino do anuncio: "+(DEST[ff.objetivo]||DEST.site)+". METODO ESCOLHIDO: "+met.lb+" ("+met.sub+"): "+met.ds+" Responda APENAS com JSON valido sem markdown: {\"objetivo\":\"o que estes roteiros precisam fazer a pessoa pensar ou sentir, 1 frase\",\"publico\":\"quem exatamente e a pessoa nesta etapa do funil, com o momento de vida e a dor ou desejo dela, 1 frase\",\"mensagem\":\"a ideia central que todos os roteiros vao passar, 1 frase especifica deste negocio\",\"chamada\":\"a chamada final, curta, na linguagem do publico e coerente com o destino\"}. Frases curtas, linguagem simples, especificas deste negocio. NUNCA use aspas duplas dentro dos textos.";
+  var content=(imgs&&imgs.length)?imgs.concat([{type:"text",text:"As imagens acima sao do produto. "+txt}]):txt;
+  try{
+    var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:[{role:"user",content:content}],max_tokens:700,model:"claude-sonnet-4-6"})});
+    if(!res.ok)return null;
+    var data=await res.json();
+    var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
+    var s=raw.indexOf("{"),e=raw.lastIndexOf("}");
+    if(s<0||e<0)return null;
+    var o=JSON.parse(raw.substring(s,e+1));
+    if(!o.objetivo&&!o.mensagem)return null;
+    return {objetivo:o.objetivo||"",publico:o.publico||"",mensagem:o.mensagem||"",chamada:o.chamada||""};
+  }catch(err){return null;}
 }
 
 async function lerConteudoUrl(url){
@@ -340,7 +369,9 @@ function App(){
   var s14=useState([]),imageFiles=s14[0],setImageFiles=s14[1];
   var s15=useState([]),imagePreviews=s15[0],setImagePreviews=s15[1];
   var s16=useState(false),drag=s16[0],setDrag=s16[1];
-  var sMet=useState("fullfunnel"),metodoSel=sMet[0],setMetodoSel=sMet[1];
+  var sMet=useState("fftopo"),metodoSel=sMet[0],setMetodoSel=sMet[1];
+  var sDir=useState(null),direcao=sDir[0],setDirecao=sDir[1];
+  var dirTok=useRef(0);
   var s17=useState({produto:"",descricao:"",objetivo:"",diferenciais:"",preco:"",url:"",tons:[]}),form=s17[0],setForm=s17[1];
   var stepRef=useRef(null),fileRef=useRef(null);
   var userEmail=(currentUser&&currentUser.email)||"Usuario";
@@ -385,13 +416,14 @@ function App(){
   function togMode(m){setInputModes(function(p){var n=Object.assign({},p);n[m]=!n[m];return n;});}
   function togTon(id){setForm(function(f){var ts=f.tons||[];var ni=ts.indexOf(id);var nt=ni>-1?ts.filter(function(x){return x!==id;}):ts.concat([id]);return Object.assign({},f,{tons:nt});});}
 
-  async function handleGenerate(){
+  async function iniciarBriefing(){
     if(!form.objetivo){showToast("Selecione o destino no passo 04","err");return;}
     if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem){showToast("Selecione ao menos uma forma de descrever o produto","err");return;}
     if(inputModes.texto&&!form.produto){showToast("Descreva seu produto no campo de texto","err");return;}
     if(inputModes.url&&!form.url){showToast("Insira a URL do produto","err");return;}
     if(inputModes.imagem&&imageFiles.length===0){showToast("Envie ao menos uma imagem","err");return;}
-    setGenerating(true);
+    var tok=++dirTok.current,met=metodoSel;
+    setDirecao({origem:"briefing",metodo:met,loading:true});
     try{
       var ff=Object.assign({},form);
       var produtoParts=[];
@@ -408,15 +440,41 @@ function App(){
         }
       }
       ff.produto=produtoParts.join(" | ")||ff.produto;
-      var hist=(activeProject&&activeProject.rodadas)?activeProject.rodadas:[];
-      var rodada=hist.length+1;
+      var imgs=null;
+      if(inputModes.imagem&&imageFiles.length>0){imgs=await Promise.all(imageFiles.map(async function(f){return {type:"image",source:{type:"base64",media_type:f.type,data:await toB64(f)}};}));}
+      if(tok!==dirTok.current)return;
+      montarDirecao({origem:"briefing",metodo:met,ff:ff,imgs:imgs},tok);
+    }catch(e){if(tok===dirTok.current){setDirecao(null);showToast("Erro ao preparar: "+(e&&e.message||""),"err");}}
+  }
+  async function montarDirecao(base,tok){
+    setDirecao(Object.assign({},base,{loading:true,campos:null}));
+    var c=await gerarDirecao(base.ff,base.metodo,base.imgs);
+    if(tok!==dirTok.current)return;
+    setDirecao(Object.assign({},base,{loading:false,campos:c||{objetivo:"",publico:"",mensagem:"",chamada:""},falhou:!c}));
+  }
+  function pedirDirecao(metodo){
+    if(!activeProject||generating)return;
+    if((activeProject.rodadas||[]).length>=MAX_RODADAS){showToast("Limite de "+MAX_RODADAS+" geracoes por projeto atingido.","err");return;}
+    var tok=++dirTok.current;
+    montarDirecao({origem:"results",metodo:metodo,ff:activeProject.form,imgs:null},tok);
+  }
+  function refazerDirecao(){var d=direcao;if(!d||d.loading)return;var tok=++dirTok.current;montarDirecao({origem:d.origem,metodo:d.metodo,ff:d.ff,imgs:d.imgs},tok);}
+  function cancelarDirecao(){dirTok.current++;setDirecao(null);}
+  function editarCampoDirecao(k,v){setDirecao(function(d){if(!d)return d;var c=Object.assign({},d.campos||{});c[k]=v;return Object.assign({},d,{campos:c});});}
+  function confirmarDirecao(){var d=direcao;if(!d||d.loading)return;dirTok.current++;setDirecao(null);if(d.origem==="briefing")handleGenerate(d);else handleNextRound(d.metodo,d.campos);}
+
+  async function handleGenerate(dir){
+    setGenerating(true);
+    try{
+      var ff=dir.ff,metodo=dir.metodo,campos=dir.campos||null;
+      var hist=[];
+      var rodada=1;
       var messages;
-      if(inputModes.imagem&&imageFiles.length>0){
-        var imgs=await Promise.all(imageFiles.map(async function(f){return {type:"image",source:{type:"base64",media_type:f.type,data:await toB64(f)}};}));
+      if(dir.imgs&&dir.imgs.length){
         var txtExtra=ff.produto?" Informacoes adicionais: "+ff.produto:"";
-        messages=[{role:"user",content:imgs.concat([{type:"text",text:"Analise as imagens do produto."+txtExtra+" Destino: "+form.objetivo+". "+buildP(Object.assign({},ff,{produto:"[Produto nas imagens]"+txtExtra}),rodada,hist,(perfil&&perfil.vencedores)||[],metodoSel)}])}];
+        messages=[{role:"user",content:dir.imgs.concat([{type:"text",text:"Analise as imagens do produto."+txtExtra+" Destino: "+ff.objetivo+". "+buildP(Object.assign({},ff,{produto:"[Produto nas imagens]"+txtExtra}),rodada,hist,(perfil&&perfil.vencedores)||[],metodo,campos)}])}];
       }else{
-        messages=[{role:"user",content:buildP(ff,rodada,hist,(perfil&&perfil.vencedores)||[],metodoSel)}];
+        messages=[{role:"user",content:buildP(ff,rodada,hist,(perfil&&perfil.vencedores)||[],metodo,campos)}];
       }
       // Analise + geracao numa unica chamada (Opus faz a analise profunda internamente)
       if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
@@ -438,22 +496,15 @@ function App(){
           } else throw new Error("Erro ao processar resposta da IA");
         }
       }catch(ex){throw new Error("Erro ao processar resposta da IA: "+ex.message);}
-      setGenStep(2);prepararRoteiros(parsed,hist,metodoSel);
-      var nr={numero:rodada,metodo:metodoSel,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
+      setGenStep(2);prepararRoteiros(parsed,hist,metodo);
+      var nr={numero:rodada,metodo:metodo,direcao:campos,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
       var proj;
-      if(activeProject&&view==="results"){
-        var novasRodadas=(activeProject.rodadas||[]).concat([nr]);
-        proj=Object.assign({},activeProject,{rodadas:novasRodadas});
-        await supaClient.from("projetos").update({rodadas:novasRodadas}).eq("id",activeProject.id);
-        setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});
-      }else{
-        var nomeProjeto=(ff.produto||ff.url||"Novo projeto").substring(0,40);
-        var insertResult=await supaClient.from("projetos").insert({nome:nomeProjeto,objetivo:form.objetivo,form:ff,rodadas:[nr],user_id:currentUser.id}).select().single();
-        if(insertResult.error){throw new Error("Erro ao salvar projeto: "+insertResult.error.message);}
-        proj={id:insertResult.data.id,name:nomeProjeto,objetivo:form.objetivo,date:new Date().toLocaleDateString("pt-BR"),form:ff,rodadas:[nr]};
-        setProjects(function(prev){return [proj].concat(prev);});
-      }
-      setActiveProject(proj);setLiveText("");setGenerating(false);setView("results");setActiveTab(metodoSel);var _ab={};((parsed&&parsed.roteiros)||[]).forEach(function(s){_ab[s.id]=true;});setOpenScripts(_ab);setVarResults({});
+      var nomeProjeto=(ff.produto||ff.url||"Novo projeto").substring(0,40);
+      var insertResult=await supaClient.from("projetos").insert({nome:nomeProjeto,objetivo:form.objetivo,form:ff,rodadas:[nr],user_id:currentUser.id}).select().single();
+      if(insertResult.error){throw new Error("Erro ao salvar projeto: "+insertResult.error.message);}
+      proj={id:insertResult.data.id,name:nomeProjeto,objetivo:form.objetivo,date:new Date().toLocaleDateString("pt-BR"),form:ff,rodadas:[nr]};
+      setProjects(function(prev){return [proj].concat(prev);});
+      setActiveProject(proj);setLiveText("");setGenerating(false);setView("results");setActiveTab(metodo);var _ab={};((parsed&&parsed.roteiros)||[]).forEach(function(s){_ab[s.id]=true;});setOpenScripts(_ab);setVarResults({});
       showToast("Projeto gerado!");
     }catch(e){
       setLiveText("");setGenerating(false);
@@ -490,16 +541,17 @@ function App(){
     showToast(novoVendeu?"Marcado como vendeu! Vai alimentar os proximos roteiros desta conta.":"Desmarcado.");
   }
   async function handleEditScript(s,instrucao){setEditGenerating(true);try{var msg=[{role:"user",content:"Copywriter expert. Roteiro: GANCHO:"+s.gancho+" CORPO:"+s.corpo+" CTA:"+s.cta+" TITULO:"+s.titulo+" Instrucao:"+instrucao+" Reescreva aplicando a instrucao. Responda APENAS com JSON sem markdown: {gancho:...,corpo:...,cta:...,titulo:...}"}];var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:msg,max_tokens:1000})});var data=await res.json();var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();var parsed;try{parsed=JSON.parse(raw);}catch(e1){var st=raw.indexOf("{"),en=raw.lastIndexOf("}");if(st<0||en<0)throw new Error("resposta invalida");parsed=JSON.parse(raw.substring(st,en+1));}var novo=Object.assign({},s,{gancho:parsed.gancho||s.gancho,corpo:parsed.corpo||s.corpo,cta:parsed.cta||s.cta,titulo:parsed.titulo||s.titulo,editado:true});var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(sc){return sc.id===s.id?novo:sc;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id);setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);setEditingScript(novo);setEditInstr("");showToast("Roteiro atualizado!");}catch(e){showToast("Erro: "+e.message,"err");}setEditGenerating(false);}
-  async function handleNextRound(metodo){
+  async function handleNextRound(metodo,campos){
     if(!activeProject||generating)return;
-    metodo=metodo||"fullfunnel";
+    campos=campos||null;
+    metodo=metodo||"fftopo";
     setGenerating(true);
     try{
       var ff=activeProject.form;
       var hist=activeProject.rodadas||[];
       var rodada=hist.length+1;
       if(rodada>MAX_RODADAS){showToast("Limite de "+MAX_RODADAS+" geracoes por projeto atingido.","err");setLiveText("");setGenerating(false);return;}
-      var messages=[{role:"user",content:buildP(ff,rodada,hist,(perfil&&perfil.vencedores)||[],metodo)}];
+      var messages=[{role:"user",content:buildP(ff,rodada,hist,(perfil&&perfil.vencedores)||[],metodo,campos)}];
       // Analise + geracao numa unica chamada (Opus faz a analise profunda internamente)
       if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
       setGenStep(1);setLiveText("");
@@ -512,7 +564,7 @@ function App(){
         else throw new Error("Erro ao processar resposta da IA");
       }
       setGenStep(2);prepararRoteiros(parsed,hist,metodo);
-      var nr={numero:rodada,metodo:metodo,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
+      var nr={numero:rodada,metodo:metodo,direcao:campos,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
       var novasRodadas=hist.concat([nr]);
       var proj=Object.assign({},activeProject,{rodadas:novasRodadas});
       await supaClient.from("projetos").update({rodadas:novasRodadas}).eq("id",activeProject.id);
@@ -709,7 +761,7 @@ function App(){
         ),
         ce("div",{className:"grid"},
           ce("div",{className:"card",onClick:function(){if(activeProject){setActiveTab("personas");setView("results");}else{setView("briefing");}}},ce("div",{className:"card-ic"},"🧠"),ce("div",{className:"card-h"},"Inteligencia de Publico"),ce("div",{className:"card-p"},"Buyer Personas, dores, desejos e gatilhos automaticos do seu publico-alvo."),ce("div",{className:"card-cta"},activeProject?"Ver Personas ->":"Criar projeto primeiro")),
-          ce("div",{className:"card",onClick:function(){if(activeProject){setActiveTab("roteiros");setView("results");}else{setView("briefing");}}},ce("div",{className:"card-ic"},"🎬"),ce("div",{className:"card-h"},"Roteiros Reels"),ce("div",{className:"card-p"},"Escolha o metodo (DSB, Full Funnel ou Angulo) e gere 3 roteiros prontos para gravar."),ce("div",{className:"card-cta"},activeProject?"Ver roteiros ->":"Criar projeto primeiro")),
+          ce("div",{className:"card",onClick:function(){if(activeProject){setActiveTab("roteiros");setView("results");}else{setView("briefing");}}},ce("div",{className:"card-ic"},"🎬"),ce("div",{className:"card-h"},"Roteiros Reels"),ce("div",{className:"card-p"},"Escolha o metodo (Full Funnel topo, meio ou fundo, DSB ou Angulo) e gere 3 roteiros prontos para gravar."),ce("div",{className:"card-cta"},activeProject?"Ver roteiros ->":"Criar projeto primeiro")),
           ce("div",{className:"card",onClick:function(){if(activeProject){setActiveTab("roteiros");setView("results");}else{setView("briefing");}}},ce("div",{className:"card-ic"},"🔁"),ce("div",{className:"card-h"},"Mais Roteiros"),ce("div",{className:"card-p"},"Gere mais 3 roteiros do metodo que quiser, ate "+MAX_RODADAS+" vezes por projeto."),ce("div",{className:"card-cta"},activeProject?"Gerar variacoes ->":"Criar projeto primeiro")),
           ce("div",{className:"card",onClick:function(){setView("history");}},ce("div",{className:"card-ic"},"📂"),ce("div",{className:"card-h"},"Historico"),ce("div",{className:"card-p"},"Todos os seus projetos e roteiros gerados ficam salvos aqui."),ce("div",{className:"card-cta"},projects.length>0?projects.length+" projetos ->":"Ver historico"))
         ),
@@ -754,11 +806,12 @@ function App(){
             ce("div",{className:"obj-q"},"Escolha o destino desejado - cada um gera um estilo diferente de roteiro e CTA."),
             ce("div",{className:"obj-g"},OBJS.map(function(o){return ce("div",{key:o.id,className:"obj-o"+(form.objetivo===o.id?" on":""),onClick:function(){setForm(function(f){return Object.assign({},f,{objetivo:o.id});}); }},ce("div",{className:"obj-ic"},o.ic),ce("div",null,ce("div",{className:"obj-lbl"},o.lb),ce("div",{className:"obj-ds"},o.ds)));}))
           ),
-          ce("button",{className:"gbtn",onClick:handleGenerate,disabled:!form.objetivo||(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)},"Gerar "+POR_RODADA+" roteiros de "+metodoInfo(metodoSel).lb),
+          ce("button",{className:"gbtn",onClick:iniciarBriefing,disabled:!form.objetivo||(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)},"Gerar "+POR_RODADA+" roteiros de "+metodoInfo(metodoSel).lb),
           (function(){var f=[];if(!form.objetivo)f.push("escolher o destino (passo 04)");if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)f.push("escolher como descrever o produto (passo 02)");else{if(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)f.push("escrever a descricao do produto");if(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)f.push("colar a URL");if(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)f.push("enviar ao menos uma foto");}return f.length?ce("div",{style:{marginTop:10,fontSize:12.5,color:"var(--ac2)",textAlign:"center"}},"Falta: "+f.join(" e ")):null;})()
         )
       ),
       view==="results"&&activeProject&&function(){
+        var dirAtual=null;if(METODOS.some(function(m){return m.id===activeTab;})){for(var _i=activeProject.rodadas.length-1;_i>=0;_i--){var _r=activeProject.rodadas[_i];if(_r.direcao&&_r.metodo===activeTab){dirAtual=_r.direcao;break;}}}
         var rod=activeProject.rodadas[activeProject.rodadas.length-1],resultado=rod.resultado,scripts=getScs(),intel=resultado.inteligencia||{},personas=resultado.personas||[],vars=(resultado&&resultado.variacoes)||{};
         return ce("div",{className:"content"},
           ce("div",{className:"rh"},
@@ -768,7 +821,7 @@ function App(){
           ce("div",{style:{background:"var(--sur)",border:"1px solid var(--bo)",borderRadius:12,padding:"14px 16px",marginBottom:18}},
             ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}},ce("div",{style:{fontSize:13,fontWeight:600}},"Gerar mais "+POR_RODADA+" roteiros"),ce("div",{style:{fontSize:11.5,color:"var(--mu)"}},activeProject.rodadas.length+" de "+MAX_RODADAS+" geracoes usadas neste projeto")),
             activeProject.rodadas.length<MAX_RODADAS
-              ?ce("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},METODOS.map(function(m){return ce("button",{key:m.id,className:"abtn"+(activeTab===m.id?" pr":""),onClick:function(){handleNextRound(m.id);},disabled:generating,title:m.ds},m.ic+" "+m.lb);}))
+              ?ce("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},METODOS.map(function(m){return ce("button",{key:m.id,className:"abtn"+(activeTab===m.id?" pr":""),onClick:function(){pedirDirecao(m.id);},disabled:generating,title:m.ds},m.ic+" "+m.lb);}))
               :ce("div",{style:{fontSize:12.5,color:"var(--mu)"}},"Limite de "+MAX_RODADAS+" geracoes atingido. Crie um novo projeto para gerar mais.")
           ),
           ce("div",{className:"tabs"},[{id:"personas",lb:"Personas"},{id:"roteiros",lb:"Todos"}].concat(METODOS.map(function(m){return {id:m.id,lb:m.lb};}),[{id:"matriz",lb:"Matriz"}]).map(function(t){return ce("button",{key:t.id,className:"tab"+(activeTab===t.id?" on":""),onClick:function(){setActiveTab(t.id);}},t.lb);})),
@@ -785,7 +838,8 @@ function App(){
               ce("div",{className:"var-g"},[{id:"ganchos",ic:"🎯",lb:"+ 5 Ganchos"},{id:"roteiros",ic:"📝",lb:"+ 5 Roteiros"},{id:"ctas",ic:"🔥",lb:"+ 5 CTAs"}].map(function(v){return ce("button",{key:v.id,className:"var-btn"+(varLoading===v.id?" ld":""),onClick:function(){genVar(v.id);},disabled:!!varLoading},ce("span",{className:"vi"},varLoading===v.id?"...":v.ic),v.lb);})),
               Object.keys(vars).length>0&&ce("div",{style:{marginTop:14}},Object.keys(vars).map(function(tipo){return ce("div",{key:tipo,style:{marginBottom:12}},ce("div",{style:{fontSize:11,fontWeight:600,textTransform:"uppercase",color:"var(--mu)",marginBottom:8}},"Variacoes - "+tipo),vars[tipo].map(function(item,i){return ce("div",{key:i,style:{background:"var(--sur2)",borderRadius:8,padding:"10px 12px",marginBottom:6,fontSize:13,display:"flex",justifyContent:"space-between",gap:8}},ce("span",null,item),ce("button",{style:{background:"transparent",border:"1px solid var(--bo)",borderRadius:4,color:"var(--mu2)",fontSize:10,padding:"2px 7px",cursor:"pointer"},onClick:function(){navigator.clipboard.writeText(item);showToast("Copiado!");}}, "copiar"));}));}))
             ),
-            (scripts.length===0&&METODOS.some(function(m){return m.id===activeTab;}))&&ce("div",{className:"emp",style:{padding:"30px 10px"}},ce("div",{className:"emp-h"},"Nenhum roteiro de "+metodoInfo(activeTab).lb+" ainda"),ce("div",{className:"emp-p",style:{marginBottom:14}},metodoInfo(activeTab).ds),activeProject.rodadas.length<MAX_RODADAS&&ce("button",{className:"abtn pr",onClick:function(){handleNextRound(activeTab);},disabled:generating},generating?"Gerando...":"Gerar "+POR_RODADA+" roteiros de "+metodoInfo(activeTab).lb)),
+            dirAtual&&ce("div",{style:{background:"var(--sur)",border:"1px solid var(--bo)",borderLeft:"3px solid var(--ac)",borderRadius:12,padding:"14px 16px",marginBottom:14}},ce("div",{style:{fontSize:11,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"var(--ac2)",marginBottom:10}},"Direcao usada - "+metodoInfo(activeTab).lb),ce("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}},DIR_CAMPOS.map(function(f){return ce("div",{key:f.k},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",color:"var(--mu)",marginBottom:3}},f.lb),ce("div",{style:{fontSize:13,lineHeight:1.45}},dirAtual[f.k]||"-"));}))),
+            (scripts.length===0&&METODOS.some(function(m){return m.id===activeTab;}))&&ce("div",{className:"emp",style:{padding:"30px 10px"}},ce("div",{className:"emp-h"},"Nenhum roteiro de "+metodoInfo(activeTab).lb+" ainda"),ce("div",{className:"emp-p",style:{marginBottom:14}},metodoInfo(activeTab).ds),activeProject.rodadas.length<MAX_RODADAS&&ce("button",{className:"abtn pr",onClick:function(){pedirDirecao(activeTab);},disabled:generating},generating?"Gerando...":"Gerar "+POR_RODADA+" roteiros de "+metodoInfo(activeTab).lb)),
             ce("div",{className:"scripts"},scripts.map(function(s){return ce("div",{key:s.id,className:"sc"},
               ce("div",{className:"sc-hd",onClick:function(){togSc(s.id);}},ce("div",{className:"sc-n"},s.numGlobal||s.id),ce("div",{className:"sc-inf"},ce("div",{className:"sc-title"},s.titulo),ce("div",{className:"sc-pilar"},s.pilar)),ce("div",{className:"sc-tags"},ftag(s.funil),ce("span",{className:"tag"},"30s")),ce("span",{style:{color:"var(--mu)",marginLeft:8}},openScripts[s.id]?"v":">")),
               ce("div",{className:"sc-body"+(openScripts[s.id]?" op":"")},
@@ -808,6 +862,18 @@ function App(){
       view==="publico"&&ce("div",{className:"content"},ce("div",{className:"fwrap"},ce("div",{className:"fhead"},ce("h2",null,"Meu Publico"),ce("p",null,"Descreva seu publico e negocio uma vez. Todo projeto novo ja vem preenchido com isso, e voce pode ajustar a qualquer momento.")),ce("div",{className:"sec"},ce("div",{className:"fi"},ce("label",null,"Publico e negocio"),ce("textarea",{style:{minHeight:110},placeholder:"Quem voce atende, o que oferece e o que transforma na vida do cliente.",value:(perfil&&perfil.descricao)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{descricao:v});});}})),ce("div",{className:"fi"},ce("label",null,"Diferenciais"),ce("input",{placeholder:"Ex: entrega rapida, atendimento personalizado...",value:(perfil&&perfil.diferenciais)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{diferenciais:v});});}})),ce("div",{className:"fi"},ce("label",null,"Caracteristicas do produto"),ce("textarea",{style:{minHeight:70},placeholder:"Ex: feito a mao, sem gluten, garantia 30 dias...",value:(perfil&&perfil.caracteristicas)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{caracteristicas:v});});}})),ce("div",{className:"fi"},ce("label",null,"Ticket medio"),ce("input",{placeholder:"Ex: R$ 97,00",value:(perfil&&perfil.preco)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{preco:v});});}})),ce("div",{className:"fi"},ce("label",null,"Exemplo de conteudo que ja funcionou"),ce("textarea",{style:{minHeight:70},placeholder:"Cole um post ou legenda que teve bom resultado.",value:(perfil&&perfil.exemploConteudo)||"",onChange:function(e){var v=e.target.value;setPerfil(function(p){return Object.assign({},p||{},{exemploConteudo:v});});}})),ce("button",{className:"gbtn",onClick:function(){salvarPerfil(perfil||{});}},"Salvar meu publico")))),
     ),
     generating&&ce("div",{className:"ov"},ce("div",{className:"ov-card"},ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seus roteiros..."),ce("div",{className:"ov-p"},"Isso pode levar ate 1 minuto. Nao feche esta tela."),ce("div",{className:"ov-steps"},STEPS.map(function(s,i){return ce("div",{key:i,className:"ov-s"+(i<genStep?" dn":i===genStep?" ac":"")},ce("span",{className:"sdot"}),s);})),liveText?ce("div",{style:{marginTop:18,textAlign:"left",background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:10,padding:"12px 14px",maxHeight:170,overflowY:"auto",fontSize:12.5,lineHeight:1.5,color:"var(--mu2)",whiteSpace:"pre-wrap",direction:"rtl"}},ce("div",{style:{direction:"ltr"}},ce("span",{style:{color:"var(--ac2)",fontWeight:600}},"A IA esta escrevendo... "),previewClean(liveText))):null)),
+    direcao&&ce("div",{className:"ov",onClick:function(){if(!direcao.loading)cancelarDirecao();}},ce("div",{className:"ov-card",style:{maxWidth:540,textAlign:"left",maxHeight:"92vh",overflowY:"auto"},onClick:function(e){e.stopPropagation();}},
+      direcao.loading
+        ?ce("div",{style:{textAlign:"center"}},ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Montando a direcao do conteudo..."),ce("div",{className:"ov-p"},direcao.ff?"A IA esta definindo objetivo, publico, mensagem e chamada para "+metodoInfo(direcao.metodo).lb+".":"Lendo as informacoes do seu produto..."),ce("button",{className:"abtn",onClick:cancelarDirecao,style:{margin:"18px auto 0",justifyContent:"center"}},"Cancelar"))
+        :ce("div",null,
+          ce("div",{style:{display:"inline-block",fontSize:11.5,fontWeight:600,color:"var(--ac2)",background:"rgba(255,77,0,.1)",border:"1px solid rgba(255,77,0,.25)",borderRadius:20,padding:"3px 11px",marginBottom:12}},metodoInfo(direcao.metodo).ic+" "+metodoInfo(direcao.metodo).lb),
+          ce("div",{className:"ov-h",style:{marginBottom:6}},"Direcao do conteudo"),
+          ce("div",{className:"ov-p",style:{marginBottom:18}},direcao.falhou?"Nao consegui montar a direcao automaticamente. Preencha o que quiser ou gere assim mesmo.":"Os "+POR_RODADA+" roteiros vao seguir esta direcao. Ajuste o que quiser antes de gerar."),
+          DIR_CAMPOS.map(function(f){return ce("div",{key:f.k,style:{marginBottom:12}},ce("div",{style:{fontSize:10.5,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"var(--mu)",marginBottom:5}},f.lb),ce("textarea",{className:"edit-ta",style:{minHeight:54},placeholder:f.ph,value:(direcao.campos&&direcao.campos[f.k])||"",onChange:function(e){editarCampoDirecao(f.k,e.target.value);}}));}),
+          ce("button",{className:"gbtn",onClick:confirmarDirecao},"Gerar "+POR_RODADA+" roteiros com esta direcao"),
+          ce("div",{style:{display:"flex",gap:8,marginTop:8}},ce("button",{className:"abtn",onClick:refazerDirecao,style:{flex:1,justifyContent:"center"}},"Refazer direcao"),ce("button",{className:"abtn",onClick:cancelarDirecao,style:{flex:1,justifyContent:"center"}},"Cancelar"))
+        )
+    )),
     toast&&ce("div",{className:"toast"},ce("span",null,toast.type==="err"?"!":"v")," ",toast.msg),
     imgModal&&ce("div",{className:"ov",onClick:function(){if(!imgModal.loading)setImgModal(null);}},ce("div",{className:"ov-card",style:{maxWidth:430},onClick:function(e){e.stopPropagation();}},imgModal.choosing?ce("div",null,ce("div",{className:"ov-h"},"Escolha o estilo do criativo"),ce("div",{className:"ov-p",style:{marginBottom:16}},"A IA gera uma imagem de anuncio com este gancho, no estilo que voce escolher."),ce("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}},ESTILOS.map(function(es){return ce("button",{key:es.id,onClick:function(){gerarCriativo(imgModal.roteiro,es.id);},style:{textAlign:"left",background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:10,padding:"12px",cursor:"pointer",fontFamily:"inherit",color:"var(--tx)"}},ce("div",{style:{fontWeight:600,fontSize:13,marginBottom:3}},es.lb),ce("div",{style:{fontSize:11,color:"var(--mu)",lineHeight:1.3}},es.desc));})),ce("button",{className:"abtn",onClick:function(){setImgModal(null);},style:{width:"100%",justifyContent:"center"}},"Cancelar")):imgModal.loading?ce("div",null,ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seu criativo..."),ce("div",{className:"ov-p"},"Isso pode levar ate 1 minuto. Nao feche esta janela.")):ce("div",null,ce("img",{src:"data:image/png;base64,"+imgModal.b64,alt:"criativo",style:{width:"100%",borderRadius:12,marginBottom:14,display:"block"}}),ce("div",{style:{display:"flex",gap:8}},ce("a",{href:"data:image/png;base64,"+imgModal.b64,download:"criativo-mcp.png",className:"gbtn",style:{textDecoration:"none",textAlign:"center",flex:1,padding:12,fontSize:14}},"Baixar"),ce("button",{className:"abtn",onClick:function(){setImgModal({roteiro:imgModal.roteiro,choosing:true});},style:{flex:1,justifyContent:"center"}},"Gerar outra"),ce("button",{className:"abtn",onClick:function(){setImgModal(null);},style:{flex:1,justifyContent:"center"}},"Fechar"))))),
     editingScript&&ce("div",{className:"edit-drawer"},ce("div",{className:"edit-dh"},ce("div",{className:"edit-dt"},"Ajustar roteiro",editingScript.editado?ce("span",{className:"edit-badge"},"Editado"):null),ce("button",{className:"edit-dc",onClick:function(){setEditingScript(null);setEditInstr("");}},"x")),ce("div",{className:"edit-db"},ce("div",{className:"edit-fl"},ce("label",null,"Gancho"),ce("div",{className:"edit-fv"},editingScript.gancho)),ce("div",{className:"edit-fl"},ce("label",null,"Corpo"),ce("div",{className:"edit-fv"},editingScript.corpo)),ce("div",{className:"edit-fl"},ce("label",null,"CTA"),ce("div",{className:"edit-fv"},editingScript.cta)),ce("div",{className:"edit-box"},ce("div",{style:{fontSize:12,fontWeight:600,color:"#9B8EFF",marginBottom:10}},"O que voce quer ajustar?"),ce("textarea",{className:"edit-ta",placeholder:"Ex: inclua a frase X no gancho, mude o tom, adicione urgencia no CTA...",value:editInstr,onChange:function(e){setEditInstr(e.target.value);}}),ce("button",{className:"edit-sb",disabled:!editInstr.trim()||editGenerating,onClick:function(){handleEditScript(editingScript,editInstr);}},editGenerating?"Ajustando...":"Aplicar ajuste com IA"))))
