@@ -1239,14 +1239,14 @@ function App(){
     catch(e){showToast("Nao consegui enviar o link agora. Tente de novo em alguns minutos.","err");}
   }
   function renderConta(){
-    var dl=dadosLoja(contaMeta),nomeLoja=nomeDaLoja(),temIg=!!(dl&&(dl.posts||[]).length),temAds=!!(dl&&dl.ads);
+    var dl=dadosLoja(contaMeta),nomeLoja=nomeDaLoja(),temIg=!!(dl&&(dl.username||(dl.posts||[]).length)),temAds=!!(dl&&(dl.ads||dl.contaAds));
     var linhaBtn={width:"100%",background:"none",border:"none",borderBottom:"1px solid var(--bo)",color:"var(--tx)",cursor:"pointer",fontFamily:"inherit",textAlign:"left"};
     return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:560}},
       ce("div",{className:"hello",style:{marginBottom:20}},ce("div",{className:"hello-av",style:{width:60,height:60,fontSize:20}},iniciais(nomeLoja)),ce("div",{style:{minWidth:0}},ce("div",{style:{fontWeight:700,fontSize:18}},nomeLoja),ce("div",{style:{fontSize:13,color:"var(--mu2)",overflow:"hidden",textOverflow:"ellipsis"}},verComo?verComo.email:userEmail),ce("div",{style:{fontSize:13,color:"var(--ac2)",fontWeight:600}},"Plano Pro"))),
       ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Conexões"),
         ce("div",{className:"card2-r"},ce("span",null,"Instagram"),temIg?ce("span",{className:"pill-s pill-ok"},dl.username?"@"+String(dl.username).replace(/^@/,""):"Conectado"):ce("span",{className:"pill-s pill-mu"},"Não conectado")),
-        ce("div",{className:"card2-r"},ce("span",null,"Anúncios"),temAds?ce("span",{className:"pill-s pill-ok"},"Conectado"):ce("span",{className:"pill-s pill-mu"},"Não conectado")),
-        ce("div",{style:{fontSize:12.5,color:"var(--mu2)",padding:"0 16px 14px",lineHeight:1.5}},"Quem cuida das conexões é a equipe do MCP Studio. Os números são atualizados todo dia de manhã"+(dl&&dl.atualizado?" (última vez "+quando(dl.atualizado)+")":"")+".")),
+        ce("div",{className:"card2-r"},ce("span",null,"Anúncios"),temAds?ce("span",{className:"pill-s pill-ok"},dl.contaAds||"Conectado"):ce("span",{className:"pill-s pill-mu"},"Não conectado")),
+        ce("div",{style:{fontSize:12.5,color:"var(--mu2)",padding:"0 16px 14px",lineHeight:1.5}},"Quem cuida das conexões é a equipe do MCP Studio. Os números são atualizados a cada 5 minutos"+(dl&&dl.atualizado?" (última vez "+quando(dl.atualizado)+")":"")+".")),
       ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Sua conta"),
         !verComo&&ce("button",{className:"card2-r",style:linhaBtn,onClick:trocarSenha},ce("span",null,"Trocar senha"),ico("seta",18,"var(--mu2)")),
         souAdmin&&ce("a",{href:"/admin.html",className:"card2-r",style:{color:"var(--ac2)",textDecoration:"none",fontWeight:600}},ce("span",null,"Painel Admin"),ico("seta",18)),
@@ -1259,7 +1259,7 @@ function App(){
   function telaBoasVindas(){
     var dl=dadosLoja(contaMeta),itens=[];
     if(dl&&(dl.posts||[]).length)itens.push(["Instagram conectado",dl.posts.length+" posts analisados"]);
-    if(dl&&dl.ads){var ap=adsDoPeriodo(dl,90);itens.push(["Anúncios conectados",((ap&&ap.dados.anuncios)||[]).length+" anúncios acompanhados todo dia"]);}
+    if(dl&&dl.ads){var ap=adsDoPeriodo(dl,90);itens.push(["Anúncios conectados",((ap&&ap.dados.anuncios)||[]).length+" anúncios acompanhados de perto"]);}
     if(dl&&dl.dossie&&dl.dossie.texto)itens.push(["O agente já conhece sua loja","produto, público e jeito de falar"]);
     if(!itens.length)itens.push(["Sua conta está criada","a equipe do MCP Studio está conectando seu Instagram e seus anúncios"]);
     return ce("div",{className:"boas"},ce("div",{className:"boas-in"},

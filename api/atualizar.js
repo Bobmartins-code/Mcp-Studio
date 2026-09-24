@@ -1,8 +1,9 @@
 // =====================================================================
-//  ATUALIZACAO DIARIA DOS NUMEROS (Vercel Cron, todo dia 06:00 de Brasilia)
-//  Para cada loja ativada no Reportei Connect: puxa posts e anuncios e
-//  grava em contas_meta.metricas + uma foto do dia em metricas_diarias.
-//  So o agendador da Vercel chama (ele manda o CRON_SECRET).
+//  ATUALIZACAO DOS NUMEROS, A CADA 5 MINUTOS
+//  Chamado pelo agendador do banco (pg_cron do Supabase, a cada 5 minutos)
+//  e, de reserva, pelo Vercel Cron uma vez por dia. Para cada loja ativada
+//  no Reportei Connect: puxa posts e anuncios e grava em contas_meta.metricas
+//  + uma foto do dia em metricas_diarias. So quem tem o CRON_SECRET chama.
 // =====================================================================
 
 const { banco } = require("./_seguranca.js");
@@ -10,6 +11,7 @@ const { atualizarLoja } = require("./_coleta.js");
 
 const LIMITE_MS = 270000; // para antes do tempo maximo da funcao
 const JUNTAS = 3;         // lojas atualizadas ao mesmo tempo
+const INTERVALO_MS = 4 * 60000; // loja atualizada ha menos que isso fica para a proxima rodada
 
 module.exports = async function handler(req, res) {
     const segredo = process.env.CRON_SECRET;
@@ -24,7 +26,7 @@ module.exports = async function handler(req, res) {
         ]);
         const quando = {};
         (contas || []).forEach(function (c) { quando[c.user_id] = c.metricas_em ? new Date(c.metricas_em).getTime() : 0; });
-        const fila = (clientes || []).map(function (c) { return c.user_id; }).sort(function (a, b) { return (quando[a] || 0) - (quando[b] || 0); });
+        const fila = (clientes || []).map(function (c) { return c.user_id; }).filter(function (uid) { return inicio - (quando[uid] || 0) >= INTERVALO_MS; }).sort(function (a, b) { return (quando[a] || 0) - (quando[b] || 0); });
         const feitos = [], falhas = [], puladas = [];
         let i = 0;
         async function trabalhador() {

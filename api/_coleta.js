@@ -8,6 +8,7 @@
 //  Usado pelo botao "Atualizar dados agora" e pela atualizacao diaria.
 // =====================================================================
 
+const crypto = require("crypto");
 const { banco } = require("./_seguranca.js");
 const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
 
@@ -129,17 +130,19 @@ function linhasDaTabela(resp, metricas, campoDim) {
 async function pedirTabela(cli, integ, inicio, fim, base, listas, avisos) {
     let ultimoErro = null;
     for (const metricas of listas) {
-        const w = Object.assign({}, base, { id: base.id, metrics: metricas });
+        // o Reportei exige um UUID como id de cada pedido; a resposta vem nesse mesmo id
+        const w = Object.assign({}, base, { id: crypto.randomUUID(), metrics: metricas });
         try {
             const d = await connect("/metrics/get-data", { method: "POST", customerToken: cli.api_token, timeout: 100000, body: { customer_integration: integ.uuid, start: inicio, end: fim, client_timezone: "America/Sao_Paulo", metrics: [w] } });
             const campo = (base.dimensions && base.dimensions[0] && (base.dimensions[0].field || base.dimensions[0])) || "";
-            return { linhas: linhasDaTabela(d && d[base.id], metricas, campo), bruto: d && d[base.id] };
+            return { linhas: linhasDaTabela(d && d[w.id], metricas, campo), bruto: d && d[w.id] };
         } catch (e) { ultimoErro = e; }
     }
     avisos.push(base.reference_key + ": " + ((ultimoErro && ultimoErro.message) || "sem dados"));
     return { linhas: [], bruto: null };
 }
-async function pedirNumero(cli, integ, inicio, fim, w) {
+async function pedirNumero(cli, integ, inicio, fim, base) {
+    const w = Object.assign({}, base, { id: crypto.randomUUID() });
     try {
         const d = await connect("/metrics/get-data", { method: "POST", customerToken: cli.api_token, timeout: 60000, body: { customer_integration: integ.uuid, start: inicio, end: fim, client_timezone: "America/Sao_Paulo", metrics: [w] } });
         return numero(d && d[w.id] && d[w.id].values);

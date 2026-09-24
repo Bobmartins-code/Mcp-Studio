@@ -169,7 +169,6 @@ tr.clic{cursor:pointer}
     <button class="adm-btn on" data-aba="lojas" onclick="abrirAba('lojas')">Lojas <span class="adm-bx" id="nav-lojas"></span></button>
     <button class="adm-btn" data-aba="projetos" onclick="abrirAba('projetos')">Projetos e roteiros</button>
     <button class="adm-btn" data-aba="visao" onclick="abrirAba('visao')">Visão geral</button>
-    <button class="adm-btn" data-aba="agente" onclick="abrirAba('agente')">Agente</button>
     <button class="adm-btn" data-aba="conexoes" onclick="abrirAba('conexoes')">Conexões</button>
     <button class="adm-btn" data-aba="seguranca" onclick="abrirAba('seguranca')">Segurança</button>
     <div class="fim" style="flex:1"></div>
@@ -184,6 +183,7 @@ tr.clic{cursor:pointer}
         <div><div class="h1">Lojas</div><div class="sub">Cada loja reúne Instagram, anúncios, dossiê do agente e o acesso da dona.</div></div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <input class="busca" id="busca-loja" placeholder="Buscar loja ou e-mail" aria-label="Buscar loja ou e-mail" oninput="renderLojas()"/>
+          <button class="btn-out" style="height:44px" id="btn-analisar-todas" onclick="analisarTodas()" title="O time de agentes estuda os números de cada loja e escreve o dossiê que o Agente MCP usa nos roteiros dela">Analisar todas com o agente</button>
           <button class="btn-pri" onclick="abrirDrawerLoja()">+ Adicionar loja</button>
         </div>
       </div>
@@ -258,28 +258,6 @@ tr.clic{cursor:pointer}
           </div>
         </div>
         <div id="users-table"><div class="loading"><div class="spin"></div>Carregando...</div></div>
-      </div>
-    </section>
-
-    <!-- ================= AGENTE ================= -->
-    <section class="aba" id="aba-agente">
-      <div class="head"><div><div class="h1">Agente</div><div class="sub">O time de agentes estuda os números de cada loja e o aprendizado entre lojas alimenta os roteiros.</div></div></div>
-      <div class="section">
-        <div class="sec-head">
-          <div class="sec-title">📊 Contas Meta dos clientes · Time de agentes</div>
-          <button class="refresh-btn" id="btn-analisar-todas" onclick="analisarTodas()" style="color:var(--ac2);border-color:rgba(255,77,0,.35)">Analisar todas as contas</button>
-        </div>
-        <div id="meta-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
-        <div style="overflow-x:auto" id="contas-meta-table"></div>
-      </div>
-      <div class="section">
-        <div class="sec-head">
-          <div class="sec-title">🧠 Aprendizado do Agente MCP</div>
-          <button class="refresh-btn" id="btn-aprender" onclick="atualizarAprendizado()" style="color:var(--ac2);border-color:rgba(255,77,0,.35)">Atualizar aprendizado do agente</button>
-        </div>
-        <div style="padding:14px 20px 6px;font-size:13px;color:var(--mu2);line-height:1.55">O agente estuda os videos que mais deram resultado (vendas nos anuncios, engajamento e compartilhamento no organico) nos dossies de todas as lojas e grava apenas <b>padroes por nicho</b>. Nao guarda nome de loja, cliente, video nem texto. Um padrao so e criado com dados de pelo menos 2 lojas diferentes do mesmo nicho.</div>
-        <div id="aprendizado-status" style="padding:6px 20px 12px;font-size:12.5px;color:var(--ac2)"></div>
-        <div id="aprendizado-table"></div>
       </div>
     </section>
 
@@ -410,14 +388,13 @@ async function confirmarAtivacao2fa(){
 
 function logout(){window.location.href="app.html";}
 
-// ===== Aprendizado do Agente MCP (padroes entre lojas, anonimos) =====
+// ===== Apoio: nichos, metodos e chamadas da IA =====
 var NICHOS=["moda feminina","moda masculina","moda infantil","moda fitness","lingerie e moda intima","calcados","bolsas e acessorios","joias e bijuterias","beleza e cosmeticos","saude e suplementos","casa e decoracao","alimentos e doces","pet","servicos","cursos e infoprodutos","outros"];
 var MET_LB={fftopo:"Full Funnel Topo",ffmeio:"Full Funnel Meio",fffundo:"Full Funnel Fundo",dsb:"DSB",angulo:"Angulo"};
 function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo;var p=String(s.pilar||"").toLowerCase();if(p.indexOf("dsb")>-1||p.indexOf("desejo")>-1)return "dsb";if(p.indexOf("angulo")>-1||p.indexOf("ângulo")>-1||p.indexOf("diferencial")>-1)return "angulo";if(s.funil==="fundo")return "fffundo";if(s.funil==="meio")return "ffmeio";return "fftopo";}
 function nichoSalvo(p){if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.rodadas||[];for(var i=rs.length-1;i>=0;i--){if(rs[i].direcao&&rs[i].direcao.nicho)return rs[i].direcao.nicho;}return "";}
 function csvSeguro(t){t=String(t==null?"":t).replace(/"/g,'""');return /^[=+\-@]/.test(t)?"'"+t:t;}
 function escHtml(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
-function statusAprendizado(t){document.getElementById("aprendizado-status").textContent=t;}
 async function chamarIA(prompt,maxTok){
   var s=await supaClient.auth.getSession();var tk=s.data&&s.data.session&&s.data.session.access_token;
   var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:(maxTok||1500)+4000,model:"claude-sonnet-5",effort:"medium"})});
@@ -428,55 +405,6 @@ async function chamarIA(prompt,maxTok){
   if(st<0||en<0)throw new Error("Resposta da IA sem JSON");
   return JSON.parse(raw.substring(st,en+1));
 }
-async function carregarAprendizado(){
-  var el=document.getElementById("aprendizado-table");
-  try{
-    var r=await supaClient.from("aprendizado_agente").select("*").order("nicho").order("metodo");
-    if(r.error)throw r.error;
-    var rows=r.data||[];
-    if(!rows.length){el.innerHTML='<div class="empty">Nenhum padrao aprendido ainda. Clique em "Atualizar aprendizado do agente".</div>';return;}
-    var html='<table><thead><tr><th>Nicho</th><th>Metodo</th><th>Padroes aprendidos</th><th>Roteiros</th><th>Lojas</th><th>Atualizado</th></tr></thead><tbody>';
-    rows.forEach(function(p){html+='<tr><td>'+escHtml(p.nicho==="geral"?"Todas as lojas":p.nicho)+'</td><td>'+escHtml(MET_LB[p.metodo]||p.metodo)+'</td><td style="white-space:normal;line-height:1.5;max-width:520px">'+escHtml(p.padroes).split(" | ").join("<br>• ").replace(/^/,"• ")+'</td><td>'+p.amostras+'</td><td>'+p.lojas+'</td><td>'+new Date(p.atualizado_em).toLocaleDateString("pt-BR")+'</td></tr>';});
-    el.innerHTML=html+'</tbody></table>';
-  }catch(e){
-    el.innerHTML='<div class="empty">A tabela do aprendizado ainda nao existe. Rode o arquivo supabase/aprendizado_agente.sql no SQL Editor do Supabase.</div>';
-  }
-}
-async function atualizarAprendizado(){
-  var btn=document.getElementById("btn-aprender");btn.disabled=true;
-  try{
-    statusAprendizado("Lendo os dossies das contas...");
-    var rr=await supaClient.from("contas_meta").select("user_id,dossie").not("dossie","is",null);
-    if(rr.error)throw rr.error;
-    // de cada loja: os anuncios que mais deram resultado e os posts acima da media da propria conta
-    var lojas=(rr.data||[]).map(function(row){
-      var d=row.dossie||{},itens=[];
-      ((d.anuncios&&d.anuncios.anuncios)||[]).filter(function(a){return a.resultados>0&&a.status!=="Otimizar";}).slice(0,5).forEach(function(a){itens.push("[ANUNCIO | "+a.resultados+" "+(d.anuncios.tipo_resultado||"")+" | "+(a.diagnostico||"")+"] "+String(a.transcricao||a.texto||a.titulo||a.nome||"").substring(0,500));});
-      ((d.organico&&d.organico.videos)||[]).filter(function(v){return v.indice>=1.2;}).slice(0,5).forEach(function(v){itens.push("[ORGANICO "+v.tipo+" | "+v.indice+"x a media | "+v.compartilhamentos+" compartilhamentos] "+String(v.transcricao||v.legenda||"").substring(0,500));});
-      return {id:row.user_id,nicho:d.nicho||"outros",itens:itens};
-    }).filter(function(l){return l.itens.length;});
-    var grupos={};
-    lojas.forEach(function(l){[l.nicho,"geral"].forEach(function(n){var g=grupos[n]||(grupos[n]={nicho:n,itens:[],lojas:{}});l.itens.forEach(function(t){g.itens.push(t);});g.lojas[l.id]=1;});});
-    // protecao: so vira padrao com dados de 2+ lojas diferentes
-    var validos=Object.keys(grupos).map(function(k){return grupos[k];}).filter(function(g){return Object.keys(g.lojas).length>=2&&g.itens.length>=6;});
-    if(!validos.length){statusAprendizado("Ainda nao ha dados suficientes. Analise as contas de pelo menos 2 lojas do mesmo nicho no quadro acima.");return;}
-    for(var i=0;i<validos.length;i++){
-      var g=validos[i],nLojas=Object.keys(g.lojas).length;
-      statusAprendizado("Estudando "+(g.nicho==="geral"?"todas as lojas":g.nicho)+" ("+(i+1)+" de "+validos.length+")...");
-      var prompt="Voce esta estudando os conteudos que mais deram resultado em "+nLojas+" lojas diferentes"+(g.nicho==="geral"?"":" do nicho "+g.nicho)+": anuncios que mais venderam e posts organicos com mais engajamento e compartilhamento. Extraia de 4 a 8 PADROES abstratos e reutilizaveis que explicam por que funcionaram: tipo de gancho, estrutura, tipo de prova ou argumento, oferta, estilo do CTA e tom. Anuncios com vendas pesam mais. REGRAS DE PRIVACIDADE OBRIGATORIAS: nunca cite marca, nome de loja, nome de produto, preco, cidade ou nome de pessoa, e nunca copie frases; descreva cada padrao de forma geral, aplicavel a qualquer loja do nicho. Cada padrao em 1 frase curta. Responda APENAS com JSON valido sem markdown: {\"padroes\":[\"...\"]}. NUNCA use aspas duplas dentro dos textos. CONTEUDOS:\n"+g.itens.slice(0,40).join("\n");
-      var res=await chamarIA(prompt,1500);
-      var pads=(res.padroes||[]).map(function(t){return String(t).replace(/\s*\|\s*/g,", ").trim();}).filter(Boolean).slice(0,8);
-      if(!pads.length)continue;
-      var up=await supaClient.from("aprendizado_agente").upsert({chave:g.nicho+"|todos",nicho:g.nicho,metodo:"todos",padroes:pads.join(" | "),amostras:g.itens.length,lojas:nLojas,atualizado_em:new Date().toISOString()},{onConflict:"chave"});
-      if(up.error)throw up.error;
-    }
-    statusAprendizado("Pronto! "+validos.length+" padroes atualizados. Os proximos roteiros de todas as clientes ja usam esse aprendizado.");
-    carregarAprendizado();
-  }catch(e){
-    statusAprendizado("Erro: "+((e&&e.message)||String(e)));
-  }finally{btn.disabled=false;}
-}
-
 // ===== Reportei Connect: ativar cliente, abrir a tela de conexao e ver o que foi conectado =====
 var connectCfg=null,connectClientes={},connectIntegracoes={};
 async function apiConnect(body){
@@ -540,7 +468,7 @@ async function apiMeta(body){
   return d;
 }
 async function carregarMeta(){
-  var box=document.getElementById("meta-status");
+  var box=document.getElementById("meta-status");if(!box)return;
   try{metaCfg=await apiMeta({acao:"config"});}catch(e){box.textContent="Erro ao ler a conexao: "+e.message;return;}
   if(!metaCfg.appId){
     box.innerHTML='<b style="color:var(--gold)">Falta criar o app da Meta.</b> Siga os passos em <b>docs/COMO-CONECTAR-META.md</b> e cadastre META_APP_ID e META_APP_SECRET no Vercel.';
@@ -721,8 +649,6 @@ async function loadData(){
     renderUsuarios();
     renderProjetos();
     carregarConnect();
-    carregarMeta();
-    carregarAprendizado();
     document.getElementById("last-update").textContent="Ultima atualizacao: "+new Date().toLocaleString("pt-BR");
   }catch(e){
     document.getElementById("last-update").textContent="Erro: "+e.message;
@@ -828,7 +754,7 @@ function exportarCSV(){
 }
 
 // ===== Abas do painel =====
-var ABAS=["lojas","projetos","visao","agente","conexoes","seguranca"];
+var ABAS=["lojas","projetos","visao","conexoes","seguranca"];
 function abrirAba(id){
   if(ABAS.indexOf(id)<0)id="lojas";
   document.querySelectorAll(".aba").forEach(function(s){s.classList.toggle("on",s.id==="aba-"+id);});
@@ -887,7 +813,7 @@ function renderLojas(){
     var acesso=u.last_sign_in_at?'<span class="ch ch-ok">Ativo</span><div class="mini">Entrou '+fmtCurto(u.last_sign_in_at)+'</div>':'<span class="ch ch-av">Aguardando 1º acesso</span><div class="mini"><button class="lk" onclick="copiarLinkAcesso(\''+u.id+'\')">Copiar link de acesso</button></div>';
     var t90=n.ads90||null;
     var num=n.metricas_em?fmtCurto(n.metricas_em)+'<div class="mini">'+(n.posts!=null?n.posts+" posts":"")+(t90&&t90.gasto!=null?(n.posts!=null?" · ":"")+"R$ "+Math.round(t90.gasto).toLocaleString("pt-BR")+" em 90d":"")+'</div>':'<span class="mini" style="margin:0">Ainda sem números</span>';
-    if((n.avisos||[]).length)num+='<div class="mini" style="color:var(--gold)" title="'+escHtml(n.avisos.join(" | "))+'">'+n.avisos.length+' aviso(s) da coleta</div>';
+    if((n.avisos||[]).length)num+='<div class="mini" style="color:var(--gold);max-width:260px;white-space:normal" title="'+escHtml(n.avisos.join(" | "))+'">Aviso: '+escHtml(String(n.avisos[0]).slice(0,120))+(n.avisos.length>1?' (+'+(n.avisos.length-1)+')':'')+'</div>';
     html+='<tr><td><div style="display:flex;gap:12px;align-items:center"><div class="av">'+escHtml(iniciais(nomeLoja(u.id)))+'</div><div style="min-width:0"><div style="font-weight:600;font-size:14.5px">'+escHtml(nomeLoja(u.id))+(u.id===ADMIN_ID?' <span class="ch ch-mu" style="font-size:10px">você</span>':'')+'</div><div class="mini">'+escHtml(l&&l.nicho?l.nicho+" · "+u.email:u.email)+'</div>'+(!l?'<div class="mini"><button class="lk" onclick="abrirDrawerLoja(\''+u.id+'\')">Completar dados da loja</button></div>':'')+'</div></div></td>'
       +'<td>'+ig+'</td><td>'+ads+'</td><td>'+acesso+'</td><td style="font-size:13px">'+num+'<div class="mini" id="ls-'+u.id+'" style="color:var(--ac2);max-width:260px;white-space:normal">'+escHtml(statusLoja[u.id]||"")+'</div></td>'
       +'<td style="white-space:nowrap;text-align:right"><button class="btn-out" onclick="verComoLoja(\''+u.id+'\')">Abrir loja</button> <button class="btn-dots" aria-label="Mais opções da loja" aria-haspopup="menu" onclick="abrirMenu(\''+u.id+'\',this)">⋯</button></td></tr>';
@@ -984,7 +910,7 @@ function abrirDrawerLoja(uid){
     +'<div class="dica" style="margin-top:8px">Quando ela entrar com esse e-mail, cai direto na loja já pronta: vídeos, anúncios e roteiros. Se ela já usa o app, a loja é ligada à conta dela.</div>'
     +(uid?'':'<label class="marca" style="margin-top:6px"><input type="checkbox" id="lj-enviar"/>Enviar o convite por e-mail agora (senão você recebe um link para mandar pelo WhatsApp)</label>')
     +'</section>'
-    +'<section><div class="passo"><span>3</span>Instagram e anúncios</div><div class="dica">Depois de salvar, clique em <b>Conectar Instagram e anúncios</b>: abre a tela do Reportei para autorizar as contas da loja (você mesmo ou mandando o link para a dona). Os números passam a ser atualizados todo dia às 6h.</div></section>'
+    +'<section><div class="passo"><span>3</span>Instagram e anúncios</div><div class="dica">Depois de salvar, clique em <b>Conectar Instagram e anúncios</b>: abre a tela do Reportei para autorizar as contas da loja (você mesmo ou mandando o link para a dona). Os números passam a ser atualizados a cada 5 minutos.</div></section>'
     +'<div id="lj-erro" style="color:var(--ac2);font-size:13px" role="alert"></div>'
     +'</div><div class="dr-f" id="dr-rodape"><button class="btn-out" style="height:46px" onclick="fecharDrawerLoja()">Cancelar</button><button class="btn-pri" style="height:46px" id="lj-salvar" onclick="salvarLoja()">'+(uid?"Salvar":"Criar loja")+'</button></div>';
   document.getElementById("drawer-ov").style.display="block";dr.style.display="flex";
