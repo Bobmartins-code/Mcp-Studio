@@ -27,16 +27,24 @@ module.exports = async function handler(req, res) {
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: "Messages obrigatorio" });
     }
-    // Modelo escolhido pelo cliente (com allowlist) — default Haiku para custo baixo
+    // Modelo escolhido pelo cliente (com allowlist). Roteiros: Opus 5.5; demais tarefas: Sonnet 5.
+    // Os antigos continuam aceitos para quem estiver com a pagina velha aberta.
     const ALLOWED_MODELS = {
+        "claude-opus-5-5": 1,
+        "claude-sonnet-5": 1,
         "claude-haiku-4-5-20251001": 1,
         "claude-sonnet-4-6": 1,
         "claude-opus-4-8": 1
     };
-    const model = (req.body && ALLOWED_MODELS[req.body.model]) ? req.body.model : "claude-haiku-4-5-20251001";
-    // Respeita max_tokens do cliente com teto de seguranca
+    const model = (req.body && ALLOWED_MODELS[req.body.model]) ? req.body.model : "claude-sonnet-5";
+    // Nivel de raciocinio (effort): quanto o modelo pensa antes de escrever
+    const EFFORT_MODELS = { "claude-opus-5-5": 1, "claude-sonnet-5": 1, "claude-opus-4-8": 1 };
+    const ALLOWED_EFFORT = { low: 1, medium: 1, high: 1 };
+    const effort = (req.body && ALLOWED_EFFORT[req.body.effort] && EFFORT_MODELS[model]) ? req.body.effort : null;
+    const extra = effort ? { output_config: { effort: effort } } : {};
+    // Respeita max_tokens do cliente com teto de seguranca (o raciocinio tambem conta nesse limite)
     const reqMax = req.body && Number(req.body.max_tokens);
-    const maxTokens = (reqMax && reqMax > 0) ? Math.min(reqMax, 8000) : 6000;
+    const maxTokens = (reqMax && reqMax > 0) ? Math.min(reqMax, 16000) : 6000;
     // Ferramentas nativas (ex: web_fetch para ler URLs) — repassadas quando enviadas
     const tools = (req.body && Array.isArray(req.body.tools) && req.body.tools.length) ? req.body.tools : null;
     const wantStream = !!(req.body && req.body.stream) && !tools;
@@ -44,19 +52,19 @@ module.exports = async function handler(req, res) {
     // CAMINHO STREAMING: envia o texto da IA chegando ao vivo (sensacao de chat)
     if (wantStream) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 58000);
+        const timeout = setTimeout(() => controller.abort(), 115000);
         let r;
         try {
             r = await fetch("https://api.anthropic.com/v1/messages", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-                body: JSON.stringify({
+                body: JSON.stringify(Object.assign({
                     model: model,
                     max_tokens: maxTokens,
                     system: SYSTEM,
                     messages: messages,
                     stream: true
-                }),
+                }, extra)),
                 signal: controller.signal
             });
         } catch (e) {
@@ -100,7 +108,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 55000);
+        const timeout = setTimeout(() => controller.abort(), 110000);
         const r = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
             headers: {
@@ -113,7 +121,7 @@ module.exports = async function handler(req, res) {
                 max_tokens: maxTokens,
                 system: SYSTEM,
                 messages: messages
-            }, tools ? { tools: tools } : {})),
+            }, extra, tools ? { tools: tools } : {})),
             signal: controller.signal
         });
         clearTimeout(timeout);

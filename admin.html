@@ -207,7 +207,7 @@ function escHtml(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){re
 function statusAprendizado(t){document.getElementById("aprendizado-status").textContent=t;}
 async function chamarIA(prompt,maxTok){
   var s=await supaClient.auth.getSession();var tk=s.data&&s.data.session&&s.data.session.access_token;
-  var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:maxTok||1500,model:"claude-sonnet-4-6"})});
+  var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:(maxTok||1500)+4000,model:"claude-sonnet-5",effort:"medium"})});
   var d=await res.json();
   if(!res.ok||d.error)throw new Error((d.error&&(d.error.message||d.error))||("Erro "+res.status));
   var raw=(d.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
