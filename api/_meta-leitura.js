@@ -199,6 +199,15 @@ async function enriquecerLoja(met, anterior) {
             } catch (e) { falhou("anuncio " + a.id, e, "ads"); }
         }
 
+        // link oficial de cada post (1 consulta por post, uma vez so): o link que vem do Reportei pode apontar para outro post
+        for (const p of posts.filter(function (p) { return !(cache.posts[p.id] || {}).permalink; }).slice(0, 30)) {
+            if (sem.ig) break;
+            try {
+                const d = await g("/" + p.id, { fields: "permalink" }, token);
+                if (d.permalink) post(p.id).permalink = d.permalink;
+            } catch (e) { falhou("link do post " + p.id, e, "ig"); }
+        }
+
         // 2) Reels: tempo medio assistido (1 consulta por Reels; recentes 1 vez por dia, antigos 1 vez so)
         const reels = posts.filter(function (p) {
             if (p.tipo !== "Reels") return false;
@@ -289,6 +298,7 @@ function aplicarMeta(met, cache) {
     ((met.organico && met.organico.posts) || []).forEach(function (p) {
         porId[p.id] = p;
         const c = cp[p.id]; if (!c) return;
+        if (c.permalink) p.link = c.permalink;
         if (c.tempo_medio_s) p.tempo_medio_s = c.tempo_medio_s;
         if (c.transcricao) p.transcricao = c.transcricao;
     });
@@ -299,6 +309,7 @@ function aplicarMeta(met, cache) {
             if (c.texto) a.texto = c.texto;
             if (c.titulo) a.titulo = c.titulo;
             if (c.post_link) a.post_link = c.post_link;
+            if (c.ig_media_id && cp[c.ig_media_id] && cp[c.ig_media_id].permalink) a.post_link = cp[c.ig_media_id].permalink;
             if (c.ig_media_id && porId[c.ig_media_id]) a.post_id = c.ig_media_id;
             const fala = c.transcricao || (c.ig_media_id && cp[c.ig_media_id] && cp[c.ig_media_id].transcricao);
             if (fala) a.transcricao = fala;

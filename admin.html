@@ -285,7 +285,7 @@ tr.clic{cursor:pointer}
     <section class="aba" id="aba-seguranca">
       <div class="head"><div><div class="h1">Segurança</div></div></div>
       <div class="section">
-        <div class="sec-head"><div class="sec-title">🔒 Seguranca da conta admin</div></div>
+        <div class="sec-head"><div class="sec-title">🔒 Segurança da conta admin</div></div>
         <div style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6"><div id="seguranca-status">Carregando...</div><div id="auditoria-lista"></div></div>
       </div>
     </section>
@@ -338,7 +338,7 @@ function abrirPainel(){
   carregarSeguranca();
 }
 function pedirCodigo2fa(){
-  document.getElementById("gate-msg").innerHTML='Verificacao em 2 etapas<br><span style="font-size:12px">Digite o codigo de 6 digitos do seu aplicativo autenticador.</span><br><br><input id="codigo-2fa" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:20px;letter-spacing:6px;text-align:center;padding:10px;width:180px"/><br><br><button class="btn-filter" onclick="confirmarCodigo2fa()">Entrar</button><div id="erro-2fa" style="color:var(--ac2);font-size:12px;margin-top:10px"></div>';
+  document.getElementById("gate-msg").innerHTML='Verificação em 2 etapas<br><span style="font-size:12px">Digite o código de 6 dígitos do seu aplicativo autenticador.</span><br><br><input id="codigo-2fa" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:20px;letter-spacing:6px;text-align:center;padding:10px;width:180px"/><br><br><button class="btn-filter" onclick="confirmarCodigo2fa()">Entrar</button><div id="erro-2fa" style="color:var(--ac2);font-size:12px;margin-top:10px"></div>';
   setTimeout(function(){var i=document.getElementById("codigo-2fa");if(i){i.focus();i.addEventListener("keydown",function(e){if(e.key==="Enter")confirmarCodigo2fa();});}},50);
 }
 async function confirmarCodigo2fa(){
@@ -361,13 +361,13 @@ async function carregarSeguranca(){
     var f=await supaClient.auth.mfa.listFactors();
     var ativos=(f.data&&f.data.totp)||[];
     box.innerHTML=ativos.length
-      ?'<b style="color:var(--ok)">✓ Verificacao em 2 etapas ativa.</b> Para entrar no painel e preciso a senha e o codigo do seu celular.'
-      :'<b style="color:var(--ac2)">Verificacao em 2 etapas desligada.</b> Hoje so a senha protege o acesso a todas as contas. <button class="btn-filter" onclick="ativar2fa()">Ativar agora</button>';
-  }catch(e){box.textContent="Nao foi possivel ler a verificacao em 2 etapas.";}
+      ?'<b style="color:var(--ok)">✓ Verificação em 2 etapas ativa.</b> Para entrar no painel é preciso a senha e o código do seu celular.'
+      :'<b style="color:var(--ac2)">Verificação em 2 etapas desligada.</b> Hoje só a senha protege o acesso a todas as contas. <button class="btn-filter" onclick="ativar2fa()">Ativar agora</button>';
+  }catch(e){box.textContent="Não foi possível ler a verificação em 2 etapas.";}
   try{
     var a=await supaClient.from("auditoria").select("acao,alvo,criado_em").order("criado_em",{ascending:false}).limit(8);
     var nomes={};allUsers.forEach(function(u){nomes[u.id]=u.email;});
-    document.getElementById("auditoria-lista").innerHTML=(a.data&&a.data.length)?'<div style="font-size:12px;color:var(--mu2);margin-top:10px">Ultimas acoes registradas:</div>'+a.data.map(function(x){return '<div style="font-size:12px;padding:3px 0">'+new Date(x.criado_em).toLocaleString("pt-BR")+' · '+escHtml(x.acao)+(x.alvo?' · '+escHtml(nomes[x.alvo]||x.alvo):'')+'</div>';}).join(""):"";
+    document.getElementById("auditoria-lista").innerHTML=(a.data&&a.data.length)?'<div style="font-size:12px;color:var(--mu2);margin-top:10px">Últimas ações registradas:</div>'+a.data.map(function(x){return '<div style="font-size:12px;padding:3px 0">'+new Date(x.criado_em).toLocaleString("pt-BR")+' · '+escHtml(x.acao)+(x.alvo?' · '+escHtml(nomes[x.alvo]||x.alvo):'')+'</div>';}).join(""):"";
   }catch(e){}
 }
 var fatorPendente=null;
@@ -380,7 +380,7 @@ async function ativar2fa(){
     var e=await supaClient.auth.mfa.enroll({factorType:"totp",friendlyName:"MCP Studio Admin "+Date.now()});
     if(e.error)throw e.error;
     fatorPendente=e.data.id;
-    box.innerHTML='<b>1.</b> Abra o Google Authenticator (ou Microsoft Authenticator) no celular e escaneie o codigo abaixo.<br><img src="'+e.data.totp.qr_code+'" alt="QR code" style="width:180px;height:180px;background:#fff;border-radius:10px;padding:8px;margin:10px 0"/><br><span style="font-size:12px">Nao consegue escanear? Digite esta chave no aplicativo: <b style="letter-spacing:1px">'+escHtml(e.data.totp.secret)+'</b></span><br><br><b>2.</b> Digite o codigo de 6 digitos que aparece no aplicativo: <input id="codigo-ativar" inputmode="numeric" maxlength="6" style="background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:16px;letter-spacing:4px;text-align:center;padding:6px;width:120px"/> <button class="btn-filter" onclick="confirmarAtivacao2fa()">Confirmar</button><div id="erro-ativar" style="color:var(--ac2);font-size:12px;margin-top:8px"></div>';
+    box.innerHTML='<b>1.</b> Abra o Google Authenticator (ou Microsoft Authenticator) no celular e escaneie o código abaixo.<br><img src="'+e.data.totp.qr_code+'" alt="QR code" style="width:180px;height:180px;background:#fff;border-radius:10px;padding:8px;margin:10px 0"/><br><span style="font-size:12px">Não consegue escanear? Digite esta chave no aplicativo: <b style="letter-spacing:1px">'+escHtml(e.data.totp.secret)+'</b></span><br><br><b>2.</b> Digite o código de 6 dígitos que aparece no aplicativo: <input id="codigo-ativar" inputmode="numeric" maxlength="6" style="background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:16px;letter-spacing:4px;text-align:center;padding:6px;width:120px"/> <button class="btn-filter" onclick="confirmarAtivacao2fa()">Confirmar</button><div id="erro-ativar" style="color:var(--ac2);font-size:12px;margin-top:8px"></div>';
   }catch(err){box.textContent="Nao foi possivel iniciar: "+((err&&err.message)||err);}
 }
 async function confirmarAtivacao2fa(){
@@ -390,7 +390,7 @@ async function confirmarAtivacao2fa(){
     if(v.error)throw v.error;
     await supaClient.from("auditoria").insert({admin_id:ADMIN_ID,acao:"ativou a verificacao em 2 etapas"});
     carregarSeguranca();
-  }catch(e){document.getElementById("erro-ativar").textContent="Codigo invalido. Confira se o horario do celular esta certo e use o codigo atual.";}
+  }catch(e){document.getElementById("erro-ativar").textContent="Código inválido. Confira se o horário do celular está certo e use o código atual.";}
 }
 
 function logout(){window.location.href="app.html";}
