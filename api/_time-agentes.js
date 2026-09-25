@@ -67,10 +67,13 @@ function objeto(props) { return { type: "object", properties: props, required: O
 const ESQ_ORGANICO = objeto({ resumo: { type: "string" }, o_que_funciona: lista, ganchos_que_funcionam: lista, temas: lista, formatos: lista, evitar: lista, confianca: confianca });
 const ESQ_ANUNCIOS = objeto({ resumo: { type: "string" }, o_que_vende: lista, ganchos_que_convertem: lista, argumentos_e_ofertas: lista, ctas: lista, diagnostico_dos_fracos: lista, confianca: confianca });
 const ESQ_PUBLICO = objeto({ resumo: { type: "string" }, quem_e: { type: "string" }, idade_genero: { type: "string" }, regioes: { type: "string" }, quem_compra: { type: "string" }, dores: lista, desejos: lista, objecoes: lista, expressoes_reais: lista, confianca: confianca });
+// a descricao de cada campo reforca a acentuacao (o Diretor tendia a escrever sem acento)
+const PT = "Em português do Brasil com acentuação completa (exemplo: Os vídeos que mostram um erro de gestão são os que mais geram comentário).";
+function textoPT(d) { return { type: "string", description: d + " " + PT }; }
 const ESQ_DIRETOR = objeto({
-    texto: { type: "string" },
-    resumo_loja: { type: "string" },
-    por_metodo: objeto({ fftopo: { type: "string" }, ffmeio: { type: "string" }, fffundo: { type: "string" }, dsb: { type: "string" }, angulo: { type: "string" } }),
+    texto: textoPT("Dossiê para o Agente MCP, até 1400 caracteres."),
+    resumo_loja: textoPT("2 ou 3 frases curtas para a dona da loja ler no celular."),
+    por_metodo: objeto({ fftopo: textoPT("Full Funnel Topo nesta loja."), ffmeio: textoPT("Full Funnel Meio nesta loja."), fffundo: textoPT("Full Funnel Fundo nesta loja."), dsb: textoPT("DSB nesta loja."), angulo: textoPT("Ângulo nesta loja.") }),
     nicho: { type: "string", enum: NICHOS }
 });
 
