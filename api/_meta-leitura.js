@@ -20,7 +20,9 @@ const GRAPH = "https://graph.facebook.com/v23.0";
 const DIA_MS = 24 * 3600 * 1000;
 const LIMITE_USO = 75;                 // % do limite da Meta: acima disso, pausa
 const PAUSA_PADRAO_MIN = 60;
-const CAPAS_MS = DIA_MS;               // as capas da Meta vencem: renova 1 vez por dia
+const CAPAS_MS = DIA_MS;               // as capas da Meta vencem: renova 1 vez por dia (anuncios dos ultimos 30 dias)
+const ANTIGOS_MS = 5 * DIA_MS;
+const MAX_ANUNCIOS_RODADA = 25;
 const COMENTARIOS_MS = 3 * DIA_MS;
 const REELS_RECENTE_MS = 14 * DIA_MS;  // tempo assistido ainda muda: atualiza 1 vez por dia ate 14 dias
 const NOVA_TENTATIVA_MS = 3 * DIA_MS;  // video que nao deu para transcrever: tenta de novo depois
@@ -105,7 +107,6 @@ function num(x) { const n = Number(x); return isFinite(n) ? n : 0; }
 function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n) + "..." : t; }
 function ehCodigo(id) { return /^\d{8,}$/.test(String(id || "")); }
 function velho(iso, ms) { return !iso || Date.now() - new Date(iso).getTime() >= ms; }
-function lotes(v, n) { const out = []; for (let i = 0; i < v.length; i += n) out.push(v.slice(i, i + n)); return out; }
 function espera(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 // Baixa o video e manda para o Whisper
@@ -152,42 +153,50 @@ async function enriquecerLoja(met, anterior) {
     }
 
     try {
-        // 1) anuncios: capa, texto e titulo (1 consulta para ate 50 anuncios; renova 1 vez por dia porque as capas vencem)
-        const adsPedir = ads.filter(function (a) { return velho(cache.anuncios[a.id] && cache.anuncios[a.id].em, CAPAS_MS); }).map(function (a) { return a.id; }).slice(0, 50);
-        const igDosAds = {};
+        // 1) anuncios: capa, texto e titulo (1 consulta por anuncio, uma de cada vez, no maximo 25 por rodada)
+        //    anuncio novo: sempre; dos ultimos 30 dias: 1 vez por dia (as capas da Meta vencem); mais antigos: a cada 5 dias
+        const recentes = {};
+        ((met.anuncios && met.anuncios.p30 && met.anuncios.p30.anuncios) || []).forEach(function (a) { recentes[a.id] = 1; });
+        const adsPedir = ads.filter(function (a) { const c = cache.anuncios[a.id]; return !c || velho(c.em, recentes[a.id] ? CAPAS_MS : ANTIGOS_MS); })
+            .sort(function (a, b) { return (cache.anuncios[a.id] ? 1 : 0) - (cache.anuncios[b.id] ? 1 : 0) || num(b.gasto) - num(a.gasto); })
+            .slice(0, MAX_ANUNCIOS_RODADA);
+        const postsDaLoja = {};
+        posts.forEach(function (p) { postsDaLoja[p.id] = p; });
         const campos = "thumbnail_url,image_url,video_id,body,title,object_story_spec,effective_instagram_media_id";
-        for (const lote of lotes(adsPedir, 50)) {
+        let tamanhoOk = true;
+        for (const a of adsPedir) {
+            if (sem.ads) break;
             try {
                 // capa em tamanho maior; se a Meta nao aceitar o tamanho, pede a capa padrao
-                const d = await g("/", { ids: lote.join(","), fields: "creative.thumbnail_width(600).thumbnail_height(600){" + campos + "}" }, token)
-                    .catch(function (e) { if (e instanceof MetaPausada || semPermissao(e)) throw e; return g("/", { ids: lote.join(","), fields: "creative{" + campos + "}" }, token); });
-                lote.forEach(function (id) {
-                    const c = (d[id] && d[id].creative) || {}, oss = c.object_story_spec || {}, vd = oss.video_data || {}, ld = oss.link_data || {};
-                    const antes = cache.anuncios[id] || {};
-                    cache.anuncios[id] = Object.assign({}, antes, {
-                        em: agora,
-                        miniatura: c.image_url || vd.image_url || c.thumbnail_url || antes.miniatura || "",
-                        texto: corta(c.body || vd.message || ld.message || "", 600),
-                        titulo: corta(c.title || vd.title || ld.name || "", 140),
-                        video_id: c.video_id || vd.video_id || "",
-                        ig_media_id: c.effective_instagram_media_id || ""
-                    });
-                    if (c.effective_instagram_media_id) igDosAds[c.effective_instagram_media_id] = id;
+                let d;
+                if (tamanhoOk) {
+                    try { d = await g("/" + a.id, { fields: "creative.thumbnail_width(600).thumbnail_height(600){" + campos + "}" }, token); }
+                    catch (e) { if (e instanceof MetaPausada || semPermissao(e)) throw e; tamanhoOk = false; }
+                }
+                if (!d) d = await g("/" + a.id, { fields: "creative{" + campos + "}" }, token);
+                const c = (d && d.creative) || {}, oss = c.object_story_spec || {}, vd = oss.video_data || {}, ld = oss.link_data || {};
+                const antes = cache.anuncios[a.id] || {};
+                const x = cache.anuncios[a.id] = Object.assign({}, antes, {
+                    em: agora,
+                    miniatura: c.image_url || vd.image_url || c.thumbnail_url || antes.miniatura || "",
+                    texto: corta(c.body || vd.message || ld.message || "", 600),
+                    titulo: corta(c.title || vd.title || ld.name || "", 140),
+                    video_id: c.video_id || vd.video_id || "",
+                    ig_media_id: c.effective_instagram_media_id || ""
                 });
-            } catch (e) { falhou("anuncios", e, "ads"); }
-        }
-        // anuncio feito a partir de um post do Instagram: capa grande e link do post (1 consulta para todos)
-        const igIds = Object.keys(igDosAds);
-        if (igIds.length) {
-            try {
-                const d = await g("/", { ids: igIds.slice(0, 50).join(","), fields: "thumbnail_url,media_url,media_type,permalink" }, token);
-                igIds.forEach(function (ig) {
-                    const x = d[ig]; if (!x) return;
-                    const a = cache.anuncios[igDosAds[ig]];
-                    a.miniatura = x.thumbnail_url || (x.media_type === "IMAGE" ? x.media_url : "") || a.miniatura;
-                    a.post_link = x.permalink || a.post_link || "";
-                });
-            } catch (e) { falhou("posts dos anuncios", e, "nenhum"); }
+                // anuncio feito a partir de um post: capa e link do post (do Reportei quando o post e da loja; senao, 1 consulta na primeira vez)
+                const ig = x.ig_media_id, doPost = ig && postsDaLoja[ig];
+                if (doPost) {
+                    if (doPost.miniatura) x.miniatura = doPost.miniatura;
+                    if (doPost.link) x.post_link = doPost.link;
+                } else if (ig && !antes.post_link) {
+                    try {
+                        const m = await g("/" + ig, { fields: "thumbnail_url,media_url,media_type,permalink" }, token);
+                        x.miniatura = m.thumbnail_url || (m.media_type === "IMAGE" ? m.media_url : "") || x.miniatura;
+                        x.post_link = m.permalink || "";
+                    } catch (e) { falhou("post do anuncio " + a.id, e, "nenhum"); }
+                }
+            } catch (e) { falhou("anuncio " + a.id, e, "ads"); }
         }
 
         // 2) Reels: tempo medio assistido (1 consulta por Reels; recentes 1 vez por dia, antigos 1 vez so)
