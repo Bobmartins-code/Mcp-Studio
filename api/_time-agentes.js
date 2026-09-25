@@ -19,7 +19,6 @@ const { banco } = require("./_seguranca.js");
 const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
 const { blocoDaResposta, diaSP, assinaturaDe } = require("./_coleta.js");
 const { transcreverReel } = require("./_transcricao.js");
-const { METODOS } = require("./_agente-mcp.js");
 
 const MODELO = "claude-sonnet-5";
 const VERSAO = 2;
@@ -47,6 +46,17 @@ COMO MEDIMOS RESULTADO
 - Orgânico: engajamento (curtidas, comentários, salvamentos) e compartilhamentos, com compartilhamento valendo o dobro, sempre em relação ao alcance. O índice compara cada post com a média da própria conta: 1,0 é na média, 2,0 é o dobro. Posts dos últimos 30 dias pesam mais que os 60 dias anteriores.
 - Anúncios: resultado é venda. Se a loja não tem pixel e vende pelo WhatsApp ou Direct, resultado são as conversas iniciadas. Quando as campanhas têm objetivos diferentes (alcance, visitas ao perfil, cliques), compare cada anúncio só com os de mesmo objetivo e nunca some objetivos diferentes.
 - Taxa de gancho = quem assistiu 3 segundos dividido pelas impressões (força do gancho). Retenção = quem assistiu até o fim dividido por quem assistiu 3 segundos (força do corpo). Taxa de clique = cliques dividido pelas impressões (força da chamada).
+`.trim();
+
+// Os 5 metodos em poucas linhas e com acento: o Diretor so precisa saber para que serve cada um
+// (a regra completa fica no Agente MCP, em api/_agente-mcp.js, que esta sem acento e fazia o Diretor escrever sem acento)
+const METODOS_RESUMO = `
+OS 5 MÉTODOS DE ROTEIRO DO MCP STUDIO
+- fftopo, Full Funnel Topo (Consciência): para quem ainda não conhece a loja. Começa numa situação do dia a dia, desperta a dor e só depois apresenta a solução.
+- ffmeio, Full Funnel Meio (Conceito Criativo): para quem já está pensando. Mostra o produto de um jeito criativo: comparação, antes e depois, look completo, estilo de vida, bastidor.
+- fffundo, Full Funnel Fundo (Decisão e Prova): para quem já quer comprar mas trava. Responde uma objeção (preço, tamanho, qualidade, prazo, troca) com prova: garantia, cálculo ou detalhe do produto.
+- dsb, DSB (Dor, Solução, Benefício): parte de uma dor real da cliente, apresenta o produto como a solução e fecha no benefício sentido na prática.
+- angulo, Ângulo (Diferencial concreto): cada roteiro foca em um diferencial real do produto e mostra por que ele faz diferença.
 `.trim();
 
 // ---------- esquemas das respostas (a API garante o formato) ----------
@@ -253,9 +263,8 @@ async function analisarLoja(userId, motivo) {
             "- texto: até 1400 caracteres, denso e específico, para o Agente MCP: quem é o público e como fala, o que funciona no orgânico, o que dá resultado nos anúncios, de 3 a 5 ganchos modelo no estilo do que já funcionou nesta conta e o que evitar.\n" +
             "- resumo_loja: 2 ou 3 frases curtas para a dona da loja ler no celular, sem jargão: o que mais tem dado certo e o que gravar a seguir.\n" +
             "- por_metodo: para cada um dos 5 métodos abaixo, 1 ou 2 frases de como aplicar nesta loja com base nos dados (fftopo = Full Funnel Topo, ffmeio = Full Funnel Meio, fffundo = Full Funnel Fundo, dsb = DSB, angulo = Ângulo).\n" +
-            "- nicho: o nicho desta loja.\n\n" + METODOS.trim() + "\n\n" + sobreLoja +
+            "- nicho: o nicho desta loja.\n\n" + METODOS_RESUMO + "\n\n" + sobreLoja +
             "\nRELATORIO ORGANICO: " + JSON.stringify(relOrg) + "\nRELATORIO DE ANUNCIOS: " + JSON.stringify(relAds) + "\nRELATORIO DE PUBLICO: " + JSON.stringify(relPub) +
-            // a base de metodos acima esta sem acento; o lembrete no fim evita que a resposta copie isso
             "\n\nLEMBRETE FINAL: texto, resumo_loja e por_metodo vão para a tela da loja e para o Agente MCP, então escreva todos com acentuação completa do português (não, são, vídeo, anúncio, começam, gestão, prática).",
             ESQ_DIRETOR);
 

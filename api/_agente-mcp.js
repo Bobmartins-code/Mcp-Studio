@@ -76,4 +76,4 @@ const SISTEMA = [IDENTIDADE, COMO_PENSA, REGRAS_DE_ESCRITA, ESTRUTURA_DO_ROTEIRO
     .map(function (t) { return t.trim(); })
     .join("\n\n");
 
-module.exports = { SISTEMA, METODOS };
+module.exports = { SISTEMA };
