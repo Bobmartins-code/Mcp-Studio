@@ -80,6 +80,26 @@ const ESQ_DIRETOR = objeto({
     nicho: { type: "string", enum: NICHOS }
 });
 
+// Agente de Ideias: cerca de 15 ideias de conteudo (nao sao roteiros), narradas e sem narracao
+const ESQ_IDEIAS = objeto({
+    resumo: textoPT("2 frases para a dona ler no celular: por onde começar esta semana e por quê."),
+    ideias: {
+        type: "array",
+        items: objeto({
+            titulo: textoPT("Como a ideia aparece para a dona, curto e no jeito de falar das seguidoras (exemplo: pov: a peça perfeita para o jantar de sexta)."),
+            narracao: { type: "string", enum: ["sem narração", "narrado"] },
+            formato: textoPT("O formato em poucas palavras (exemplo: POV com texto na tela, transição de look, close do tecido, dica para a câmera)."),
+            funil: { type: "string", enum: ["topo", "meio", "fundo"] },
+            metodo: { type: "string", enum: ["fftopo", "ffmeio", "fffundo", "dsb", "angulo"], description: "O método de roteiro mais próximo, usado se a dona quiser transformar a ideia em roteiro." },
+            como_gravar: textoPT("1 ou 2 frases práticas: o que filmar e em que ordem, só com o celular."),
+            texto_na_tela: textoPT("A frase escrita no vídeo; vazio se não tiver."),
+            audio: textoPT("Música em alta, som ambiente ou narração, e o clima."),
+            por_que: textoPT("A evidência desta loja que sustenta a ideia, em uma frase (post, anúncio, comentário ou padrão do público)."),
+            esforco: { type: "string", enum: ["fácil", "médio"] }
+        })
+    }
+});
+
 // ---------- chamada da IA ----------
 function espera(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 // garantia final: troca qualquer travessao que escape por virgula (mesma regra do api/generate.js)
@@ -202,13 +222,41 @@ async function publicoDoReportei(userId) {
     } catch (e) { return null; }
 }
 
+// pedido do Agente de Ideias (nao escreve roteiros: entrega ideias de conteudo)
+function pedidoIdeias(o) {
+    const gravadas = o.marcadas.filter(function (m) { return m.status === "gravei"; }).map(function (m) { return m.titulo; });
+    const naoCurtiu = o.marcadas.filter(function (m) { return m.status === "nao_curti"; }).map(function (m) { return m.titulo; });
+    return "Você é o AGENTE DE IDEIAS, especialista em conteúdo para lojas brasileiras no Instagram. Você NÃO escreve roteiros: você entrega ideias de conteúdo que a dona da loja consegue gravar, com base em tudo o que o time estudou sobre esta conta.\n\n" +
+        "ENTREGUE CERCA DE 15 IDEIAS, variadas de propósito:\n" +
+        "- Pelo menos 6 SEM NARRAÇÃO: conteúdo visual, rápido e dopaminérgico, que prende pelo olho e pelo ritmo, principalmente para o topo do funil. Formatos possíveis: POV (pov: a peça perfeita para o casamento da sua amiga), transição de look, antes e depois, montagem rápida de looks, close de detalhe do produto, embalando o pedido, unboxing, 3 jeitos de usar, provador, bastidor da loja, trend com áudio do momento, texto na tela com música.\n" +
+        "- As outras NARRADAS, para quando a dona fala para a câmera: dica, resposta a uma dúvida real dos comentários, história de cliente, erro comum, comparação.\n" +
+        "- Priorize ideias simples de gravar, só com o celular e sem produção.\n" +
+        "- Distribua entre topo (atrair gente nova), meio (fazer desejar) e fundo (fazer comprar), pesando para a etapa em que esta conta está mais fraca.\n" +
+        "- Use o que os dados mostram: os ganchos e assuntos que seguram mais gente nos 3 primeiros segundos e por mais tempo, os formatos que mais engajam, o que vende nos anúncios, as dúvidas e desejos dos comentários, o perfil do público.\n\n" +
+        "REGRAS\n" +
+        "- Cada ideia nasce dos dados desta loja; em por_que, diga de onde veio em uma frase. Sem evidência, não sugira.\n" +
+        "- Use o jeito de falar das seguidoras nos títulos e nos textos de tela.\n" +
+        "- Nunca invente produto, preço, promoção ou depoimento. Se a ideia depender de uma peça, diga o tipo de peça (um vestido de festa da loja), sem inventar um produto.\n" +
+        "- Não repita as ideias já sugeridas nem as já gravadas listadas abaixo. Evite o estilo das que a dona não curtiu.\n" +
+        "- Títulos curtos. Português do Brasil com acentuação completa, sem travessão, sem jargão.\n\n" +
+        o.sobreLoja +
+        "\n\nPOSTS DA LOJA (do melhor para o pior):\n" + o.posts.slice(0, 15).map(linhaPost).join("\n") +
+        (o.ads ? "\n\nANÚNCIOS (do que mais deu resultado para o que menos deu):\n" + o.ads.lista.slice(0, 12).map(function (a, i) { return linhaAnuncio(o.ads.tipo, a, i); }).join("\n") : "") +
+        (o.comentarios.length ? "\n\nCOMENTÁRIOS REAIS DAS SEGUIDORAS:\n" + o.comentarios.slice(0, 40).map(function (c) { return "- " + c; }).join("\n") : "") +
+        "\n\nRELATÓRIO ORGÂNICO: " + JSON.stringify(o.relOrg) + "\nRELATÓRIO DE ANÚNCIOS: " + JSON.stringify(o.relAds) + "\nRELATÓRIO DE PÚBLICO: " + JSON.stringify(o.relPub) +
+        (o.anteriores.length ? "\n\nIDEIAS JÁ SUGERIDAS ANTES (não repita): " + o.anteriores.join(" | ") : "") +
+        (gravadas.length ? "\nIDEIAS QUE A DONA JÁ GRAVOU (não repita; ideias parecidas com as que funcionaram são bem-vindas): " + gravadas.join(" | ") : "") +
+        (naoCurtiu.length ? "\nIDEIAS QUE A DONA NÃO CURTIU (evite esse estilo): " + naoCurtiu.join(" | ") : "");
+}
+
 // ---------- a analise completa de uma loja ----------
 async function analisarLoja(userId, motivo) {
     const id = encodeURIComponent(userId);
-    const [contas, lojas, projetos] = await Promise.all([
+    const [contas, lojas, projetos, marcadas] = await Promise.all([
         banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta"),
         banco("lojas?user_id=eq." + id + "&select=nome,nicho,site").catch(function () { return []; }),
-        banco("projetos?user_id=eq." + id + "&select=nome,form&order=criado_em.desc&limit=5").catch(function () { return []; })
+        banco("projetos?user_id=eq." + id + "&select=nome,form&order=criado_em.desc&limit=5").catch(function () { return []; }),
+        banco("ideias_marcadas?user_id=eq." + id + "&select=titulo,status&order=criado_em.desc&limit=60").catch(function () { return []; })
     ]);
     const conta = (contas && contas[0]) || {};
     const met = conta.metricas;
@@ -265,8 +313,10 @@ async function analisarLoja(userId, motivo) {
             "\nRELATORIO DO AGENTE ORGANICO: " + JSON.stringify(relOrg) + "\nRELATORIO DO AGENTE DE ANUNCIOS: " + JSON.stringify(relAds),
             ESQ_PUBLICO);
 
-        // 4) Diretor: o dossie que o Agente MCP le em cada roteiro
-        const dir = await perguntar("Diretor",
+        // 4) Diretor (dossie para o Agente MCP) e Agente de Ideias (pauta para a dona), ao mesmo tempo
+        const pIdeias = perguntar("Agente de Ideias", pedidoIdeias({ sobreLoja: sobreLoja, posts: posts, ads: ads, comentarios: comentarios, relOrg: relOrg, relAds: relAds, relPub: relPub, anteriores: ((conta.dossie && conta.dossie.ideias && conta.dossie.ideias.lista) || []).map(function (i) { return i.titulo; }), marcadas: marcadas || [] }), ESQ_IDEIAS)
+            .catch(function (e) { console.error("[time] ideias: " + (e && e.message)); return null; });
+        const pDir = perguntar("Diretor",
             "Você é o DIRETOR do time. Junte os relatórios num dossiê para o Agente MCP, que escreve os roteiros desta loja. Tudo com acentuação correta.\n" +
             "- texto: até 1400 caracteres, denso e específico, para o Agente MCP: quem é o público e como fala, o que funciona no orgânico, o que dá resultado nos anúncios, de 3 a 5 ganchos modelo no estilo do que já funcionou nesta conta e o que evitar.\n" +
             "- resumo_loja: 2 ou 3 frases curtas para a dona da loja ler no celular, sem jargão: o que mais tem dado certo e o que gravar a seguir.\n" +
@@ -275,6 +325,7 @@ async function analisarLoja(userId, motivo) {
             "\nRELATORIO ORGANICO: " + JSON.stringify(relOrg) + "\nRELATORIO DE ANUNCIOS: " + JSON.stringify(relAds) + "\nRELATORIO DE PUBLICO: " + JSON.stringify(relPub) +
             "\n\nLEMBRETE FINAL: texto, resumo_loja e por_metodo vão para a tela da loja e para o Agente MCP, então escreva todos com acentuação completa do português (não, são, vídeo, anúncio, começam, gestão, prática).",
             ESQ_DIRETOR);
+        const [dir, ideias] = await Promise.all([pDir, pIdeias]);
 
         const dossie = {
             versao: VERSAO, periodo_dias: 90, gerado_em: new Date().toISOString(), motivo: motivo || "manual",
@@ -282,13 +333,14 @@ async function analisarLoja(userId, motivo) {
             texto: dir.texto, resumo_loja: dir.resumo_loja, por_metodo: dir.por_metodo, nicho: dir.nicho,
             organico: relOrg ? { relatorio: relOrg, total_posts: postsTodos.length, videos: posts.filter(function (p) { return p.transcricao; }).map(function (p) { return { id: p.id, link: p.link, legenda: corta(p.legenda, 80), transcricao: p.transcricao }; }) } : null,
             anuncios: ads ? { relatorio: relAds, tipo_resultado: ads.tipo, total: ads.lista.length, com_texto: comTexto, anuncios: ads.lista.filter(function (a) { return a.transcricao; }).map(function (a) { return { id: a.id, nome: a.nome, transcricao: a.transcricao }; }) } : null,
+            ideias: ideias ? { gerado_em: new Date().toISOString(), resumo: ideias.resumo, lista: ideias.ideias || [] } : ((conta.dossie && conta.dossie.ideias) || null),
             publico: relPub, publico_fonte: comentarios.length ? "comentarios" : "legendas",
             meta: cacheMeta ? { em: cacheMeta.em, erro: cacheMeta.erro, comentarios: comentarios.length } : null
         };
         // o cache da Meta vai junto: falas que terminaram durante a analise tambem ficam guardadas
         await banco("contas_meta", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: Object.assign({ user_id: userId, dossie: dossie, status: "Analisada", atualizado_em: dossie.gerado_em }, cacheMeta ? { meta: cacheMeta } : {}) });
         const falas = posts.filter(function (p) { return p.transcricao; }).length + (ads ? ads.lista.filter(function (a) { return a.transcricao; }).length : 0);
-        return { ok: true, posts: posts.length, anuncios: ads ? ads.lista.length : 0, falas: falas, comentarios: comentarios.length, meta_erro: cacheMeta ? cacheMeta.erro : null, nicho: dossie.nicho };
+        return { ok: true, ideias: ideias ? (ideias.ideias || []).length : 0, posts: posts.length, anuncios: ads ? ads.lista.length : 0, falas: falas, comentarios: comentarios.length, meta_erro: cacheMeta ? cacheMeta.erro : null, nicho: dossie.nicho };
     } catch (e) {
         await marcar(userId, "Erro na analise: " + corta(e && e.message, 160)).catch(function () {});
         // o que ja veio da Meta nao se perde se um agente falhar

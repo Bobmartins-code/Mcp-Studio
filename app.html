@@ -163,6 +163,12 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .kpi-l{font-size:13px;color:var(--mu2)}.kpi-v{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;line-height:1.1}.kpi-s{font-size:13px;color:#C9C7C0}
 .sec-h{font-weight:700;font-size:16px;margin:4px 0 10px}
 .gravar{padding:16px;margin-bottom:22px}
+.ideias{display:grid;gap:10px}
+.ideias.tres{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ideia{background:var(--sur2);border:1px solid var(--bo);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.ideia.marcada{opacity:.55}
+.ideia-tags{display:flex;gap:5px;flex-wrap:wrap}
+@media(max-width:900px){.ideias.tres{grid-template-columns:1fr}}
 .hbest{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .hgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;border-radius:12px;overflow:hidden}
 .link-mini{background:none;border:none;color:var(--ac2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;padding:4px 0}
@@ -533,6 +539,8 @@ function App(){
   var sVt=useState("anuncios"),videosTab=sVt[0],setVideosTab=sVt[1];
   var sRf=useState(null),referencia=sRf[0],setReferenciaSt=sRf[1];
   var sRfF=useState("todos"),refFiltro=sRfF[0],setRefFiltro=sRfF[1];
+  var sIm=useState({}),ideiasMarc=sIm[0],setIdeiasMarc=sIm[1];
+  var sIf=useState("todas"),ideiaFiltro=sIf[0],setIdeiaFiltro=sIf[1];
   var sVc=useState(null),verComo=sVc[0],setVerComo=sVc[1];
   var sLu=useState([]),listaClientes=sLu[0],setListaClientes=sLu[1];
   var sPer=useState(30),periodo=sPer[0],setPeriodo=sPer[1];
@@ -638,7 +646,26 @@ function App(){
     return true;
   }
 
-  async function carregarContaMeta(){try{var r=await supaClient.from("contas_meta").select(CAMPOS_CONTA).eq("user_id",currentUser.id).maybeSingle();if(r&&r.error)r=await supaClient.from("contas_meta").select("ig_username,ad_account_nome,dossie,atualizado_em").eq("user_id",currentUser.id).maybeSingle();if(r&&!r.error&&r.data){setContaMeta(r.data);var d=r.data.dossie||{};CONTA_AGENTE=contaDoDossie(d);}}catch(e){}}
+  async function carregarIdeiasMarcadas(){try{var r=await supaClient.from("ideias_marcadas").select("titulo,status").eq("user_id",currentUser.id);var m={};((r&&r.data)||[]).forEach(function(x){m[x.titulo]=x.status;});setIdeiasMarc(m);}catch(e){}}
+  async function marcarIdeia(ideia,status){
+    if(somenteLeitura())return;
+    var atual=ideiasMarc[ideia.titulo];
+    try{
+      if(atual===status){var d=await supaClient.from("ideias_marcadas").delete().eq("user_id",currentUser.id).eq("titulo",ideia.titulo);if(d&&d.error)throw d.error;var m1=Object.assign({},ideiasMarc);delete m1[ideia.titulo];setIdeiasMarc(m1);return;}
+      if(atual){await supaClient.from("ideias_marcadas").delete().eq("user_id",currentUser.id).eq("titulo",ideia.titulo);}
+      var r=await supaClient.from("ideias_marcadas").insert({user_id:currentUser.id,titulo:ideia.titulo,status:status});if(r&&r.error)throw r.error;
+      var m2=Object.assign({},ideiasMarc);m2[ideia.titulo]=status;setIdeiasMarc(m2);
+      showToast(status==="gravei"?"Anotado! O agente não vai repetir esta ideia.":"Anotado! O agente vai evitar ideias nesse estilo.");
+    }catch(e){showToast("Não foi possível salvar agora. Tente de novo.","err");}
+  }
+  // transforma uma ideia narrada em roteiro: vira a referencia e ja escolhe o metodo
+  function ideiaParaRoteiro(ideia){
+    setReferencia({chave:"ideia:"+ideia.titulo,titulo:ideia.titulo,texto:"IDEIA DE CONTEUDO escolhida pela loja (escreva os roteiros a partir dela): "+ideia.titulo+" | formato: "+ideia.formato+" | como gravar: "+ideia.como_gravar+(ideia.texto_na_tela?" | texto na tela: "+ideia.texto_na_tela:"")+" | por que funciona nesta loja: "+ideia.por_que});
+    if(ideia.metodo)setMetodoSel(ideia.metodo);
+    setVideoSel(null);setActiveProject(null);setView("briefing");
+    showToast("Ideia escolhida. Confira o objetivo e gere os roteiros.");
+  }
+  async function carregarContaMeta(){carregarIdeiasMarcadas();try{var r=await supaClient.from("contas_meta").select(CAMPOS_CONTA).eq("user_id",currentUser.id).maybeSingle();if(r&&r.error)r=await supaClient.from("contas_meta").select("ig_username,ad_account_nome,dossie,atualizado_em").eq("user_id",currentUser.id).maybeSingle();if(r&&!r.error&&r.data){setContaMeta(r.data);var d=r.data.dossie||{};CONTA_AGENTE=contaDoDossie(d);}}catch(e){}}
   function setReferencia(ref){REFERENCIA_ATUAL=ref?ref.texto:"";setReferenciaSt(ref);}
   // ficar=true: so escolhe a referencia (tela de novo roteiro); senao leva para a tela de novo roteiro
   function usarComoReferencia(tipo,x,ficar,tipoRes){
@@ -1042,6 +1069,37 @@ function App(){
           ce("span",{style:{display:"block",fontSize:11.5,color:it.tipo==="organico"?"var(--ac2)":"var(--mu2)",fontWeight:700}},it.info));
       })));
   }
+  // ---------- IDEIAS DE CONTEUDO (Agente de Ideias) ----------
+  function cartaoIdeia(ideia,i,compacto){
+    var st=ideiasMarc[ideia.titulo];
+    var tags=[ideia.narracao==="sem narração"?"Sem narração":"Narrado",ideia.formato,{topo:"Atrair gente nova",meio:"Fazer desejar",fundo:"Fazer comprar"}[ideia.funil]||ideia.funil,ideia.esforco==="fácil"?"Fácil de gravar":"Esforço médio"].filter(Boolean);
+    var btn={height:32,fontSize:12.5};
+    return ce("div",{key:ideia.titulo+i,className:"ideia"+(st?" marcada":"")},
+      ce("div",{style:{fontWeight:700,fontSize:15,lineHeight:1.35}},ideia.titulo),
+      ce("div",{className:"ideia-tags"},tags.map(function(t,k){return ce("span",{key:k,className:"tag"},t);})),
+      ce("div",{style:{fontSize:13,lineHeight:1.5,color:"#C9C7C0"}},ideia.como_gravar),
+      !compacto&&ideia.texto_na_tela?ce("div",{style:{fontSize:13,lineHeight:1.5}},ce("b",null,"Texto na tela: "),"\u201C"+ideia.texto_na_tela+"\u201D"):null,
+      !compacto&&ideia.audio?ce("div",{style:{fontSize:13,lineHeight:1.5}},ce("b",null,"Áudio: "),ideia.audio):null,
+      !compacto&&ideia.por_que?ce("div",{style:{fontSize:12,lineHeight:1.5,color:"var(--mu2)"}},ce("b",null,"Por que nesta loja: "),ideia.por_que):null,
+      ce("div",{style:{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}},
+        ideia.narracao==="narrado"?ce("button",{className:"chip on",style:btn,onClick:function(){ideiaParaRoteiro(ideia);}},"Transformar em roteiro"):null,
+        ce("button",{className:"chip"+(st==="gravei"?" on":""),style:btn,onClick:function(){marcarIdeia(ideia,"gravei");}},st==="gravei"?"\u2713 Já gravei":"Já gravei"),
+        !compacto?ce("button",{className:"chip"+(st==="nao_curti"?" on":""),style:btn,onClick:function(){marcarIdeia(ideia,"nao_curti");}},"Não curti"):null));
+  }
+  function renderIdeias(){
+    var dl=dadosLoja(contaMeta),id=(dl&&dl.dossie&&dl.dossie.ideias)||null,lista=(id&&id.lista)||[];
+    if(!lista.length)return ce("div",{className:"content"},ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"\uD83D\uDCA1"),ce("div",{className:"emp-h"},"Suas ideias estão a caminho"),ce("div",{className:"emp-p"},"Assim que o Instagram e os anúncios forem conectados, o time de agentes estuda a sua conta e sugere cerca de 15 ideias de conteúdo. Elas se renovam sozinhas quando entram vídeos novos.")));
+    var filtros=[{id:"todas",lb:"Todas"},{id:"sem",lb:"Sem narração"},{id:"narr",lb:"Narradas"},{id:"topo",lb:"Atrair gente nova"},{id:"meio",lb:"Fazer desejar"},{id:"fundo",lb:"Fazer comprar"}];
+    var vis=lista.filter(function(x){return ideiaFiltro==="todas"||(ideiaFiltro==="sem"&&x.narracao==="sem narração")||(ideiaFiltro==="narr"&&x.narracao==="narrado")||x.funil===ideiaFiltro;});
+    // as marcadas descem para o fim
+    vis=vis.filter(function(x){return !ideiasMarc[x.titulo];}).concat(vis.filter(function(x){return ideiasMarc[x.titulo];}));
+    return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:760}},
+      ce("div",{className:"pg-h",style:{marginBottom:6}},"Ideias de conteúdo"),
+      ce("div",{style:{fontSize:13,color:"var(--mu2)",marginBottom:14,lineHeight:1.5}},"Feitas pelo time de agentes a partir dos seus vídeos, anúncios e comentários"+(id.gerado_em?" · atualizadas "+quando(id.gerado_em):"")+". Marque as que já gravou para o agente não repetir."),
+      id.resumo?ce("div",{className:"nota"},ce("b",null,"Por onde começar: "),id.resumo):null,
+      ce("div",{className:"chips rolar"},filtros.map(function(o){return ce("button",{key:o.id,className:"chip"+(ideiaFiltro===o.id?" on":""),onClick:function(){setIdeiaFiltro(o.id);}},o.lb);})),
+      vis.length?ce("div",{className:"ideias"},vis.map(function(x,i){return cartaoIdeia(x,i,false);})):ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhuma ideia neste filtro.")));
+  }
   // ---------- INICIO ----------
   function renderHome(){
     var dl=dadosLoja(contaMeta),per=periodo;
@@ -1069,7 +1127,13 @@ function App(){
     }
     // o que gravar agora: o resumo do time de agentes e o atalho para criar o roteiro
     var dos=(dl&&dl.dossie)||{};
-    var gravar=ce("div",{className:"card2 gravar"},
+    var ideiasTop=((dos.ideias&&dos.ideias.lista)||[]).filter(function(x){return !ideiasMarc[x.titulo];}).slice(0,3);
+    var gravar=ideiasTop.length?ce("div",{className:"card2 gravar"},
+      ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}},ce("div",{className:"sec-h",style:{margin:0}},"O que gravar agora"),ce("button",{className:"link-mini",onClick:function(){irPara("ideias");}},"Ver as "+dos.ideias.lista.length+" ideias \u2192")),
+      dos.ideias.resumo?ce("div",{style:{fontSize:14,lineHeight:1.55,color:"#C9C7C0",marginBottom:12}},dos.ideias.resumo):null,
+      ce("div",{className:"ideias tres"},ideiasTop.map(function(x,i){return cartaoIdeia(x,i,true);})),
+      ce("div",{style:{display:"flex",gap:10,marginTop:12,flexWrap:"wrap"}},ce("button",{className:"btn-pri",style:{width:"auto",minHeight:44},onClick:function(){irPara("briefing");}},"Criar roteiro"),ce("button",{className:"chip",onClick:function(){abrirVideo(null,"descobertas");}},"Ver o que o time descobriu"))
+    ):ce("div",{className:"card2 gravar"},
       ce("div",{className:"sec-h",style:{margin:"0 0 6px"}},"O que gravar agora"),
       ce("div",{style:{fontSize:14,lineHeight:1.55,color:"#C9C7C0"}},dos.resumo_loja||(temDados?"O time de agentes está estudando os seus vídeos. Enquanto isso, você já pode criar roteiros.":"Crie o seu primeiro roteiro: conte o produto e o objetivo, e o MCP escreve os roteiros para você.")),
       ce("div",{style:{display:"flex",gap:10,marginTop:12,flexWrap:"wrap",alignItems:"center"}},
@@ -1310,7 +1374,7 @@ function App(){
     ));
   }
   function ftag(f){if(!f)return null;var m={topo:"TOPO",meio:"MEIO",fundo:"FUNDO",ugc:"UGC"};return ce("span",{className:"tag "+f},m[f]||f.toUpperCase());}
-  var titles={home:"Início",briefing:"Novo roteiro",results:(activeProject&&activeProject.name)||"Roteiros",history:"Roteiros",videos:"Vídeos",conta:"Conta"};
+  var titles={ideias:"Ideias de conteúdo",home:"Início",briefing:"Novo roteiro",results:(activeProject&&activeProject.name)||"Roteiros",history:"Roteiros",videos:"Vídeos",conta:"Conta"};
   var abaAtiva=view==="results"?"history":view;
   var tabbar=ce("nav",{className:"tabbar","aria-label":"Menu principal"},
     [{id:"home",lb:"Início",ic:"home"},{id:"videos",lb:"Vídeos",ic:"videos"},{id:"briefing",plus:true},{id:"history",lb:"Roteiros",ic:"roteiros"},{id:"conta",lb:"Conta",ic:"conta"}].map(function(t){
@@ -1325,7 +1389,7 @@ function App(){
     ce("aside",{className:"sb"+(sbOpen?" op":"")},
       ce("div",{className:"sb-logo"},ce("div",{className:"sb-mark"},"M"),ce("div",{className:"sb-name"},"MCP",ce("span",null,"Studio"))),
       ce("div",{className:"sb-nav"},ce("div",{className:"sb-lbl"},"Menu"),
-        [{id:"home",lb:"Início"},{id:"videos",lb:"Vídeos"},{id:"briefing",lb:"Novo roteiro"},{id:"history",lb:"Roteiros",bx:projects.length||null},{id:"conta",lb:"Conta"}].map(function(item){var on=item.id==="history"?(view==="history"||view==="results"):view===item.id;return ce("button",{key:item.id,className:"sb-btn"+(on?" on":""),onClick:function(){irPara(item.id);}},item.lb,item.bx&&ce("span",{className:"bx"},item.bx));})
+        [{id:"home",lb:"Início"},{id:"ideias",lb:"Ideias"},{id:"videos",lb:"Vídeos"},{id:"briefing",lb:"Novo roteiro"},{id:"history",lb:"Roteiros",bx:projects.length||null},{id:"conta",lb:"Conta"}].map(function(item){var on=item.id==="history"?(view==="history"||view==="results"):view===item.id;return ce("button",{key:item.id,className:"sb-btn"+(on?" on":""),onClick:function(){irPara(item.id);}},item.lb,item.bx&&ce("span",{className:"bx"},item.bx));})
       ),
       projects.length>0&&ce("div",{className:"sb-nav",style:{marginTop:16}},
         ce("div",{className:"sb-lbl"},"Recentes"),
@@ -1428,6 +1492,7 @@ function App(){
         );
       }(),
       view==="videos"&&renderVideos(),
+      view==="ideias"&&renderIdeias(),
       view==="history"&&renderRoteiros(),
       view==="conta"&&renderConta()
     ),
