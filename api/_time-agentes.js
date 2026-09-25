@@ -31,22 +31,22 @@ const NOVIDADE_MS = 2 * 3600 * 1000;     // entrou post ou anuncio novo: analisa
 const TRAVADA_MS = 10 * 60 * 1000;       // "Analisando" ha mais que isso e considerado travado
 
 const SISTEMA_TIME = `
-QUEM VOCES SAO
-Voces sao o time de analistas do MCP Studio. Voces estudam os dados reais de UMA loja brasileira (Instagram e anuncios da Meta dos ultimos 90 dias) para que o Agente MCP escreva roteiros de Reels que dao resultado para ela.
+QUEM VOCÊS SÃO
+Vocês são o time de analistas do MCP Studio. Vocês estudam os dados reais de UMA loja brasileira (Instagram e anúncios da Meta dos últimos 90 dias) para que o Agente MCP escreva roteiros de Reels que dão resultado para ela.
 
 REGRAS
-- Use so os dados desta loja que vierem na mensagem. Nunca invente numero, depoimento, produto ou publico. Se faltar dado para uma conclusao, diga que falta em vez de chutar.
-- Cada conclusao precisa se apoiar no que os dados mostram (exemplo: os 3 Reels acima da media abrem com uma pergunta direta).
-- Com poucos dados (menos de 5 posts ou anuncios), seja cauteloso, marque a confianca como baixa e diga isso no resumo.
-- Seja especifico desta loja. Frases genericas como conteudo de valor ou engaje seu publico sao proibidas.
-- Escreva em portugues do Brasil com acentuacao correta, frases curtas e linguagem simples de dona de loja. Nunca use travessao. Sem cliches de IA.
-- Quem le os resumos e a propria dona da loja, no celular. Nao use siglas como CTR, CPC ou ROAS sem explicar em palavras.
-- Nunca use etiquetas de acao para anuncios como Escalar, Manter ou Otimizar.
+- Use só os dados desta loja que vierem na mensagem. Nunca invente número, depoimento, produto ou público. Se faltar dado para uma conclusão, diga que falta em vez de chutar.
+- Cada conclusão precisa se apoiar no que os dados mostram (exemplo: os 3 Reels acima da média abrem com uma pergunta direta).
+- Com poucos dados (menos de 5 posts ou anúncios), seja cauteloso, marque a confiança como baixa e diga isso no resumo.
+- Seja específico desta loja. Frases genéricas como "conteúdo de valor" ou "engaje seu público" são proibidas.
+- Escreva em português do Brasil com acentuação completa e correta em todas as palavras (é, ê, á, ã, õ, ç, í, ú), inclusive quando os dados ou os nomes chegarem sem acento. Frases curtas e linguagem simples de dona de loja. Nunca use travessão. Sem clichês de IA.
+- Quem lê os resumos é a própria dona da loja, no celular. Não use siglas como CTR, CPC ou ROAS sem explicar em palavras.
+- Nunca use etiquetas de ação para anúncios como Escalar, Manter ou Otimizar.
 
 COMO MEDIMOS RESULTADO
-- Organico: engajamento (curtidas, comentarios, salvamentos) e compartilhamentos, com compartilhamento valendo o dobro, sempre em relacao ao alcance. O indice compara cada post com a media da propria conta: 1,0 e na media, 2,0 e o dobro. Posts dos ultimos 30 dias pesam mais que os 60 dias anteriores.
-- Anuncios: resultado e venda. Se a loja nao tem pixel e vende pelo WhatsApp ou Direct, resultado sao as conversas iniciadas. Quando as campanhas tem objetivos diferentes (alcance, visitas ao perfil, cliques), compare cada anuncio so com os de mesmo objetivo e nunca some objetivos diferentes.
-- Taxa de gancho = quem assistiu 3 segundos dividido pelas impressoes (forca do gancho). Retencao = quem assistiu ate o fim dividido por quem assistiu 3 segundos (forca do corpo). Taxa de clique = cliques dividido pelas impressoes (forca da chamada).
+- Orgânico: engajamento (curtidas, comentários, salvamentos) e compartilhamentos, com compartilhamento valendo o dobro, sempre em relação ao alcance. O índice compara cada post com a média da própria conta: 1,0 é na média, 2,0 é o dobro. Posts dos últimos 30 dias pesam mais que os 60 dias anteriores.
+- Anúncios: resultado é venda. Se a loja não tem pixel e vende pelo WhatsApp ou Direct, resultado são as conversas iniciadas. Quando as campanhas têm objetivos diferentes (alcance, visitas ao perfil, cliques), compare cada anúncio só com os de mesmo objetivo e nunca some objetivos diferentes.
+- Taxa de gancho = quem assistiu 3 segundos dividido pelas impressões (força do gancho). Retenção = quem assistiu até o fim dividido por quem assistiu 3 segundos (força do corpo). Taxa de clique = cliques dividido pelas impressões (força da chamada).
 `.trim();
 
 // ---------- esquemas das respostas (a API garante o formato) ----------
@@ -188,7 +188,8 @@ async function transcreverVencedores(posts, anteriores) {
     const falas = {};
     posts.forEach(function (p) { if (anteriores[p.id]) falas[p.id] = anteriores[p.id]; });
     const alvos = posts.filter(function (p) { return p.tipo === "Reels" && p.link && !falas[p.id] && (p.indice || 0) >= 1; }).slice(0, 3);
-    const tarefas = alvos.map(async function (p) { try { falas[p.id] = await transcreverReel(p.link); } catch (e) { /* o Instagram pode bloquear: segue sem a fala */ } });
+    // o Instagram pode bloquear: segue sem a fala e deixa o motivo no log do Vercel
+    const tarefas = alvos.map(async function (p) { try { falas[p.id] = await transcreverReel(p.link); } catch (e) { console.error("[time] fala de " + p.link + ": " + (e && e.message)); } });
     await Promise.race([Promise.all(tarefas), espera(45000)]);
     return Object.assign({}, falas);
 }
@@ -225,12 +226,12 @@ async function analisarLoja(userId, motivo) {
 
         // 2) Agente Organico e Agente de Anuncios, ao mesmo tempo
         const pOrg = posts.length ? perguntar("Agente Organico",
-            "Voce e o AGENTE ORGANICO. Estude os posts do Instagram desta loja nos ultimos 90 dias, ordenados do melhor para o pior pelo indice (com peso maior para os ultimos 30 dias). Descubra o que os posts acima da media tem em comum (gancho, formato, assunto, tamanho, fala) e o que os abaixo da media fazem diferente. Em ganchos_que_funcionam, traga os ganchos reais dos melhores posts (da legenda ou da fala), reescritos de forma curta. Em resumo, 2 frases para a dona da loja.\n\n" +
+            "Você é o AGENTE ORGÂNICO. Estude os posts do Instagram desta loja nos últimos 90 dias, ordenados do melhor para o pior pelo índice (com peso maior para os últimos 30 dias). Descubra o que os posts acima da média têm em comum (gancho, formato, assunto, tamanho, fala) e o que os abaixo da média fazem diferente. Em ganchos_que_funcionam, traga os ganchos reais dos melhores posts (da legenda ou da fala), reescritos de forma curta. Em resumo, 2 frases para a dona da loja.\n\n" +
             sobreLoja + "\nTOTAL DE POSTS NOS 90 DIAS: " + postsTodos.length + " | taxa media de engajamento da conta: " + ((met.organico && met.organico.taxa_media) || 0) + "%\nPOSTS:\n" + posts.map(linhaPost).join("\n"),
             ESQ_ORGANICO) : Promise.resolve(null);
         const tipoTxt = !ads ? "" : ads.tipo === "vendas" ? "compras (a loja tem pixel)" : ads.tipo === "conversas" ? "conversas iniciadas no WhatsApp ou Direct (a loja vende por conversa)" : (ads.totais.misto ? "cada campanha tem o proprio objetivo (veja objetivo medido em cada anuncio); compare so anuncios de mesmo objetivo" : "o objetivo da campanha, indicado em cada anuncio");
         const pAds = ads ? perguntar("Agente de Anuncios",
-            "Voce e o AGENTE DE ANUNCIOS. Estude os anuncios desta loja nos ultimos 90 dias. O Reportei nao traz o texto nem o video dos anuncios, so o nome (que costuma descrever o video) e os numeros. Descubra o que os anuncios que mais dao resultado tem em comum (gancho, assunto, argumento, oferta, chamada) e onde os fracos perdem gente (no gancho, no corpo ou na chamada). Em resumo, 2 frases para a dona da loja.\n\n" +
+            "Você é o AGENTE DE ANÚNCIOS. Estude os anúncios desta loja nos últimos 90 dias. O Reportei não traz o texto nem o vídeo dos anúncios, só o nome (que costuma descrever o vídeo) e os números. Descubra o que os anúncios que mais dão resultado têm em comum (gancho, assunto, argumento, oferta, chamada) e onde os fracos perdem gente (no gancho, no corpo ou na chamada). Em resumo, 2 frases para a dona da loja.\n\n" +
             sobreLoja + "\nRESULTADO = " + tipoTxt + "\nTOTAIS 90 DIAS: investido " + brl(ads.totais.gasto) + " | alcance " + (ads.totais.alcance || 0) + " | cliques " + (ads.totais.cliques || 0) +
             (ads.tipo !== "resultados" ? " | " + ads.totais.resultados + " " + nomeResultado(ads.tipo) : "") +
             "\nMEDIAS DA CONTA: taxa de gancho " + (ads.medias.taxa_gancho || 0) + "% | retencao " + (ads.medias.retencao || 0) + "% | taxa de clique " + (ads.medias.ctr || 0) + "%\nANUNCIOS (do que mais deu resultado para o que menos deu):\n" +
@@ -240,7 +241,7 @@ async function analisarLoja(userId, motivo) {
 
         // 3) Agente de Publico, com o que os outros dois descobriram
         const relPub = await perguntar("Agente de Publico",
-            "Voce e o AGENTE DE PUBLICO. Monte o retrato de quem e o publico desta loja: quem e, idade e genero, regioes, quem mais compra, dores, desejos, objecoes e as expressoes reais que esse publico usa. Use os dados de seguidores, as legendas e falas dos posts que mais funcionaram e o que os outros agentes descobriram. Em expressoes_reais, so frases que aparecem de fato nas legendas ou falas; se nao houver, deixe a lista vazia. Em resumo, 2 frases para a dona da loja.\n\n" +
+            "Você é o AGENTE DE PÚBLICO. Monte o retrato de quem é o público desta loja: quem é, idade e gênero, regiões, quem mais compra, dores, desejos, objeções e as expressões reais que esse público usa. Use os dados de seguidores, as legendas e falas dos posts que mais funcionaram e o que os outros agentes descobriram. Em expressoes_reais, só frases que aparecem de fato nas legendas ou falas; se não houver, deixe a lista vazia. Em resumo, 2 frases para a dona da loja.\n\n" +
             sobreLoja + "\nSEGUIDORES POR IDADE E GENERO: " + ((seguidores && seguidores.idade_genero) || "nao disponivel") + "\nCIDADES DOS SEGUIDORES: " + ((seguidores && seguidores.cidades) || "nao disponivel") +
             "\nLEGENDAS E FALAS DOS MELHORES POSTS:\n" + (posts.slice(0, 6).map(function (p, i) { return (i + 1) + ") " + corta(p.legenda, 250) + (p.transcricao ? " | fala: " + corta(p.transcricao, 500) : ""); }).join("\n") || "nenhum") +
             "\nRELATORIO DO AGENTE ORGANICO: " + JSON.stringify(relOrg) + "\nRELATORIO DO AGENTE DE ANUNCIOS: " + JSON.stringify(relAds),
@@ -248,10 +249,10 @@ async function analisarLoja(userId, motivo) {
 
         // 4) Diretor: o dossie que o Agente MCP le em cada roteiro
         const dir = await perguntar("Diretor",
-            "Voce e o DIRETOR do time. Junte os relatorios num dossie para o Agente MCP, que escreve os roteiros desta loja.\n" +
-            "- texto: ate 1400 caracteres, denso e especifico, para o Agente MCP: quem e o publico e como fala, o que funciona no organico, o que da resultado nos anuncios, de 3 a 5 ganchos modelo no estilo do que ja funcionou nesta conta e o que evitar.\n" +
-            "- resumo_loja: 2 ou 3 frases curtas para a dona da loja ler no celular, sem jargao: o que mais tem dado certo e o que gravar a seguir.\n" +
-            "- por_metodo: para cada um dos 5 metodos abaixo, 1 ou 2 frases de como aplicar nesta loja com base nos dados (fftopo = Full Funnel Topo, ffmeio = Full Funnel Meio, fffundo = Full Funnel Fundo, dsb = DSB, angulo = Angulo).\n" +
+            "Você é o DIRETOR do time. Junte os relatórios num dossiê para o Agente MCP, que escreve os roteiros desta loja. Tudo com acentuação correta.\n" +
+            "- texto: até 1400 caracteres, denso e específico, para o Agente MCP: quem é o público e como fala, o que funciona no orgânico, o que dá resultado nos anúncios, de 3 a 5 ganchos modelo no estilo do que já funcionou nesta conta e o que evitar.\n" +
+            "- resumo_loja: 2 ou 3 frases curtas para a dona da loja ler no celular, sem jargão: o que mais tem dado certo e o que gravar a seguir.\n" +
+            "- por_metodo: para cada um dos 5 métodos abaixo, 1 ou 2 frases de como aplicar nesta loja com base nos dados (fftopo = Full Funnel Topo, ffmeio = Full Funnel Meio, fffundo = Full Funnel Fundo, dsb = DSB, angulo = Ângulo).\n" +
             "- nicho: o nicho desta loja.\n\n" + METODOS.trim() + "\n\n" + sobreLoja +
             "\nRELATORIO ORGANICO: " + JSON.stringify(relOrg) + "\nRELATORIO DE ANUNCIOS: " + JSON.stringify(relAds) + "\nRELATORIO DE PUBLICO: " + JSON.stringify(relPub),
             ESQ_DIRETOR);
