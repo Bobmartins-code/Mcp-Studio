@@ -503,14 +503,23 @@ function conectarMeta(){
   var url="https://www.facebook.com/v23.0/dialog/oauth?client_id="+encodeURIComponent(metaCfg.appId)+"&redirect_uri="+encodeURIComponent(location.origin+"/meta-callback.html")+"&state="+metaState+"&response_type=code"+(metaCfg.configId?"&config_id="+encodeURIComponent(metaCfg.configId):"&scope="+encodeURIComponent(metaCfg.escopos));
   window.open(url,"meta-login","width=620,height=760");
 }
-window.addEventListener("message",async function(ev){
-  if(ev.origin!==location.origin||!ev.data||ev.data.tipo!=="meta-login")return;
+var metaCodigoUsado="";
+async function retornoLoginMeta(d){
+  if(!d||d.tipo!=="meta-login")return;
+  if(d.code&&d.code===metaCodigoUsado)return;
   var box=document.getElementById("meta-status");
-  if(ev.data.erro||!ev.data.code){box.textContent="Login cancelado ou recusado: "+(ev.data.erro||"sem código");return;}
-  if(ev.data.state!==metaState){box.textContent="Resposta de login inválida. Tente de novo.";return;}
+  if(d.erro||!d.code){box.textContent="Login cancelado ou recusado: "+(d.erro||"sem código");return;}
+  if(d.state!==metaState){box.textContent="Resposta de login inválida. Tente de novo.";return;}
+  metaCodigoUsado=d.code;
   box.textContent="Conectando a Meta...";
-  try{await apiMeta({acao:"conectar",code:ev.data.code,redirect_uri:location.origin+"/meta-callback.html"});}catch(e){box.textContent="Erro ao conectar: "+e.message;return;}
+  try{await apiMeta({acao:"conectar",code:d.code,redirect_uri:location.origin+"/meta-callback.html"});}catch(e){box.textContent="Erro ao conectar: "+e.message;return;}
   carregarMeta();
+}
+window.addEventListener("message",function(ev){if(ev.origin===location.origin)retornoLoginMeta(ev.data);});
+// se o navegador cortar a ligacao com a janela do Facebook, o retorno chega pelo armazenamento do site
+window.addEventListener("storage",function(ev){
+  if(ev.key!=="meta-login"||!ev.newValue)return;
+  try{retornoLoginMeta(JSON.parse(ev.newValue));localStorage.removeItem("meta-login");}catch(e){}
 });
 // o time de agentes roda no servidor (api/_time-agentes.js): aqui so pede e mostra o andamento
 async function analisarConta(uid){

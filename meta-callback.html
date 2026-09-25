@@ -17,13 +17,12 @@ p{color:var(--mu);font-size:14px}
 (function(){
   var q=new URLSearchParams(location.search);
   var msg={tipo:"meta-login",code:q.get("code")||"",state:q.get("state")||"",erro:q.get("error_description")||q.get("error")||""};
-  if(window.opener){
-    window.opener.postMessage(msg,location.origin);
-    setTimeout(function(){window.close();},400);
-  }else{
-    document.getElementById("t").textContent=msg.erro?"Nao foi possivel conectar":"Quase la";
-    document.getElementById("p").textContent=msg.erro||"Volte ao painel admin e clique em Conectar Meta de novo.";
-  }
+  // guarda tambem no armazenamento do site: o painel recebe mesmo se o navegador cortar a ligacao com esta janela
+  try{localStorage.setItem("meta-login",JSON.stringify(msg));}catch(e){}
+  if(window.opener){try{window.opener.postMessage(msg,location.origin);}catch(e){}}
+  document.getElementById("t").textContent=msg.erro?"Não foi possível conectar":"Pronto!";
+  document.getElementById("p").textContent=msg.erro||"Pode fechar esta janela e voltar ao Painel Admin.";
+  setTimeout(function(){window.close();},600);
 })();
 </script>
 </body>
