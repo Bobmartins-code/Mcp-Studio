@@ -186,7 +186,9 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .seg{display:flex;border-bottom:1px solid var(--boh);margin-bottom:12px}
 .seg button{flex:1;height:48px;background:none;border:none;border-bottom:2px solid transparent;color:var(--mu2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px}
 .seg button.on{color:var(--tx);border-bottom-color:var(--tx);font-weight:700}
-.igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:3px}
+.igrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px}
+@media(max-width:1100px){.igrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.vermais{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px}
 .itile{position:relative;aspect-ratio:3/4;background:var(--sur2);border:none;padding:0;cursor:pointer;overflow:hidden;display:block;width:100%}
 .itile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .itile .scr{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.65),rgba(0,0,0,0) 45%)}
@@ -592,6 +594,7 @@ function App(){
   var sVs=useState(null),videoSel=sVs[0],setVideoSel=sVs[1];
   var sOrd=useState("vistos"),ordemOrg=sOrd[0],setOrdemOrg=sOrd[1];
   var sOrdA=useState("resultado"),ordemAds=sOrdA[0],setOrdemAds=sOrdA[1];
+  var sLim=useState({k:"",n:6}),limVid=sLim[0],setLimVid=sLim[1];
   var sLj=useState(null),lojaInfo=sLj[0],setLojaInfo=sLj[1];
   var sRc=useState([]),recados=sRc[0],setRecados=sRc[1];
   var sFr=useState("todos"),filtroRot=sFr[0],setFiltroRot=sFr[1];
@@ -1103,6 +1106,13 @@ function App(){
   function fmtX(n){return String(Math.round((Number(n)||0)*10)/10).replace(".",",")+"x";}
   function textoDoAnuncio(v){return v&&(v.texto||v.titulo)?ce("div",{style:{margin:"0 0 14px",fontSize:13,lineHeight:1.5}},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",letterSpacing:".05em",color:"var(--mu)",marginBottom:4}},"Texto do anúncio"),v.titulo?ce("div",{style:{fontWeight:700}},v.titulo):null,v.texto?ce("div",{style:{whiteSpace:"pre-line",color:"var(--mu2)"}},v.texto):null):null;}
   function falaDoVideo(t){return t?ce("details",{style:{margin:"0 0 14px",fontSize:13,color:"var(--mu2)"}},ce("summary",{style:{cursor:"pointer",color:"var(--ac2)"}},"Ver a fala do vídeo"),ce("div",{style:{marginTop:6,lineHeight:1.5}},t)):null;}
+  // cada lista abre com os 6 melhores; a cliente abre mais 12 por vez ou todos (volta para 6 ao trocar filtro ou periodo)
+  function limiteDe(chave){return limVid.k===chave?limVid.n:6;}
+  function verMais(chave,total){var n=limiteDe(chave);if(total<=6)return null;
+    return ce("div",{className:"vermais"},
+      n<total?ce("button",{className:"btn-sec2",onClick:function(){setLimVid({k:chave,n:n+12});}},"Ver mais "+Math.min(12,total-n)):null,
+      n<total?ce("button",{className:"btn-sec2",onClick:function(){setLimVid({k:chave,n:total});}},"Ver todos ("+total+")")
+        :ce("button",{className:"btn-sec2",onClick:function(){setLimVid({k:chave,n:6});}},"Mostrar só os 6 melhores"));}
   function chipsPeriodo(){return PERIODOS.map(function(p){return ce("button",{key:"p"+p[0],className:"chip"+(periodo===p[0]?" on":""),onClick:function(){setPeriodo(p[0]);}},p[1]);});}
   function avatarLoja(tam){
     var logo=lojaInfo&&lojaInfo.logo_url;
@@ -1238,19 +1248,20 @@ function App(){
     var ord={vistos:function(a,b){return (b.visualizacoes||0)-(a.visualizacoes||0);},engaj:function(a,b){return (b.indice||0)-(a.indice||0)||(b.taxa||0)-(a.taxa||0);},
       tempo:function(a,b){return (b.tempo_medio_s||0)-(a.tempo_medio_s||0);},gancho:function(a,b){return (b.retencao_3s==null?-1:b.retencao_3s)-(a.retencao_3s==null?-1:a.retencao_3s);},compart:function(a,b){return (b.compartilhamentos||0)-(a.compartilhamentos||0);},recentes:function(a,b){return String(b.data||"").localeCompare(String(a.data||""));}};
     lista=lista.slice().sort(ord[ordemOrg]||ord.vistos);
+    var chaveOrg="org:"+ordemOrg+":"+periodo,mostrar=lista.slice(0,limiteDe(chaveOrg));
     return ce("div",null,
       ordemOrg==="gancho"?ce("div",{className:"legenda",style:{paddingTop:0}},"Quantas pessoas não pularam o vídeo nos 3 primeiros segundos. Mostra a força do gancho, a abertura do vídeo."):null,
       ce("div",{className:"chips rolar"},[{id:"vistos",lb:"Mais vistos"},{id:"engaj",lb:"Mais engajamento"},{id:"tempo",lb:"Mais tempo assistido",so:"tempo_medio_s"},{id:"gancho",lb:"Melhor gancho",so:"retencao_3s"},{id:"compart",lb:"Mais compartilhados"},{id:"recentes",lb:"Mais recentes"}].filter(function(o){return !o.so||todos.some(function(p){return p[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemOrg===o.id?" on":""),onClick:function(){setOrdemOrg(o.id);}},o.lb);})),
       comData&&ce("div",{className:"chips"},chipsPeriodo(),ce("span",{style:{marginLeft:"auto",fontSize:12.5,color:"var(--mu2)"}},lista.length+(lista.length===1?" post":" posts"))),
       lista.length
-        ?ce("div",{className:"igrid"},lista.map(function(p,i){return ce("button",{key:(p.id||p.link||"")+i,className:"itile",onClick:function(){setVideoSel({tipo:"org",item:p});},"aria-label":"Abrir post: "+String(p.legenda||p.tipo||"").substring(0,60)},
+        ?ce("div",null,ce("div",{className:"igrid"},mostrar.map(function(p,i){return ce("button",{key:(p.id||p.link||"")+i,className:"itile",onClick:function(){setVideoSel({tipo:"org",item:p});},"aria-label":"Abrir post: "+String(p.legenda||p.tipo||"").substring(0,60)},
           !p.miniatura&&ce("span",{style:{position:"absolute",inset:"26px 8px 30px",fontSize:11.5,color:"var(--mu2)",overflow:"hidden",textAlign:"left",lineHeight:1.35}},String(p.legenda||"").substring(0,110)),
           img(p.miniatura),ce("span",{className:"scr"}),
           p.tipo&&p.tipo!=="Reels"?ce("span",{className:"tp"},p.tipo):null,
           ordemOrg!=="engaj"&&p.indice>=1.5?ce("span",{className:"ix"},fmtX(p.indice)):null,
           ordemOrg==="engaj"&&p.indice?ce("span",{className:"vw"},fmtX(p.indice)+" a média"):
           ordemOrg==="tempo"&&p.tempo_medio_s?ce("span",{className:"vw"},String(p.tempo_medio_s).replace(".",",")+" s assistidos"):
-          ordemOrg==="gancho"&&p.retencao_3s!=null?ce("span",{className:"vw"},String(p.retencao_3s).replace(".",",")+"% passaram do gancho"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));}))
+          ordemOrg==="gancho"&&p.retencao_3s!=null?ce("span",{className:"vw"},String(p.retencao_3s).replace(".",",")+"% passaram do gancho"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));})),verMais(chaveOrg,lista.length))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum post "+textoPeriodo(periodo)+"."+(periodo!==90?" Tente 90 dias.":"")),
       ordemOrg==="engaj"
         ?ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"1x"),"é a média da sua conta. Soma curtidas, comentários, salvamentos e compartilhamentos (que valem dobrado) e compara com quantas pessoas viram cada post.")
@@ -1263,6 +1274,7 @@ function App(){
     var ord={resultado:function(x,y){return ((y.resultados||0)-(x.resultados||0))||((y.gasto||0)-(x.gasto||0));},custo:function(x,y){return (x.custo_por_resultado||1e12)-(y.custo_por_resultado||1e12);},gasto:function(x,y){return (y.gasto||0)-(x.gasto||0);},
       gancho:function(x,y){return (y.taxa_gancho==null?-1:y.taxa_gancho)-(x.taxa_gancho==null?-1:x.taxa_gancho);},retencao:function(x,y){return (y.retencao==null?-1:y.retencao)-(x.retencao==null?-1:x.retencao);}};
     var lista=(a.anuncios||[]).slice().sort(ord[ordemAds]||ord.resultado);
+    var chaveAds="ads:"+ordemAds+":"+periodo,mostrar=lista.slice(0,limiteDe(chaveAds));
     var plural=rotRes(tr,2,t.res_nome);
     return ce("div",null,
       (function(){var cel=t.misto?[["Investido",brl(t.gasto)],["Alcance",numBR(t.alcance||0)],["Cliques",numBR(t.cliques||0)]]:[[plural.charAt(0).toUpperCase()+plural.slice(1),numBR(t.resultados||0)],["Investido",brl(t.gasto)],["Por "+rotRes(tr,1,t.res_nome),t.custo_medio?brl(t.custo_medio):"-"]];
@@ -1271,14 +1283,14 @@ function App(){
       ce("div",{className:"chips rolar"},[{id:"resultado",lb:"Mais "+plural},{id:"gancho",lb:"Melhor gancho",so:"taxa_gancho"},{id:"custo",lb:"Menor custo"},{id:"gasto",lb:"Mais investimento"}].filter(function(o){return !o.so||(a.anuncios||[]).some(function(x){return x[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
       ce("div",{className:"chips"},chipsPeriodo(),ap.per!==periodo?ce("span",{style:{fontSize:12.5,color:"var(--gold)"}},typeof periodo==="string"?"Os números do mês chegam na próxima atualização. Mostrando os últimos "+ap.per+" dias":"Mostrando os últimos "+ap.per+" dias"):null),
       lista.length
-        ?ce("div",null,lista.map(function(x,i){return ce("button",{key:(x.id||x.nome)+i,className:"arow",onClick:function(){setVideoSel({tipo:"ad",item:x,ads:a});}},
+        ?ce("div",null,mostrar.map(function(x,i){return ce("button",{key:(x.id||x.nome)+i,className:"arow",onClick:function(){setVideoSel({tipo:"ad",item:x,ads:a});}},
           ce("span",{className:"thumb",style:{width:58,height:78,borderRadius:8}},img(x.miniatura)),
           ce("span",{style:{flex:1,display:"flex",flexDirection:"column",gap:3,minWidth:0}},
             ce("span",{style:{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},x.nome),
             ce("span",{style:{fontSize:20,fontWeight:800}},numBR(x.resultados||0)+" "+rotRes(tr,x.resultados,x.res_nome)),
             ordemAds==="gancho"&&x.taxa_gancho!=null?ce("span",{style:{fontSize:12.5,fontWeight:700,color:"var(--ac2)"}},String(x.taxa_gancho).replace(".",",")+"% pararam para ver (gancho de 3 segundos)"):null,
             ce("span",{style:{fontSize:12.5,color:"var(--mu2)"}},brl(x.gasto)+(x.custo_por_resultado?" · "+brl(x.custo_por_resultado)+" por "+rotRes(tr,1,x.res_nome):"")+(x.receita>0?" · "+brl(x.receita)+" em vendas":"")+(tr==="vendas"&&x.conversas?" · "+numBR(x.conversas)+" conversas":""))),
-          ico("seta",18,"var(--mu2)"));}))
+          ico("seta",18,"var(--mu2)"));}),verMais(chaveAds,lista.length))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum anúncio com investimento nesse período.")
     );
   }
