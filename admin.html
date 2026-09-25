@@ -263,7 +263,7 @@ tr.clic{cursor:pointer}
 
     <!-- ================= CONEXOES ================= -->
     <section class="aba" id="aba-conexoes">
-      <div class="head"><div><div class="h1">Conexões</div><div class="sub">Reportei Connect: por onde chegam os números do Instagram e dos anúncios de cada loja.</div></div></div>
+      <div class="head"><div><div class="h1">Conexões</div><div class="sub">Reportei Connect traz os números de cada loja. A Meta completa com o vídeo, a capa e o texto dos anúncios e os comentários, para o time de agentes saber o que foi falado.</div></div></div>
       <div class="section">
         <div class="sec-head">
           <div class="sec-title">🔌 Reportei Connect · contas das clientes</div>
@@ -271,6 +271,13 @@ tr.clic{cursor:pointer}
         </div>
         <div id="connect-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
         <div style="overflow-x:auto" id="connect-table"></div>
+      </div>
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">Ⓜ️ Meta · vídeos, capas, textos dos anúncios e comentários</div>
+          <button class="refresh-btn" onclick="carregarMeta()">&#8635; Atualizar</button>
+        </div>
+        <div id="meta-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
       </div>
     </section>
 
@@ -448,8 +455,9 @@ async function verConexoes(uid){
   catch(e){var cel=document.getElementById("cs-"+uid);if(cel)cel.textContent="Erro: "+e.message;}
 }
 
-// ===== Contas Meta dos clientes + Time de agentes =====
-var metaCfg=null,metaContas={instagram:[],anuncios:[]},contasMeta={},metaState="";
+// ===== Meta: de onde vem o video, a capa e o texto dos anuncios e os comentarios =====
+// Dois jeitos de conectar: login do Facebook (vale 60 dias) ou o codigo de um usuario do sistema (pode nunca expirar)
+var metaCfg=null,metaState="";
 async function apiMeta(body){
   var s=await supaClient.auth.getSession();var tk=s.data&&s.data.session&&s.data.session.access_token;
   var r=await fetch("/api/meta",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify(body)});
@@ -459,19 +467,35 @@ async function apiMeta(body){
 }
 async function carregarMeta(){
   var box=document.getElementById("meta-status");if(!box)return;
-  try{metaCfg=await apiMeta({acao:"config"});}catch(e){box.textContent="Erro ao ler a conexao: "+e.message;return;}
+  try{metaCfg=await apiMeta({acao:"config"});}catch(e){box.textContent="Erro ao ler a conexão: "+e.message;return;}
+  var colar='<div style="margin-top:12px"><div style="font-size:12px;margin-bottom:6px">Código do usuário do sistema (Gerenciador de Negócios → Usuários do sistema → Gerar token):</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="meta-token" type="password" autocomplete="off" placeholder="Cole o código aqui" style="flex:1;min-width:220px;background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:13px;padding:8px 10px">'
+    +'<button class="btn-sm" onclick="salvarTokenMeta()">Salvar código</button></div></div>';
   if(!metaCfg.appId){
-    box.innerHTML='<b style="color:var(--gold)">Falta criar o app da Meta.</b> Siga os passos em <b>docs/COMO-CONECTAR-META.md</b> e cadastre META_APP_ID e META_APP_SECRET no Vercel.';
-  }else if(!metaCfg.conexao){
-    box.innerHTML='A Meta ainda nao esta conectada. <button class="btn-filter" onclick="conectarMeta()">Conectar Meta</button><br><span style="font-size:12px">Entre com o seu Facebook, o que tem acesso as paginas, Instagrams e contas de anuncios das clientes.</span>';
-  }else{
-    var exp=metaCfg.conexao.expires_at?new Date(metaCfg.conexao.expires_at):null,dias=exp?Math.round((exp-Date.now())/864e5):null;
-    box.innerHTML='Meta conectada como <b>'+escHtml(metaCfg.conexao.nome||"")+'</b>'+(exp?' · acesso vale por mais <b style="color:'+(dias<10?"var(--ac2)":"var(--ok)")+'">'+dias+' dias</b>':'')+' <button class="btn-sm" onclick="conectarMeta()">Reconectar</button>';
-    try{metaContas=await apiMeta({acao:"contas"});}catch(e){box.innerHTML+='<br><span style="color:var(--ac2)">Erro ao listar as contas: '+escHtml(e.message)+'</span>';}
-    box.innerHTML+='<br><span style="font-size:12px">'+metaContas.instagram.length+' Instagrams e '+metaContas.anuncios.length+' contas de anuncios encontrados. Escolha abaixo qual e de cada cliente, salve e clique em Analisar.</span>';
+    box.innerHTML='<b style="color:var(--gold)">Falta criar o app da Meta.</b> Siga o guia <b>docs/COMO-CONECTAR-META.md</b> e cadastre META_APP_ID, META_APP_SECRET e META_CONFIG_ID no Vercel.';
+    return;
   }
-  try{var rr=await supaClient.from("contas_meta").select("user_id,ig_id,ig_username,ad_account_id,ad_account_nome,status,atualizado_em");contasMeta={};(rr.data||[]).forEach(function(c){contasMeta[c.user_id]=c;});}catch(e){}
-  renderContasMeta();
+  if(!metaCfg.conexao){
+    box.innerHTML='A Meta ainda não está conectada.<div style="margin-top:10px"><button class="btn-filter" onclick="conectarMeta()">Entrar com o Facebook (vale 60 dias)</button></div>'+colar;
+    return;
+  }
+  var exp=metaCfg.conexao.expires_at?new Date(metaCfg.conexao.expires_at):null,dias=exp?Math.round((exp-Date.now())/864e5):null;
+  box.innerHTML='Meta conectada como <b>'+escHtml(metaCfg.conexao.nome||"")+'</b> · '+(exp?'acesso vale por mais <b style="color:'+(dias<10?"var(--ac2)":"var(--ok)")+'">'+dias+' dias</b>':'<b style="color:var(--ok)">acesso sem prazo para expirar</b>')
+    +'<div id="meta-contas" style="font-size:12px;margin-top:6px">Conferindo o que este acesso enxerga...</div>'
+    +'<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px">Trocar a conexão</summary><div style="margin-top:10px"><button class="btn-sm" onclick="conectarMeta()">Entrar com o Facebook (vale 60 dias)</button></div>'+colar+'</details>';
+  try{var c=await apiMeta({acao:"contas"});document.getElementById("meta-contas").textContent="Enxerga "+c.instagram.length+" Instagrams e "+c.anuncios.length+" contas de anúncios.";}
+  catch(e){document.getElementById("meta-contas").innerHTML='<span style="color:var(--ac2)">Erro ao listar as contas: '+escHtml(e.message)+'</span>';}
+}
+async function salvarTokenMeta(){
+  var el=document.getElementById("meta-token"),token=el?el.value.trim():"";
+  if(!token){avisar("Cole o código gerado no Gerenciador de Negócios.",true);return;}
+  var box=document.getElementById("meta-status");box.textContent="Conferindo o código com a Meta...";
+  try{
+    var r=await apiMeta({acao:"salvar_token",token:token});
+    avisar("Meta conectada como "+r.nome+(r.expires_at?"":" · sem prazo para expirar"));
+    if(r.faltam&&r.faltam.length)avisar("Faltam permissões no código: "+r.faltam.join(", ")+". Gere de novo marcando essas opções.",true);
+  }catch(e){avisar("Não foi possível usar o código: "+e.message,true);}
+  carregarMeta();
 }
 function conectarMeta(){
   if(!metaCfg||!metaCfg.appId)return;
@@ -482,36 +506,12 @@ function conectarMeta(){
 window.addEventListener("message",async function(ev){
   if(ev.origin!==location.origin||!ev.data||ev.data.tipo!=="meta-login")return;
   var box=document.getElementById("meta-status");
-  if(ev.data.erro||!ev.data.code){box.textContent="Login cancelado ou recusado: "+(ev.data.erro||"sem codigo");return;}
-  if(ev.data.state!==metaState){box.textContent="Resposta de login invalida. Tente de novo.";return;}
+  if(ev.data.erro||!ev.data.code){box.textContent="Login cancelado ou recusado: "+(ev.data.erro||"sem código");return;}
+  if(ev.data.state!==metaState){box.textContent="Resposta de login inválida. Tente de novo.";return;}
   box.textContent="Conectando a Meta...";
   try{await apiMeta({acao:"conectar",code:ev.data.code,redirect_uri:location.origin+"/meta-callback.html"});}catch(e){box.textContent="Erro ao conectar: "+e.message;return;}
   carregarMeta();
 });
-function renderContasMeta(){
-  var el=document.getElementById("contas-meta-table"),conectada=!!(metaCfg&&metaCfg.conexao);
-  if(!allUsers.length){el.innerHTML="";return;}
-  function opcoes(lista,sel,rotulo){return '<option value="">'+rotulo+'</option>'+lista.map(function(x){return '<option value="'+escHtml(x.id)+'"'+(x.id===sel?" selected":"")+'>'+escHtml(x.username?"@"+x.username+(x.pagina?" ("+x.pagina+")":""):x.nome+(x.ativa===false?" (inativa)":""))+'</option>';}).join("");}
-  var st='style="background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:12px;padding:6px 8px;max-width:230px"';
-  var html='<table><thead><tr><th>Cliente</th><th>Instagram</th><th>Conta de anuncios</th><th>Ultima analise</th><th></th></tr></thead><tbody>';
-  allUsers.forEach(function(u){
-    var c=contasMeta[u.id]||{};
-    var ig=conectada?'<select id="ig-'+u.id+'" '+st+'>'+opcoes(metaContas.instagram,c.ig_id,"Sem Instagram")+'</select>':escHtml(c.ig_username?"@"+c.ig_username:"-");
-    var ad=conectada?'<select id="ad-'+u.id+'" '+st+'>'+opcoes(metaContas.anuncios,c.ad_account_id,"Sem conta de anuncios")+'</select>':escHtml(c.ad_account_nome||"-");
-    html+='<tr><td>'+escHtml(u.email)+'</td><td>'+ig+'</td><td>'+ad+'</td><td id="st-'+u.id+'" style="font-size:12px;color:var(--mu2);white-space:normal;max-width:260px">'+(c.atualizado_em&&c.status?escHtml(c.status)+" · "+new Date(c.atualizado_em).toLocaleString("pt-BR"):"-")+'</td><td style="white-space:nowrap">'+(conectada?'<button class="btn-sm" onclick="salvarContaMeta(\''+u.id+'\')">Salvar</button> <button class="btn-filter" onclick="analisarConta(\''+u.id+'\')">Analisar</button>':"")+'</td></tr>';
-  });
-  el.innerHTML=html+'</tbody></table>';
-}
-async function salvarContaMeta(uid,silencioso){
-  var igSel=document.getElementById("ig-"+uid),adSel=document.getElementById("ad-"+uid);
-  var ig=metaContas.instagram.find(function(x){return x.id===igSel.value;}),ad=metaContas.anuncios.find(function(x){return x.id===adSel.value;});
-  var dados={user_id:uid,ig_id:ig?ig.id:null,ig_username:ig?ig.username:null,ad_account_id:ad?ad.id:null,ad_account_nome:ad?ad.nome:null};
-  var r=await supaClient.from("contas_meta").upsert(dados,{onConflict:"user_id"});
-  if(r.error){alert("Erro ao salvar: "+r.error.message);return false;}
-  contasMeta[uid]=Object.assign({},contasMeta[uid]||{},dados);
-  if(!silencioso)document.getElementById("st-"+uid).textContent="Contas salvas. Clique em Analisar.";
-  return true;
-}
 // o time de agentes roda no servidor (api/_time-agentes.js): aqui so pede e mostra o andamento
 async function analisarConta(uid){
   function log(t){var l=document.getElementById("st-"+uid);if(l)l.textContent=t;setStatusLoja(uid,t);}
@@ -607,6 +607,7 @@ async function loadData(){
     renderUsuarios();
     renderProjetos();
     carregarConnect();
+    carregarMeta();
     document.getElementById("last-update").textContent="Ultima atualizacao: "+new Date().toLocaleString("pt-BR");
   }catch(e){
     document.getElementById("last-update").textContent="Erro: "+e.message;

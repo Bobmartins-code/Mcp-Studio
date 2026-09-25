@@ -1,6 +1,7 @@
 // =====================================================================
 //  CONEXAO COM A META (Instagram + Gerenciador de Anuncios)
-//  So o admin usa. O admin conecta a conta dele na Meta uma vez e,
+//  So o admin usa. O admin conecta uma vez (login do Facebook, que vale
+//  60 dias, ou o codigo de um usuario do sistema, que pode nunca expirar) e,
 //  com o acesso que ele tem as contas das clientes, este arquivo coleta:
 //    - organico: posts dos ultimos 90 dias com engajamento e compartilhamentos
 //    - anuncios: anuncios dos ultimos 90 dias com vendas (ou conversas)
@@ -264,6 +265,26 @@ module.exports = async function handler(req, res) {
             await banco("meta_conexao", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: { id: 1, access_token: criptografar(longo.access_token), nome: eu.name, meta_user_id: eu.id, expires_at: expira, atualizado_em: new Date().toISOString() } });
             await auditar(admin.id, "conectou a Meta", eu.name);
             return res.status(200).json({ ok: true, nome: eu.name, expires_at: expira });
+        }
+        // codigo colado pelo admin (usuario do sistema do Gerenciador de Negocios, que pode nunca expirar)
+        if (b.acao === "salvar_token") {
+            const novo = String(b.token || "").trim();
+            if (novo.length < 50) throw new Error("Codigo invalido. Copie o codigo inteiro gerado no Gerenciador de Negocios.");
+            const eu = await g("/me", { fields: "id,name" }, novo);
+            // debug_token diz o tipo, a validade (0 = nunca expira) e as permissoes; precisa do app cadastrado no Vercel
+            let expira = null, tipo = "", faltam = [];
+            if (APP_ID && APP_SECRET) {
+                const dbg = ((await g("/debug_token", { input_token: novo }, APP_ID + "|" + APP_SECRET)) || {}).data || {};
+                if (dbg.is_valid === false) throw new Error("A Meta diz que este codigo nao e valido.");
+                if (dbg.app_id && String(dbg.app_id) !== String(APP_ID)) throw new Error("Este codigo foi gerado para outro app. Gere de novo escolhendo o app do MCP Studio.");
+                expira = dbg.expires_at ? new Date(dbg.expires_at * 1000).toISOString() : null;
+                tipo = dbg.type || "";
+                const tem = dbg.scopes || [];
+                faltam = ["instagram_basic", "instagram_manage_insights", "pages_read_engagement", "ads_read"].filter(function (s) { return tem.indexOf(s) < 0; });
+            }
+            await banco("meta_conexao", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: { id: 1, access_token: criptografar(novo), nome: eu.name, meta_user_id: eu.id, expires_at: expira, atualizado_em: new Date().toISOString() } });
+            await auditar(admin.id, "conectou a Meta com codigo colado", eu.name + (tipo ? " (" + tipo + ")" : ""));
+            return res.status(200).json({ ok: true, nome: eu.name, tipo: tipo, expires_at: expira, faltam: faltam });
         }
         const token = await tokenMeta();
         if (b.acao === "contas") {
