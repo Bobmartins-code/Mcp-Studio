@@ -210,6 +210,8 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .card2-r{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--bo);font-size:15px}
 .card2-r:last-child{border-bottom:none}
 .refs{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+.refs.grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));overflow-x:visible;overflow-y:auto;max-height:430px;padding:2px}
+.refs.grade .ref{width:auto}
 .ref{width:104px;flex-shrink:0;background:none;border:none;padding:0;cursor:pointer;text-align:left;color:var(--tx);font-family:inherit}
 .ref .thumb{width:104px;height:132px;margin-bottom:6px}
 .ref.on .thumb{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--tx)}
@@ -530,6 +532,7 @@ function App(){
   var sCm=useState(null),contaMeta=sCm[0],setContaMeta=sCm[1];
   var sVt=useState("anuncios"),videosTab=sVt[0],setVideosTab=sVt[1];
   var sRf=useState(null),referencia=sRf[0],setReferenciaSt=sRf[1];
+  var sRfF=useState("todos"),refFiltro=sRfF[0],setRefFiltro=sRfF[1];
   var sVc=useState(null),verComo=sVc[0],setVerComo=sVc[1];
   var sLu=useState([]),listaClientes=sLu[0],setListaClientes=sLu[1];
   var sPer=useState(30),periodo=sPer[0],setPeriodo=sPer[1];
@@ -646,7 +649,7 @@ function App(){
     setReferencia({chave:chave,titulo:tipo==="anuncio"?(x.nome||"Anuncio"):(String(x.legenda||"").substring(0,40)||(x.tipo+" de "+new Date(x.data).toLocaleDateString("pt-BR"))),texto:txt});
     if(ficar)return;
     setVideoSel(null);setActiveProject(null);setView("briefing");
-    showToast("Video escolhido como referencia. Descreva o produto e gere os roteiros.");
+    showToast("Vídeo escolhido como referência. Descrever o produto agora é opcional.");
   }
   async function carregarPerfil(){try{var r=await supaClient.from("perfil_publico").select("dados").eq("user_id",currentUser.id).maybeSingle();if(r&&r.data&&r.data.dados)setPerfil(r.data.dados);}catch(e){}}
   async function salvarPerfil(dados){if(somenteLeitura())return;try{var r=await supaClient.from("perfil_publico").upsert({user_id:currentUser.id,dados:dados,atualizado_em:new Date().toISOString()},{onConflict:"user_id"}).select();if(r&&r.error)throw r.error;setPerfil(dados);showToast("Publico salvo! Os proximos projetos ja vem preenchidos.");}catch(e){showToast("Nao foi possivel salvar. Confirme se a tabela foi criada no Supabase.","err");}}
@@ -661,10 +664,13 @@ function App(){
   async function iniciarBriefing(){
     if(somenteLeitura())return;
     if(!form.objetivo){showToast("Selecione o destino no passo 03","err");return;}
-    if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem){showToast("Selecione ao menos uma forma de descrever o produto","err");return;}
-    if(inputModes.texto&&!form.produto){showToast("Descreva seu produto no campo de texto","err");return;}
-    if(inputModes.url&&!form.url){showToast("Insira a URL do produto","err");return;}
-    if(inputModes.imagem&&imageFiles.length===0){showToast("Envie ao menos uma imagem","err");return;}
+    // com um video de referencia, descrever o produto e opcional
+    if(!referencia){
+      if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem){showToast("Selecione ao menos uma forma de descrever o produto","err");return;}
+      if(inputModes.texto&&!form.produto){showToast("Descreva seu produto no campo de texto","err");return;}
+      if(inputModes.url&&!form.url){showToast("Insira a URL do produto","err");return;}
+      if(inputModes.imagem&&imageFiles.length===0){showToast("Envie ao menos uma imagem","err");return;}
+    }
     var tok=++dirTok.current,met=metodoSel;
     setDirecao({origem:"briefing",metodo:met,loading:true});
     try{
@@ -683,6 +689,7 @@ function App(){
         }
       }
       ff.produto=produtoParts.join(" | ")||ff.produto;
+      if(!ff.produto&&referencia)ff.produto="Sem descrição: use o mesmo produto ou assunto do vídeo de referência ("+referencia.titulo+"). Não invente detalhes do produto que não aparecem no vídeo.";
       var imgs=null;
       if(inputModes.imagem&&imageFiles.length>0){imgs=await Promise.all(imageFiles.map(async function(f){return {type:"image",source:{type:"base64",media_type:f.type,data:await toB64(f)}};}));}
       if(tok!==dirTok.current)return;
@@ -991,7 +998,7 @@ function App(){
   function getScs(){if(!activeProject)return[];var all=[];var num=0;activeProject.rodadas.forEach(function(rod){(rod.resultado&&rod.resultado.roteiros||[]).forEach(function(s){num++;all.push(Object.assign({},s,{numGlobal:num}));});});if(activeTab==="topo")return all.filter(function(s){return s.funil==="topo";});if(activeTab==="meio")return all.filter(function(s){return s.funil==="meio";});if(activeTab==="fundo")return all.filter(function(s){return s.funil==="fundo";});if(activeTab==="ugc")return all.filter(function(s){return s.funil==="ugc";});if(METODOS.some(function(m){return m.id===activeTab;}))return all.filter(function(s){return metodoDoRoteiro(s)===activeTab;});return all;}
   function avisoReferencia(){
     if(!referencia)return null;
-    return ce("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"rgba(45,222,152,.08)",border:"1px solid rgba(45,222,152,.3)",borderRadius:12,padding:"12px 14px",marginBottom:16,fontSize:13}},ce("span",null,"🎬"),ce("div",{style:{flex:1,minWidth:180}},ce("b",null,"Referencia ativa: "),referencia.titulo,ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:2}},"Os proximos roteiros partem do que fez este video dar resultado.")),ce("button",{className:"abtn",onClick:function(){setReferencia(null);}},"Remover"));
+    return ce("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"rgba(45,222,152,.08)",border:"1px solid rgba(45,222,152,.3)",borderRadius:12,padding:"12px 14px",marginBottom:16,fontSize:13}},ce("span",null,"🎬"),ce("div",{style:{flex:1,minWidth:180}},ce("b",null,"Referência ativa: "),referencia.titulo,ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:2}},"Os próximos roteiros partem deste vídeo. Se não quiser, nem precisa descrever o produto.")),ce("button",{className:"abtn",onClick:function(){setReferencia(null);}},"Remover"));
   }
   function brl(n){return n==null?"-":"R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
   function numBR(n){return n==null?"-":Number(n).toLocaleString("pt-BR");}
@@ -1013,18 +1020,23 @@ function App(){
     return ce("div",{className:"nota"},ce("b",null,"Recado da equipe: "),rc.texto,(!rc.lido_em&&!verComo)?ce("div",{style:{marginTop:8}},ce("button",{className:"chip",style:{height:32},onClick:function(){marcarRecadoLido(rc);}},"Ok, entendi")):null);
   }
 
-  // na tela de novo roteiro: os anuncios que mais venderam e os posts acima da media viram ponto de partida
+  // na tela de novo roteiro: a cliente escolhe qualquer post ou anuncio como ponto de partida (os melhores primeiro)
   function blocoReferencias(){
     var dl=dadosLoja(contaMeta);if(!dl)return null;
     var ap=adsDoPeriodo(dl,90),tr=ap&&ap.dados.tipo_resultado;
-    var ads=ap?(ap.dados.anuncios||[]).filter(function(a){return a.resultados>0;}).slice(0,3):[];
-    var posts=(dl.posts||[]).slice().sort(function(a,b){return (b.indice||0)-(a.indice||0);}).slice(0,3);
-    var itens=ads.map(function(a){return {tipo:"anuncio",x:a,nome:a.nome,info:numBR(a.resultados)+" "+rotRes(tr,a.resultados,a.res_nome)};}).concat(posts.map(function(p){return {tipo:"organico",x:p,nome:String(p.legenda||p.tipo||"Post").substring(0,40),info:p.indice?fmtX(p.indice)+" a média":compacto(p.visualizacoes)+" visualizações"};}));
-    if(!itens.length)return null;
-    return ce("div",{className:"sec"},ce("div",{className:"sec-t"},"Partir de um vídeo que deu certo (opcional)"),ce("div",{className:"obj-q"},"O agente cria roteiros novos a partir do que fez este vídeo dar resultado."),
-      ce("div",{className:"refs"},itens.map(function(it,i){
+    var ads=ap?(ap.dados.anuncios||[]).slice().sort(function(a,b){return (b.resultados||0)-(a.resultados||0)||(b.gasto||0)-(a.gasto||0);}):[];
+    var posts=(dl.posts||[]).slice().sort(function(a,b){return (b.indice||0)-(a.indice||0);});
+    var itAds=ads.map(function(a){return {tipo:"anuncio",x:a,nome:a.nome,info:a.resultados?numBR(a.resultados)+" "+rotRes(tr,a.resultados,a.res_nome):"Anúncio"};});
+    var itPosts=posts.map(function(p){return {tipo:"organico",x:p,nome:String(p.legenda||p.tipo||"Post").substring(0,40),info:p.indice?fmtX(p.indice)+" a média":compacto(p.visualizacoes)+" visualizações"};});
+    var todos=itAds.filter(function(it){return it.x.resultados>0;}).concat(itPosts,itAds.filter(function(it){return !(it.x.resultados>0);}));
+    if(!todos.length)return null;
+    var itens=refFiltro==="organico"?itPosts:refFiltro==="anuncio"?itAds:todos;
+    var filtros=[{id:"todos",lb:"Todos"}].concat(itPosts.length?[{id:"organico",lb:"Orgânicos ("+itPosts.length+")"}]:[],itAds.length?[{id:"anuncio",lb:"Anúncios ("+itAds.length+")"}]:[]);
+    return ce("div",{className:"sec"},ce("div",{className:"sec-t"},"Partir de um vídeo seu (opcional)"),ce("div",{className:"obj-q"},"Escolha qualquer vídeo. O agente cria roteiros novos a partir do que ele tem de bom. Os que deram mais resultado aparecem primeiro."),
+      filtros.length>2&&ce("div",{className:"chips",style:{marginBottom:10}},filtros.map(function(o){return ce("button",{key:o.id,className:"chip"+(refFiltro===o.id?" on":""),onClick:function(){setRefFiltro(o.id);}},o.lb);})),
+      ce("div",{className:"refs grade"},itens.map(function(it,i){
         var chave=it.tipo+":"+(it.x.id||it.x.nome||it.x.link||it.x.legenda),on=!!(referencia&&referencia.chave===chave);
-        return ce("button",{key:i,className:"ref"+(on?" on":""),"aria-pressed":on,onClick:function(){if(on)setReferencia(null);else usarComoReferencia(it.tipo,it.x,true,tr);}},
+        return ce("button",{key:chave+i,className:"ref"+(on?" on":""),"aria-pressed":on,onClick:function(){if(on)setReferencia(null);else usarComoReferencia(it.tipo,it.x,true,tr);}},
           ce("span",{className:"thumb",style:{display:"block"}},img(it.x.miniatura)),
           ce("span",{style:{display:"block",fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},it.nome),
           ce("span",{style:{display:"block",fontSize:11.5,color:it.tipo==="organico"?"var(--ac2)":"var(--mu2)",fontWeight:700}},it.info));
@@ -1121,12 +1133,14 @@ function App(){
           !p.miniatura&&ce("span",{style:{position:"absolute",inset:"26px 8px 30px",fontSize:11.5,color:"var(--mu2)",overflow:"hidden",textAlign:"left",lineHeight:1.35}},String(p.legenda||"").substring(0,110)),
           img(p.miniatura),ce("span",{className:"scr"}),
           p.tipo&&p.tipo!=="Reels"?ce("span",{className:"tp"},p.tipo):null,
-          p.indice>=1.5?ce("span",{className:"ix"},fmtX(p.indice)):null,
-          ordemOrg==="engaj"&&p.taxa!=null?ce("span",{className:"vw"},String(p.taxa).replace(".",",")+"% engajamento"):
+          ordemOrg!=="engaj"&&p.indice>=1.5?ce("span",{className:"ix"},fmtX(p.indice)):null,
+          ordemOrg==="engaj"&&p.indice?ce("span",{className:"vw"},fmtX(p.indice)+" a média"):
           ordemOrg==="tempo"&&p.tempo_medio_s?ce("span",{className:"vw"},String(p.tempo_medio_s).replace(".",",")+" s assistidos"):
           ordemOrg==="gancho"&&p.retencao_3s!=null?ce("span",{className:"vw"},String(p.retencao_3s).replace(".",",")+"% ficaram"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));}))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum post nos últimos "+periodo+" dias."+(periodo<90?" Tente 90 dias.":"")),
-      lista.some(function(p){return p.indice>=1.5;})&&ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"2x"),"quantas vezes o post foi melhor que a média da sua conta")
+      ordemOrg==="engaj"
+        ?ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"1x"),"é a média da sua conta. Soma curtidas, comentários, salvamentos e compartilhamentos (que valem dobrado) e compara com quantas pessoas viram cada post.")
+        :lista.some(function(p){return p.indice>=1.5;})&&ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"2x"),"quantas vezes o post foi melhor que a média da sua conta")
     );
   }
   function renderAnuncios(dl){
@@ -1344,7 +1358,7 @@ function App(){
             ce("div",{className:"obj-g met"},METODOS.map(function(m){return ce("div",{key:m.id,className:"obj-o"+(metodoSel===m.id?" on":""),onClick:function(){setMetodoSel(m.id);}},ce("div",{className:"obj-ic"},m.ic),ce("div",null,ce("div",{className:"obj-lbl"},m.amigo),ce("div",{style:{fontSize:10.5,color:"var(--mu2)",marginBottom:3}},m.sub),ce("div",{className:"obj-ds"},m.ds)));}))
           ),
           ce("div",{className:"sec"},
-            ce("div",{className:"sec-t"},"02 - Produto ou Servico"),
+            ce("div",{className:"sec-t"},"02 - Produto ou serviço"+(referencia?" (opcional com vídeo de referência)":"")),
             ce("div",{style:{margin:"0 0 14px"}},ce("label",{style:{display:"inline-flex",alignItems:"center",gap:8,cursor:lendoVideo?"wait":"pointer",border:"1px dashed var(--boh)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"var(--ac2)",background:"var(--sur2)"}},ce("input",{type:"file",accept:"video/*,audio/*",style:{display:"none"},disabled:lendoVideo,onChange:function(e){if(e.target.files&&e.target.files[0]){transcreverArquivo(e.target.files[0]);e.target.value="";}}}),lendoVideo?"Transcrevendo...":"Tem um video ou audio curto? Carregue e a IA transcreve")),
             ce("div",{style:{marginBottom:12}},
               ce("div",{style:{fontSize:12,fontWeight:500,color:"var(--mu2)",marginBottom:8}},"Selecione uma ou mais formas de descrever seu produto:"),
@@ -1365,8 +1379,8 @@ function App(){
             ce("div",{className:"obj-q"},"Escolha o destino desejado - cada um gera um estilo diferente de roteiro e CTA."),
             ce("div",{className:"obj-g"},OBJS.map(function(o){return ce("div",{key:o.id,className:"obj-o"+(form.objetivo===o.id?" on":""),onClick:function(){setForm(function(f){return Object.assign({},f,{objetivo:o.id});}); }},ce("div",{className:"obj-ic"},o.ic),ce("div",null,ce("div",{className:"obj-lbl"},o.lb),ce("div",{className:"obj-ds"},o.ds)));}))
           ),
-          ce("button",{className:"gbtn",onClick:iniciarBriefing,disabled:!form.objetivo||(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)},"Gerar "+POR_RODADA+" roteiros: "+metodoInfo(metodoSel).amigo),
-          (function(){var f=[];if(!form.objetivo)f.push("escolher o destino (passo 03)");if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)f.push("escolher como descrever o produto (passo 02)");else{if(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)f.push("escrever a descricao do produto");if(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)f.push("colar a URL");if(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)f.push("enviar ao menos uma foto");}return f.length?ce("div",{style:{marginTop:10,fontSize:12.5,color:"var(--ac2)",textAlign:"center"}},"Falta: "+f.join(" e ")):null;})()
+          ce("button",{className:"gbtn",onClick:iniciarBriefing,disabled:!form.objetivo||(!referencia&&((!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)))},"Gerar "+POR_RODADA+" roteiros: "+metodoInfo(metodoSel).amigo),
+          (function(){var f=[];if(!form.objetivo)f.push("escolher o destino (passo 03)");if(referencia){}else if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)f.push("escolher como descrever o produto (passo 02)");else{if(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)f.push("escrever a descricao do produto");if(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)f.push("colar a URL");if(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)f.push("enviar ao menos uma foto");}return f.length?ce("div",{style:{marginTop:10,fontSize:12.5,color:"var(--ac2)",textAlign:"center"}},"Falta: "+f.join(" e ")):null;})()
         )
       ),
       view==="results"&&activeProject&&function(){
