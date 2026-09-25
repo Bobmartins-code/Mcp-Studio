@@ -163,6 +163,11 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .kpi-l{font-size:13px;color:var(--mu2)}.kpi-v{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;line-height:1.1}.kpi-s{font-size:13px;color:#C9C7C0}
 .sec-h{font-weight:700;font-size:16px;margin:4px 0 10px}
 .gravar{padding:16px;margin-bottom:22px}
+.conta-ed{padding:10px 16px 14px;border-bottom:1px solid var(--bo)}
+.conta-ed>label{display:block;font-size:12px;color:var(--mu2);margin-bottom:6px}
+.conta-ed-l{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.conta-ed input{flex:1;min-width:0;height:40px;background:var(--sur2);border:1px solid var(--bo);border-radius:10px;color:var(--tx);font-size:14px;padding:0 12px;font-family:inherit;outline:none}
+.conta-ed input:focus{border-color:var(--boh)}
 .ideias{display:grid;gap:10px}
 .ideias.tres{grid-template-columns:repeat(3,minmax(0,1fr))}
 .ideia{background:var(--sur2);border:1px solid var(--bo);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -349,7 +354,7 @@ function memoriaAgente(projects,perfil,metodo){
   var ajustes=((perfil&&perfil.ajustes)||[]).slice(0,8);
   var descartados=((perfil&&perfil.descartados)||[]).slice(0,8);
   var partes=[];
-  if(REFERENCIA_ATUAL)partes.push("VIDEO DE REFERENCIA ESCOLHIDO PELA CLIENTE (os roteiros devem partir do que fez este video dar resultado: o angulo, o tipo de gancho e a estrutura; crie roteiros novos, sem copiar): "+REFERENCIA_ATUAL);
+  if(REFERENCIA_ATUAL)partes.push("VIDEO(S) DE REFERENCIA ESCOLHIDO(S) PELA CLIENTE (os roteiros devem partir do que fez estes videos darem resultado: o angulo, o tipo de gancho e a estrutura; com mais de um, combine o melhor de cada; crie roteiros novos, sem copiar): "+REFERENCIA_ATUAL);
   if(CONTA_AGENTE.texto)partes.push("DOSSIE DA CONTA (feito pelo time de agentes com os dados reais dos ultimos 90 dias do Instagram e dos anuncios desta loja; e a fonte mais importante para saber o que da resultado): "+CONTA_AGENTE.texto);
   var dica=CONTA_AGENTE.por_metodo&&CONTA_AGENTE.por_metodo[metodo];
   if(dica)partes.push("ORIENTACAO DO TIME DE AGENTES PARA O METODO "+metodoInfo(metodo).lb.toUpperCase()+" NESTA CONTA: "+dica);
@@ -539,8 +544,10 @@ function App(){
   var sVt=useState("anuncios"),videosTab=sVt[0],setVideosTab=sVt[1];
   var sRf=useState(null),referencia=sRf[0],setReferenciaSt=sRf[1];
   var sRfF=useState("todos"),refFiltro=sRfF[0],setRefFiltro=sRfF[1];
-  var sIm=useState({}),ideiasMarc=sIm[0],setIdeiasMarc=sIm[1];
   var sIf=useState("todas"),ideiaFiltro=sIf[0],setIdeiaFiltro=sIf[1];
+  var sGi=useState(false),gerandoIdeias=sGi[0],setGerandoIdeias=sGi[1];
+  var sEd=useState({}),edConta=sEd[0],setEdConta=sEd[1];
+  var sSv=useState(""),salvandoConta=sSv[0],setSalvandoConta=sSv[1];
   var sVc=useState(null),verComo=sVc[0],setVerComo=sVc[1];
   var sLu=useState([]),listaClientes=sLu[0],setListaClientes=sLu[1];
   var sPer=useState(30),periodo=sPer[0],setPeriodo=sPer[1];
@@ -624,7 +631,8 @@ function App(){
   // dados da loja (nome) e boas-vindas no primeiro acesso da dona
   async function carregarLoja(uid,primeiraVez){
     try{
-      var r=await supaClient.from("lojas").select("nome,nicho,site").eq("user_id",uid).maybeSingle();
+      var r=await supaClient.from("lojas").select("nome,nicho,site,logo_url").eq("user_id",uid).maybeSingle();
+      if(r&&r.error)r=await supaClient.from("lojas").select("nome,nicho,site").eq("user_id",uid).maybeSingle();
       var lj=(r&&!r.error&&r.data)||null;setLojaInfo(lj);
       if(primeiraVez&&lj&&!souAdmin){var k="mcp_bv_"+uid;try{if(!localStorage.getItem(k))setBoasVindas(true);}catch(e){}}
     }catch(e){setLojaInfo(null);}
@@ -646,17 +654,19 @@ function App(){
     return true;
   }
 
-  async function carregarIdeiasMarcadas(){try{var r=await supaClient.from("ideias_marcadas").select("titulo,status").eq("user_id",currentUser.id);var m={};((r&&r.data)||[]).forEach(function(x){m[x.titulo]=x.status;});setIdeiasMarc(m);}catch(e){}}
-  async function marcarIdeia(ideia,status){
-    if(somenteLeitura())return;
-    var atual=ideiasMarc[ideia.titulo];
+  // nova leva de ideias pedida pela dona (so o Agente de Ideias, no servidor; ate 3 por dia)
+  async function pedirMaisIdeias(){
+    if(somenteLeitura()||gerandoIdeias)return;
+    setGerandoIdeias(true);
     try{
-      if(atual===status){var d=await supaClient.from("ideias_marcadas").delete().eq("user_id",currentUser.id).eq("titulo",ideia.titulo);if(d&&d.error)throw d.error;var m1=Object.assign({},ideiasMarc);delete m1[ideia.titulo];setIdeiasMarc(m1);return;}
-      if(atual){await supaClient.from("ideias_marcadas").delete().eq("user_id",currentUser.id).eq("titulo",ideia.titulo);}
-      var r=await supaClient.from("ideias_marcadas").insert({user_id:currentUser.id,titulo:ideia.titulo,status:status});if(r&&r.error)throw r.error;
-      var m2=Object.assign({},ideiasMarc);m2[ideia.titulo]=status;setIdeiasMarc(m2);
-      showToast(status==="gravei"?"Anotado! O agente não vai repetir esta ideia.":"Anotado! O agente vai evitar ideias nesse estilo.");
-    }catch(e){showToast("Não foi possível salvar agora. Tente de novo.","err");}
+      var ss=await supaClient.auth.getSession();var tk=ss.data&&ss.data.session&&ss.data.session.access_token;
+      var r=await fetch("/api/ideias",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:"{}"});
+      var d={};try{d=await r.json();}catch(_){}
+      if(!r.ok)throw new Error(d.error||("Erro "+r.status));
+      await carregarContaMeta();setIdeiaFiltro("todas");
+      showToast(d.novas+" ideias novas! "+(d.restam_hoje>0?"Você ainda pode pedir mais "+d.restam_hoje+(d.restam_hoje>1?" vezes":" vez")+" hoje.":"Amanhã tem mais."));
+    }catch(e){showToast((e&&e.message)||"Não consegui gerar ideias agora.","err");}
+    finally{setGerandoIdeias(false);}
   }
   // transforma uma ideia narrada em roteiro: vira a referencia e ja escolhe o metodo
   function ideiaParaRoteiro(ideia){
@@ -665,16 +675,31 @@ function App(){
     setVideoSel(null);setActiveProject(null);setView("briefing");
     showToast("Ideia escolhida. Confira o objetivo e gere os roteiros.");
   }
-  async function carregarContaMeta(){carregarIdeiasMarcadas();try{var r=await supaClient.from("contas_meta").select(CAMPOS_CONTA).eq("user_id",currentUser.id).maybeSingle();if(r&&r.error)r=await supaClient.from("contas_meta").select("ig_username,ad_account_nome,dossie,atualizado_em").eq("user_id",currentUser.id).maybeSingle();if(r&&!r.error&&r.data){setContaMeta(r.data);var d=r.data.dossie||{};CONTA_AGENTE=contaDoDossie(d);}}catch(e){}}
-  function setReferencia(ref){REFERENCIA_ATUAL=ref?ref.texto:"";setReferenciaSt(ref);}
+  async function carregarContaMeta(){try{var r=await supaClient.from("contas_meta").select(CAMPOS_CONTA).eq("user_id",currentUser.id).maybeSingle();if(r&&r.error)r=await supaClient.from("contas_meta").select("ig_username,ad_account_nome,dossie,atualizado_em").eq("user_id",currentUser.id).maybeSingle();if(r&&!r.error&&r.data){setContaMeta(r.data);var d=r.data.dossie||{};CONTA_AGENTE=contaDoDossie(d);}}catch(e){}}
+  // referencia = lista de ate 3 videos (ou uma ideia); vazia vira null
+  var MAX_REFS=3;
+  function setReferencia(lista){
+    if(lista&&!Array.isArray(lista))lista=[lista];
+    if(lista&&!lista.length)lista=null;
+    REFERENCIA_ATUAL=lista?lista.map(function(r,i){return (lista.length>1?"VIDEO "+(i+1)+": ":"")+r.texto;}).join("\n"):"";
+    setReferenciaSt(lista);
+  }
+  function titulosRef(){return (referencia||[]).map(function(r){return r.titulo;}).join(" + ");}
+  function alternarRef(ref){
+    var atual=(referencia||[]).filter(function(r){return r.chave.indexOf("ideia:")!==0;});
+    if(atual.some(function(r){return r.chave===ref.chave;})){setReferencia(atual.filter(function(r){return r.chave!==ref.chave;}));return;}
+    if(atual.length>=MAX_REFS){showToast("Escolha até "+MAX_REFS+" vídeos. Tire um para colocar outro.","err");return;}
+    setReferencia(atual.concat([ref]));
+  }
   // ficar=true: so escolhe a referencia (tela de novo roteiro); senao leva para a tela de novo roteiro
   function usarComoReferencia(tipo,x,ficar,tipoRes){
     var d=(contaMeta&&contaMeta.dossie)||{},txt,tr=tipoRes||(d.anuncios&&d.anuncios.tipo_resultado)||"resultados";
     if(tipo==="anuncio")txt="ANUNCIO que deu "+x.resultados+" "+tr+(x.custo_por_resultado?" com custo de R$ "+x.custo_por_resultado+" por resultado":"")+(x.diagnostico?" ("+x.diagnostico+")":"")+". Texto ou nome do anuncio: "+(x.texto||x.titulo||x.nome||"-")+(x.transcricao?". Fala do video: "+String(x.transcricao).substring(0,900):"");
     else txt="POST ORGANICO ("+x.tipo+") com "+x.indice+"x o engajamento medio da conta, "+(x.visualizacoes?x.visualizacoes+" visualizacoes, ":"")+x.compartilhamentos+" compartilhamentos e "+x.salvamentos+" salvamentos. Legenda: "+(x.legenda||"-")+(x.transcricao?". Fala do video: "+String(x.transcricao).substring(0,900):"");
     var chave=tipo+":"+(x.id||x.nome||x.link||x.legenda);
-    setReferencia({chave:chave,titulo:tipo==="anuncio"?(x.nome||"Anuncio"):(String(x.legenda||"").substring(0,40)||(x.tipo+" de "+new Date(x.data).toLocaleDateString("pt-BR"))),texto:txt});
-    if(ficar)return;
+    var ref={chave:chave,titulo:tipo==="anuncio"?(x.nome||"Anuncio"):(String(x.legenda||"").substring(0,40)||(x.tipo+" de "+new Date(x.data).toLocaleDateString("pt-BR"))),texto:txt};
+    if(ficar){alternarRef(ref);return;}
+    setReferencia([ref]);
     setVideoSel(null);setActiveProject(null);setView("briefing");
     showToast("Vídeo escolhido como referência. Descrever o produto agora é opcional.");
   }
@@ -716,7 +741,7 @@ function App(){
         }
       }
       ff.produto=produtoParts.join(" | ")||ff.produto;
-      if(!ff.produto&&referencia)ff.produto="Sem descrição: use o mesmo produto ou assunto do vídeo de referência ("+referencia.titulo+"). Não invente detalhes do produto que não aparecem no vídeo.";
+      if(!ff.produto&&referencia)ff.produto="Sem descrição: use o mesmo produto ou assunto do vídeo de referência ("+titulosRef()+"). Não invente detalhes do produto que não aparecem no vídeo.";
       var imgs=null;
       if(inputModes.imagem&&imageFiles.length>0){imgs=await Promise.all(imageFiles.map(async function(f){return {type:"image",source:{type:"base64",media_type:f.type,data:await toB64(f)}};}));}
       if(tok!==dirTok.current)return;
@@ -1025,7 +1050,7 @@ function App(){
   function getScs(){if(!activeProject)return[];var all=[];var num=0;activeProject.rodadas.forEach(function(rod){(rod.resultado&&rod.resultado.roteiros||[]).forEach(function(s){num++;all.push(Object.assign({},s,{numGlobal:num}));});});if(activeTab==="topo")return all.filter(function(s){return s.funil==="topo";});if(activeTab==="meio")return all.filter(function(s){return s.funil==="meio";});if(activeTab==="fundo")return all.filter(function(s){return s.funil==="fundo";});if(activeTab==="ugc")return all.filter(function(s){return s.funil==="ugc";});if(METODOS.some(function(m){return m.id===activeTab;}))return all.filter(function(s){return metodoDoRoteiro(s)===activeTab;});return all;}
   function avisoReferencia(){
     if(!referencia)return null;
-    return ce("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"rgba(45,222,152,.08)",border:"1px solid rgba(45,222,152,.3)",borderRadius:12,padding:"12px 14px",marginBottom:16,fontSize:13}},ce("span",null,"🎬"),ce("div",{style:{flex:1,minWidth:180}},ce("b",null,"Referência ativa: "),referencia.titulo,ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:2}},"Os próximos roteiros partem deste vídeo. Se não quiser, nem precisa descrever o produto.")),ce("button",{className:"abtn",onClick:function(){setReferencia(null);}},"Remover"));
+    return ce("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"rgba(45,222,152,.08)",border:"1px solid rgba(45,222,152,.3)",borderRadius:12,padding:"12px 14px",marginBottom:16,fontSize:13}},ce("span",null,"🎬"),ce("div",{style:{flex:1,minWidth:180}},ce("b",null,referencia.length>1?referencia.length+" vídeos de referência: ":"Referência ativa: "),titulosRef(),ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:2}},(referencia.length>1?"Os próximos roteiros juntam o que estes vídeos têm de bom.":"Os próximos roteiros partem deste vídeo.")+" Se não quiser, nem precisa descrever o produto.")),ce("button",{className:"abtn",onClick:function(){setReferencia(null);}},"Remover"));
   }
   function brl(n){return n==null?"-":"R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
   function numBR(n){return n==null?"-":Number(n).toLocaleString("pt-BR");}
@@ -1037,6 +1062,10 @@ function App(){
   function textoDoAnuncio(v){return v&&(v.texto||v.titulo)?ce("div",{style:{margin:"0 0 14px",fontSize:13,lineHeight:1.5}},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",letterSpacing:".05em",color:"var(--mu)",marginBottom:4}},"Texto do anúncio"),v.titulo?ce("div",{style:{fontWeight:700}},v.titulo):null,v.texto?ce("div",{style:{whiteSpace:"pre-line",color:"var(--mu2)"}},v.texto):null):null;}
   function falaDoVideo(t){return t?ce("details",{style:{margin:"0 0 14px",fontSize:13,color:"var(--mu2)"}},ce("summary",{style:{cursor:"pointer",color:"var(--ac2)"}},"Ver a fala do vídeo"),ce("div",{style:{marginTop:6,lineHeight:1.5}},t)):null;}
   function chipsPeriodo(){return [7,30,90].map(function(p){return ce("button",{key:"p"+p,className:"chip"+(periodo===p?" on":""),onClick:function(){setPeriodo(p);}},p+" dias");});}
+  function avatarLoja(tam){
+    var logo=lojaInfo&&lojaInfo.logo_url;
+    return ce("div",{className:"hello-av",style:{width:tam,height:tam,fontSize:Math.round(tam/3),overflow:"hidden",flexShrink:0}},logo?ce("img",{src:logo,alt:"Logo da loja",style:{width:"100%",height:"100%",objectFit:"cover"}}):iniciais(nomeDaLoja()));
+  }
   function nomeDaLoja(){return (lojaInfo&&lojaInfo.nome)||(verComo?verComo.email:userEmail);}
   function irPara(v){setVideoSel(null);setSbOpen(false);setView(v);}
   function abrirVideo(sel,aba){setVideoSel(sel);if(aba)setVideosTab(aba);setView("videos");}
@@ -1059,11 +1088,11 @@ function App(){
     if(!todos.length)return null;
     var itens=refFiltro==="organico"?itPosts:refFiltro==="anuncio"?itAds:todos;
     var filtros=[{id:"todos",lb:"Todos"}].concat(itPosts.length?[{id:"organico",lb:"Orgânicos ("+itPosts.length+")"}]:[],itAds.length?[{id:"anuncio",lb:"Anúncios ("+itAds.length+")"}]:[]);
-    return ce("div",{className:"sec"},ce("div",{className:"sec-t"},"Partir de um vídeo seu (opcional)"),ce("div",{className:"obj-q"},"Escolha qualquer vídeo. O agente cria roteiros novos a partir do que ele tem de bom. Os que deram mais resultado aparecem primeiro."),
+    return ce("div",{className:"sec"},ce("div",{className:"sec-t"},"Partir de um vídeo seu (opcional)"),ce("div",{className:"obj-q"},"Escolha até 3 vídeos. O agente junta o que cada um tem de bom e cria roteiros novos. Os que deram mais resultado aparecem primeiro."),
       filtros.length>2&&ce("div",{className:"chips",style:{marginBottom:10}},filtros.map(function(o){return ce("button",{key:o.id,className:"chip"+(refFiltro===o.id?" on":""),onClick:function(){setRefFiltro(o.id);}},o.lb);})),
       ce("div",{className:"refs grade"},itens.map(function(it,i){
-        var chave=it.tipo+":"+(it.x.id||it.x.nome||it.x.link||it.x.legenda),on=!!(referencia&&referencia.chave===chave);
-        return ce("button",{key:chave+i,className:"ref"+(on?" on":""),"aria-pressed":on,onClick:function(){if(on)setReferencia(null);else usarComoReferencia(it.tipo,it.x,true,tr);}},
+        var chave=it.tipo+":"+(it.x.id||it.x.nome||it.x.link||it.x.legenda),on=!!(referencia&&referencia.some(function(r){return r.chave===chave;}));
+        return ce("button",{key:chave+i,className:"ref"+(on?" on":""),"aria-pressed":on,onClick:function(){usarComoReferencia(it.tipo,it.x,true,tr);}},
           ce("span",{className:"thumb",style:{display:"block"}},img(it.x.miniatura)),
           ce("span",{style:{display:"block",fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},it.nome),
           ce("span",{style:{display:"block",fontSize:11.5,color:it.tipo==="organico"?"var(--ac2)":"var(--mu2)",fontWeight:700}},it.info));
@@ -1071,68 +1100,51 @@ function App(){
   }
   // ---------- IDEIAS DE CONTEUDO (Agente de Ideias) ----------
   function cartaoIdeia(ideia,i,compacto){
-    var st=ideiasMarc[ideia.titulo];
-    var tags=[ideia.narracao==="sem narração"?"Sem narração":"Narrado",ideia.formato,{topo:"Atrair gente nova",meio:"Fazer desejar",fundo:"Fazer comprar"}[ideia.funil]||ideia.funil,ideia.esforco==="fácil"?"Fácil de gravar":"Esforço médio"].filter(Boolean);
+    var tags=[ideia.nova?"Nova":null,ideia.narracao==="sem narração"?"Sem narração":"Narrado",ideia.formato,{topo:"Atrair gente nova",meio:"Fazer desejar",fundo:"Fazer comprar"}[ideia.funil]||ideia.funil,ideia.esforco==="fácil"?"Fácil de gravar":"Esforço médio"].filter(Boolean);
     var btn={height:32,fontSize:12.5};
-    return ce("div",{key:ideia.titulo+i,className:"ideia"+(st?" marcada":"")},
+    return ce("div",{key:ideia.titulo+i,className:"ideia"},
       ce("div",{style:{fontWeight:700,fontSize:15,lineHeight:1.35}},ideia.titulo),
       ce("div",{className:"ideia-tags"},tags.map(function(t,k){return ce("span",{key:k,className:"tag"},t);})),
       ce("div",{style:{fontSize:13,lineHeight:1.5,color:"#C9C7C0"}},ideia.como_gravar),
       !compacto&&ideia.texto_na_tela?ce("div",{style:{fontSize:13,lineHeight:1.5}},ce("b",null,"Texto na tela: "),"\u201C"+ideia.texto_na_tela+"\u201D"):null,
       !compacto&&ideia.audio?ce("div",{style:{fontSize:13,lineHeight:1.5}},ce("b",null,"Áudio: "),ideia.audio):null,
       !compacto&&ideia.por_que?ce("div",{style:{fontSize:12,lineHeight:1.5,color:"var(--mu2)"}},ce("b",null,"Por que nesta loja: "),ideia.por_que):null,
-      ce("div",{style:{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}},
-        ideia.narracao==="narrado"?ce("button",{className:"chip on",style:btn,onClick:function(){ideiaParaRoteiro(ideia);}},"Transformar em roteiro"):null,
-        ce("button",{className:"chip"+(st==="gravei"?" on":""),style:btn,onClick:function(){marcarIdeia(ideia,"gravei");}},st==="gravei"?"\u2713 Já gravei":"Já gravei"),
-        !compacto?ce("button",{className:"chip"+(st==="nao_curti"?" on":""),style:btn,onClick:function(){marcarIdeia(ideia,"nao_curti");}},"Não curti"):null));
+      ideia.narracao==="narrado"?ce("div",{style:{marginTop:4}},ce("button",{className:"chip on",style:btn,onClick:function(){ideiaParaRoteiro(ideia);}},"Criar roteiro a partir desta ideia")):null);
+  }
+  function botaoMaisIdeias(){
+    return ce("button",{className:"btn-pri",style:{width:"auto",minHeight:44,opacity:gerandoIdeias?.7:1},disabled:gerandoIdeias,onClick:pedirMaisIdeias},gerandoIdeias?"Gerando ideias novas... (leva cerca de 1 minuto)":"Gerar mais ideias");
   }
   function renderIdeias(){
     var dl=dadosLoja(contaMeta),id=(dl&&dl.dossie&&dl.dossie.ideias)||null,lista=(id&&id.lista)||[];
     if(!lista.length)return ce("div",{className:"content"},ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"\uD83D\uDCA1"),ce("div",{className:"emp-h"},"Suas ideias estão a caminho"),ce("div",{className:"emp-p"},"Assim que o Instagram e os anúncios forem conectados, o time de agentes estuda a sua conta e sugere cerca de 15 ideias de conteúdo. Elas se renovam sozinhas quando entram vídeos novos.")));
     var filtros=[{id:"todas",lb:"Todas"},{id:"sem",lb:"Sem narração"},{id:"narr",lb:"Narradas"},{id:"topo",lb:"Atrair gente nova"},{id:"meio",lb:"Fazer desejar"},{id:"fundo",lb:"Fazer comprar"}];
     var vis=lista.filter(function(x){return ideiaFiltro==="todas"||(ideiaFiltro==="sem"&&x.narracao==="sem narração")||(ideiaFiltro==="narr"&&x.narracao==="narrado")||x.funil===ideiaFiltro;});
-    // as marcadas descem para o fim
-    vis=vis.filter(function(x){return !ideiasMarc[x.titulo];}).concat(vis.filter(function(x){return ideiasMarc[x.titulo];}));
     return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:760}},
       ce("div",{className:"pg-h",style:{marginBottom:6}},"Ideias de conteúdo"),
-      ce("div",{style:{fontSize:13,color:"var(--mu2)",marginBottom:14,lineHeight:1.5}},"Feitas pelo time de agentes a partir dos seus vídeos, anúncios e comentários"+(id.gerado_em?" · atualizadas "+quando(id.gerado_em):"")+". Marque as que já gravou para o agente não repetir."),
+      ce("div",{style:{fontSize:13,color:"var(--mu2)",marginBottom:14,lineHeight:1.5}},"Feitas pelo time de agentes a partir dos seus vídeos, anúncios e comentários"+(id.gerado_em?" · atualizadas "+quando(id.gerado_em):"")+". As narradas podem virar roteiro com um clique."),
+      ce("div",{style:{marginBottom:14}},botaoMaisIdeias()),
       id.resumo?ce("div",{className:"nota"},ce("b",null,"Por onde começar: "),id.resumo):null,
       ce("div",{className:"chips rolar"},filtros.map(function(o){return ce("button",{key:o.id,className:"chip"+(ideiaFiltro===o.id?" on":""),onClick:function(){setIdeiaFiltro(o.id);}},o.lb);})),
-      vis.length?ce("div",{className:"ideias"},vis.map(function(x,i){return cartaoIdeia(x,i,false);})):ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhuma ideia neste filtro.")));
+      vis.length?ce("div",{className:"ideias"},vis.map(function(x,i){return cartaoIdeia(x,i,false);})):ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhuma ideia neste filtro."),
+      vis.length>4?ce("div",{style:{marginTop:16}},botaoMaisIdeias()):null));
   }
   // ---------- INICIO ----------
   function renderHome(){
-    var dl=dadosLoja(contaMeta),per=periodo;
+    var dl=dadosLoja(contaMeta),per=90;
     var meta=(!verComo&&currentUser&&currentUser.user_metadata)||{};
     var nomeDona=String(meta.nome||meta.name||"").trim().split(" ")[0];
     var nomeLoja=nomeDaLoja();
     var ads=adsDoPeriodo(dl,per),posts=postsDoPeriodo(dl,per);
     var temDados=!!(dl&&(ads||(dl.posts||[]).length));
     var views=posts.reduce(function(s,p){return s+(p.visualizacoes||0);},0),alc=posts.reduce(function(s,p){return s+(p.alcance||0);},0);
-    var cards=[];
-    if(ads){
-      var t=ads.dados.totais||{},tr=ads.dados.tipo_resultado;
-      cards.push(ce("button",{key:"ads",className:"kpi",onClick:function(){abrirVideo(null,"anuncios");}},
-        ce("span",{className:"kpi-l"},(tr==="vendas"?"Vendas pelos anúncios":tr==="conversas"?"Conversas pelos anúncios":t.misto?"Investido nos anúncios":"Resultado dos anúncios")+(ads.per!==per?" · últimos "+ads.per+" dias":"")),
-        t.misto
-          ?ce("span",{className:"kpi-v"},brl(t.gasto))
-          :ce("span",{className:"kpi-v"},numBR(t.resultados||0)+" "+rotRes(tr,t.resultados,t.res_nome)),
-        ce("span",{className:"kpi-s"},t.misto?numBR(t.alcance||0)+" pessoas alcançadas · "+numBR(t.cliques||0)+" cliques":brl(t.gasto)+" investidos"+(t.custo_medio?" · "+brl(t.custo_medio)+" por "+rotRes(tr,1,t.res_nome):""))));
-    }
-    if(dl&&(dl.posts||[]).length){
-      cards.push(ce("button",{key:"org",className:"kpi",onClick:function(){abrirVideo(null,"organico");}},
-        ce("span",{className:"kpi-l"},"Instagram (sem pagar)"),
-        ce("span",{className:"kpi-v"},compacto(views)),
-        ce("span",{className:"kpi-s"},"visualizações · "+posts.length+(posts.length===1?" post":" posts")+(alc?" · "+compacto(alc)+" pessoas alcançadas":""))));
-    }
     // o que gravar agora: o resumo do time de agentes e o atalho para criar o roteiro
     var dos=(dl&&dl.dossie)||{};
-    var ideiasTop=((dos.ideias&&dos.ideias.lista)||[]).filter(function(x){return !ideiasMarc[x.titulo];}).slice(0,3);
+    var ideiasTop=((dos.ideias&&dos.ideias.lista)||[]).slice(0,3);
     var gravar=ideiasTop.length?ce("div",{className:"card2 gravar"},
       ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}},ce("div",{className:"sec-h",style:{margin:0}},"O que gravar agora"),ce("button",{className:"link-mini",onClick:function(){irPara("ideias");}},"Ver as "+dos.ideias.lista.length+" ideias \u2192")),
       dos.ideias.resumo?ce("div",{style:{fontSize:14,lineHeight:1.55,color:"#C9C7C0",marginBottom:12}},dos.ideias.resumo):null,
       ce("div",{className:"ideias tres"},ideiasTop.map(function(x,i){return cartaoIdeia(x,i,true);})),
-      ce("div",{style:{display:"flex",gap:10,marginTop:12,flexWrap:"wrap"}},ce("button",{className:"btn-pri",style:{width:"auto",minHeight:44},onClick:function(){irPara("briefing");}},"Criar roteiro"),ce("button",{className:"chip",onClick:function(){abrirVideo(null,"descobertas");}},"Ver o que o time descobriu"))
+      ce("div",{style:{display:"flex",gap:10,marginTop:12,flexWrap:"wrap"}},ce("button",{className:"chip",onClick:function(){irPara("ideias");}},"Ver todas as ideias"),ce("button",{className:"chip",onClick:function(){abrirVideo(null,"descobertas");}},"Ver o que o time descobriu"))
     ):ce("div",{className:"card2 gravar"},
       ce("div",{className:"sec-h",style:{margin:"0 0 6px"}},"O que gravar agora"),
       ce("div",{style:{fontSize:14,lineHeight:1.55,color:"#C9C7C0"}},dos.resumo_loja||(temDados?"O time de agentes está estudando os seus vídeos. Enquanto isso, você já pode criar roteiros.":"Crie o seu primeiro roteiro: conte o produto e o objetivo, e o MCP escreve os roteiros para você.")),
@@ -1156,10 +1168,10 @@ function App(){
     }
     var melhores=(topOrg.length||topAds.length)&&ce("div",{className:"hbest"},bloco("Orgânicos que mais engajaram",topOrg,"org","organico"),bloco("Anúncios com mais resultado",topAds,"ad","anuncios"));
     return ce("div",{className:"content"},ce("div",{className:"pg"},
-      ce("div",{className:"hello"},ce("div",{className:"hello-av"},iniciais(nomeLoja)),ce("div",{style:{minWidth:0}},ce("div",{style:{fontWeight:700,fontSize:17}},nomeDona?"Olá, "+nomeDona:"Olá!"),ce("div",{style:{fontSize:12.5,color:"var(--mu2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},nomeLoja+(dl&&dl.atualizado?" · atualizado "+quando(dl.atualizado):"")))),
+      ce("div",{className:"hello"},avatarLoja(44),ce("div",{style:{minWidth:0}},ce("div",{style:{fontWeight:700,fontSize:17}},nomeDona?"Olá, "+nomeDona:"Olá!"),ce("div",{style:{fontSize:12.5,color:"var(--mu2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},nomeLoja+(dl&&dl.atualizado?" · atualizado "+quando(dl.atualizado):"")))),
       recadoBanner(null),
       temDados
-        ?ce("div",null,ce("div",{className:"chips"},chipsPeriodo()),cards.length?ce("div",{className:"kpis"},cards):null)
+        ?null
         :ce("div",{className:"nota",style:{marginBottom:18}},ce("b",null,"Seus números aparecem aqui "),"assim que o Instagram e os anúncios da loja forem conectados. A equipe do MCP Studio cuida disso para você."),
       gravar,
       melhores
@@ -1190,7 +1202,8 @@ function App(){
       tempo:function(a,b){return (b.tempo_medio_s||0)-(a.tempo_medio_s||0);},gancho:function(a,b){return (b.retencao_3s==null?-1:b.retencao_3s)-(a.retencao_3s==null?-1:a.retencao_3s);},compart:function(a,b){return (b.compartilhamentos||0)-(a.compartilhamentos||0);},recentes:function(a,b){return String(b.data||"").localeCompare(String(a.data||""));}};
     lista=lista.slice().sort(ord[ordemOrg]||ord.vistos);
     return ce("div",null,
-      ce("div",{className:"chips rolar"},[{id:"vistos",lb:"Mais vistos"},{id:"engaj",lb:"Mais engajamento"},{id:"tempo",lb:"Mais tempo assistido",so:"tempo_medio_s"},{id:"gancho",lb:"Seguram nos 3 primeiros segundos",so:"retencao_3s"},{id:"compart",lb:"Mais compartilhados"},{id:"recentes",lb:"Mais recentes"}].filter(function(o){return !o.so||todos.some(function(p){return p[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemOrg===o.id?" on":""),onClick:function(){setOrdemOrg(o.id);}},o.lb);})),
+      ordemOrg==="gancho"?ce("div",{className:"legenda",style:{paddingTop:0}},"Quantas pessoas não pularam o vídeo nos 3 primeiros segundos. Mostra a força do gancho, a abertura do vídeo."):null,
+      ce("div",{className:"chips rolar"},[{id:"vistos",lb:"Mais vistos"},{id:"engaj",lb:"Mais engajamento"},{id:"tempo",lb:"Mais tempo assistido",so:"tempo_medio_s"},{id:"gancho",lb:"Melhor gancho",so:"retencao_3s"},{id:"compart",lb:"Mais compartilhados"},{id:"recentes",lb:"Mais recentes"}].filter(function(o){return !o.so||todos.some(function(p){return p[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemOrg===o.id?" on":""),onClick:function(){setOrdemOrg(o.id);}},o.lb);})),
       comData&&ce("div",{className:"chips"},chipsPeriodo(),ce("span",{style:{marginLeft:"auto",fontSize:12.5,color:"var(--mu2)"}},lista.length+(lista.length===1?" post":" posts"))),
       lista.length
         ?ce("div",{className:"igrid"},lista.map(function(p,i){return ce("button",{key:(p.id||p.link||"")+i,className:"itile",onClick:function(){setVideoSel({tipo:"org",item:p});},"aria-label":"Abrir post: "+String(p.legenda||p.tipo||"").substring(0,60)},
@@ -1200,7 +1213,7 @@ function App(){
           ordemOrg!=="engaj"&&p.indice>=1.5?ce("span",{className:"ix"},fmtX(p.indice)):null,
           ordemOrg==="engaj"&&p.indice?ce("span",{className:"vw"},fmtX(p.indice)+" a média"):
           ordemOrg==="tempo"&&p.tempo_medio_s?ce("span",{className:"vw"},String(p.tempo_medio_s).replace(".",",")+" s assistidos"):
-          ordemOrg==="gancho"&&p.retencao_3s!=null?ce("span",{className:"vw"},String(p.retencao_3s).replace(".",",")+"% ficaram"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));}))
+          ordemOrg==="gancho"&&p.retencao_3s!=null?ce("span",{className:"vw"},String(p.retencao_3s).replace(".",",")+"% passaram do gancho"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));}))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum post nos últimos "+periodo+" dias."+(periodo<90?" Tente 90 dias.":"")),
       ordemOrg==="engaj"
         ?ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"1x"),"é a média da sua conta. Soma curtidas, comentários, salvamentos e compartilhamentos (que valem dobrado) e compara com quantas pessoas viram cada post.")
@@ -1210,12 +1223,13 @@ function App(){
   function renderAnuncios(dl){
     var ap=adsDoPeriodo(dl,periodo);if(!ap)return null;
     var a=ap.dados,tr=a.tipo_resultado,t=a.totais||{};
-    var ord={resultado:function(x,y){return ((y.resultados||0)-(x.resultados||0))||((y.gasto||0)-(x.gasto||0));},custo:function(x,y){return (x.custo_por_resultado||1e12)-(y.custo_por_resultado||1e12);},gasto:function(x,y){return (y.gasto||0)-(x.gasto||0);}};
+    var ord={resultado:function(x,y){return ((y.resultados||0)-(x.resultados||0))||((y.gasto||0)-(x.gasto||0));},custo:function(x,y){return (x.custo_por_resultado||1e12)-(y.custo_por_resultado||1e12);},gasto:function(x,y){return (y.gasto||0)-(x.gasto||0);},
+      gancho:function(x,y){return (y.taxa_gancho==null?-1:y.taxa_gancho)-(x.taxa_gancho==null?-1:x.taxa_gancho);},retencao:function(x,y){return (y.retencao==null?-1:y.retencao)-(x.retencao==null?-1:x.retencao);}};
     var lista=(a.anuncios||[]).slice().sort(ord[ordemAds]||ord.resultado);
     var plural=rotRes(tr,2,t.res_nome);
     return ce("div",null,
       ce("div",{className:"mgrid"},(t.misto?[["Investido",brl(t.gasto)],["Alcance",numBR(t.alcance||0)],["Cliques",numBR(t.cliques||0)]]:[[plural.charAt(0).toUpperCase()+plural.slice(1),numBR(t.resultados||0)],["Investido",brl(t.gasto)],["Por "+rotRes(tr,1,t.res_nome),t.custo_medio?brl(t.custo_medio):"-"]]).map(function(c){return ce("div",{key:c[0],className:"mcell"},ce("div",{className:"mcell-l"},c[0]),ce("div",{className:"mcell-v"},c[1]));})),
-      ce("div",{className:"chips rolar"},[{id:"resultado",lb:"Mais "+plural},{id:"custo",lb:"Menor custo"},{id:"gasto",lb:"Mais investimento"}].map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
+      ce("div",{className:"chips rolar"},[{id:"resultado",lb:"Mais "+plural},{id:"gancho",lb:"Melhor gancho",so:"taxa_gancho"},{id:"retencao",lb:"Mais assistidos até o fim",so:"retencao"},{id:"custo",lb:"Menor custo"},{id:"gasto",lb:"Mais investimento"}].filter(function(o){return !o.so||(a.anuncios||[]).some(function(x){return x[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
       ce("div",{className:"chips"},chipsPeriodo(),ap.per!==periodo?ce("span",{style:{fontSize:12.5,color:"var(--gold)"}},"Mostrando os últimos "+ap.per+" dias"):null),
       lista.length
         ?ce("div",null,lista.map(function(x,i){return ce("button",{key:(x.id||x.nome)+i,className:"arow",onClick:function(){setVideoSel({tipo:"ad",item:x,ads:a});}},
@@ -1223,6 +1237,8 @@ function App(){
           ce("span",{style:{flex:1,display:"flex",flexDirection:"column",gap:3,minWidth:0}},
             ce("span",{style:{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},x.nome),
             ce("span",{style:{fontSize:20,fontWeight:800}},numBR(x.resultados||0)+" "+rotRes(tr,x.resultados,x.res_nome)),
+            ordemAds==="gancho"&&x.taxa_gancho!=null?ce("span",{style:{fontSize:12.5,fontWeight:700,color:"var(--ac2)"}},String(x.taxa_gancho).replace(".",",")+"% pararam para ver (gancho de 3 segundos)"):null,
+            ordemAds==="retencao"&&x.retencao!=null?ce("span",{style:{fontSize:12.5,fontWeight:700,color:"var(--ac2)"}},String(x.retencao).replace(".",",")+"% de quem parou assistiu até o fim"):null,
             ce("span",{style:{fontSize:12.5,color:"var(--mu2)"}},brl(x.gasto)+(x.custo_por_resultado?" · "+brl(x.custo_por_resultado)+" por "+rotRes(tr,1,x.res_nome):"")+(tr==="vendas"&&x.conversas?" · "+numBR(x.conversas)+" conversas":""))),
           ico("seta",18,"var(--mu2)"));}))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum anúncio com investimento nesse período.")
@@ -1262,7 +1278,7 @@ function App(){
       if(v.seguiram)linhas.push(["Começaram a seguir",numBR(v.seguiram)]);
       if(v.visitas_perfil)linhas.push(["Visitas ao perfil",numBR(v.visitas_perfil)]);
       if(v.tempo_medio_s)linhas.push(["Tempo médio assistido",String(v.tempo_medio_s).replace(".",",")+" s"]);
-      if(v.retencao_3s!=null)linhas.push(["Ficaram nos 3 primeiros segundos",String(v.retencao_3s).replace(".",",")+"%"]);
+      if(v.retencao_3s!=null)linhas.push(["Gancho: ficaram nos 3 primeiros segundos",String(v.retencao_3s).replace(".",",")+"%"]);
       return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:560}},topo,
         ce("div",{style:{display:"flex",gap:14,marginBottom:16}},
           ce("div",{className:"thumb",style:{width:96,height:128}},img(v.miniatura)),
@@ -1339,19 +1355,93 @@ function App(){
   // ---------- CONTA ----------
   async function trocarSenha(){
     try{var r=await supaClient.auth.resetPasswordForEmail(userEmail,{redirectTo:location.origin+"/index.html"});if(r.error)throw r.error;showToast("Enviamos um link para "+userEmail+" criar a nova senha.");}
-    catch(e){showToast("Nao consegui enviar o link agora. Tente de novo em alguns minutos.","err");}
+    catch(e){showToast("Não consegui enviar o link agora. Tente de novo em alguns minutos.","err");}
+  }
+  function campoConta(k,padrao){return edConta[k]!==undefined?edConta[k]:padrao;}
+  function mudaConta(k,v){setEdConta(function(o){var n=Object.assign({},o);n[k]=v;return n;});}
+  async function enviarLogo(arq){
+    if(somenteLeitura()||!arq)return;
+    if(!/^image\/(png|jpeg|webp)$/.test(arq.type)){showToast("Use uma imagem PNG, JPG ou WEBP.","err");return;}
+    if(arq.size>2*1024*1024){showToast("A imagem pode ter até 2 MB.","err");return;}
+    setSalvandoConta("logo");
+    try{
+      var ext=arq.type==="image/png"?"png":arq.type==="image/webp"?"webp":"jpg",caminho=currentUser.id+"/logo-"+Date.now()+"."+ext;
+      var up=await supaClient.storage.from("logos").upload(caminho,arq,{upsert:true,contentType:arq.type,cacheControl:"3600"});if(up.error)throw up.error;
+      var url=supaClient.storage.from("logos").getPublicUrl(caminho).data.publicUrl;
+      var rp=await supaClient.rpc("atualizar_minha_loja",{p_nome:null,p_logo_url:url});if(rp.error)throw rp.error;
+      await carregarLoja(currentUser.id,false);showToast("Logo atualizada!");
+    }catch(e){showToast("Não consegui salvar a logo agora. Tente de novo.","err");}
+    finally{setSalvandoConta("");}
+  }
+  async function removerLogo(){
+    if(somenteLeitura())return;setSalvandoConta("logo");
+    try{var rp=await supaClient.rpc("atualizar_minha_loja",{p_nome:null,p_logo_url:""});if(rp.error)throw rp.error;await carregarLoja(currentUser.id,false);showToast("Logo removida.");}
+    catch(e){showToast("Não consegui remover a logo agora.","err");}finally{setSalvandoConta("");}
+  }
+  async function salvarNomeLoja(){
+    if(somenteLeitura())return;var v=String(campoConta("loja",(lojaInfo&&lojaInfo.nome)||"")).trim();
+    if(!v){showToast("Escreva o nome da loja.","err");return;}
+    setSalvandoConta("loja");
+    try{var rp=await supaClient.rpc("atualizar_minha_loja",{p_nome:v,p_logo_url:null});if(rp.error)throw rp.error;await carregarLoja(currentUser.id,false);mudaConta("loja",undefined);showToast("Nome da loja salvo.");}
+    catch(e){showToast("Não consegui salvar o nome agora.","err");}finally{setSalvandoConta("");}
+  }
+  async function salvarMeuNome(){
+    if(somenteLeitura())return;var v=String(campoConta("nome",(currentUser.user_metadata&&(currentUser.user_metadata.nome||currentUser.user_metadata.name))||"")).trim();
+    if(!v){showToast("Escreva o seu nome.","err");return;}
+    setSalvandoConta("nome");
+    try{var r=await supaClient.auth.updateUser({data:{nome:v}});if(r.error)throw r.error;if(r.data&&r.data.user)currentUser=r.data.user;mudaConta("nome",undefined);showToast("Nome salvo.");}
+    catch(e){showToast("Não consegui salvar o nome agora.","err");}finally{setSalvandoConta("");}
+  }
+  async function salvarEmail(){
+    if(somenteLeitura())return;var v=String(campoConta("email","")).trim().toLowerCase();
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){showToast("Confira o e-mail novo.","err");return;}
+    if(v===String(userEmail).toLowerCase()){showToast("Esse já é o seu e-mail.","err");return;}
+    setSalvandoConta("email");
+    try{var r=await supaClient.auth.updateUser({email:v},{emailRedirectTo:location.origin+"/app.html"});if(r.error)throw r.error;mudaConta("email",undefined);showToast("Enviamos um link de confirmação para "+v+". A troca vale depois que você clicar nele.");}
+    catch(e){showToast(/registered|exists|already/i.test((e&&e.message)||"")?"Esse e-mail já é usado por outra conta.":"Não consegui trocar o e-mail agora.","err");}finally{setSalvandoConta("");}
+  }
+  async function salvarSenha(){
+    if(somenteLeitura())return;var a=campoConta("senha",""),b=campoConta("senha2","");
+    if(String(a).length<8){showToast("A senha precisa ter pelo menos 8 caracteres.","err");return;}
+    if(a!==b){showToast("As duas senhas não são iguais.","err");return;}
+    setSalvandoConta("senha");
+    try{var r=await supaClient.auth.updateUser({password:a});if(r.error)throw r.error;mudaConta("senha",undefined);mudaConta("senha2",undefined);showToast("Senha trocada.");}
+    catch(e){
+      // o login e antigo demais para trocar direto: manda o link por e-mail
+      if(/reauth|recent|nonce/i.test((e&&e.message)||"")){await trocarSenha();}
+      else showToast(/same|different/i.test((e&&e.message)||"")?"A senha nova precisa ser diferente da atual.":"Não consegui trocar a senha agora.","err");
+    }finally{setSalvandoConta("");}
+  }
+  function linhaEdit(rot,k,padrao,tipo,salvar,dica){
+    return ce("div",{className:"conta-ed"},
+      ce("label",{htmlFor:"ed-"+k},rot),
+      ce("div",{className:"conta-ed-l"},
+        ce("input",{id:"ed-"+k,type:tipo||"text",value:campoConta(k,padrao),placeholder:dica||"",autoComplete:tipo==="password"?"new-password":"off",disabled:!!verComo,onChange:function(e){mudaConta(k,e.target.value);}}),
+        salvar?ce("button",{className:"chip on",style:{height:40},disabled:!!salvandoConta||!!verComo,onClick:salvar},salvandoConta===k?"Salvando...":"Salvar"):null));
   }
   function renderConta(){
     var dl=dadosLoja(contaMeta),nomeLoja=nomeDaLoja(),temIg=!!(dl&&(dl.username||(dl.posts||[]).length)),temAds=!!(dl&&(dl.ads||dl.contaAds));
     var linhaBtn={width:"100%",background:"none",border:"none",borderBottom:"1px solid var(--bo)",color:"var(--tx)",cursor:"pointer",fontFamily:"inherit",textAlign:"left"};
     return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:560}},
-      ce("div",{className:"hello",style:{marginBottom:20}},ce("div",{className:"hello-av",style:{width:60,height:60,fontSize:20}},iniciais(nomeLoja)),ce("div",{style:{minWidth:0}},ce("div",{style:{fontWeight:700,fontSize:18}},nomeLoja),ce("div",{style:{fontSize:13,color:"var(--mu2)",overflow:"hidden",textOverflow:"ellipsis"}},verComo?verComo.email:userEmail),ce("div",{style:{fontSize:13,color:"var(--ac2)",fontWeight:600}},"Plano Pro"))),
+      ce("div",{className:"hello",style:{marginBottom:20}},avatarLoja(60),ce("div",{style:{minWidth:0}},ce("div",{style:{fontWeight:700,fontSize:18}},nomeLoja),ce("div",{style:{fontSize:13,color:"var(--mu2)",overflow:"hidden",textOverflow:"ellipsis"}},verComo?verComo.email:userEmail),ce("div",{style:{fontSize:13,color:"var(--ac2)",fontWeight:600}},"Plano Pro"))),
       ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Conexões"),
         ce("div",{className:"card2-r"},ce("span",null,"Instagram"),temIg?ce("span",{className:"pill-s pill-ok"},dl.username?"@"+String(dl.username).replace(/^@/,""):"Conectado"):ce("span",{className:"pill-s pill-mu"},"Não conectado")),
         ce("div",{className:"card2-r"},ce("span",null,"Anúncios"),temAds?ce("span",{className:"pill-s pill-ok"},dl.contaAds||"Conectado"):ce("span",{className:"pill-s pill-mu"},"Não conectado")),
         ce("div",{style:{fontSize:12.5,color:"var(--mu2)",padding:"0 16px 14px",lineHeight:1.5}},"Quem cuida das conexões é a equipe do MCP Studio. Os números são atualizados a cada 5 minutos"+(dl&&dl.atualizado?" (última vez "+quando(dl.atualizado)+")":"")+".")),
+      ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Perfil da loja"),
+        ce("div",{className:"conta-ed"},ce("label",null,"Logo"),
+          ce("div",{className:"conta-ed-l",style:{alignItems:"center"}},avatarLoja(52),
+            ce("label",{className:"chip on",style:{height:40,display:"inline-flex",alignItems:"center",cursor:verComo?"not-allowed":"pointer"}},salvandoConta==="logo"?"Enviando...":(lojaInfo&&lojaInfo.logo_url?"Trocar logo":"Enviar logo"),
+              ce("input",{type:"file",accept:"image/png,image/jpeg,image/webp",style:{display:"none"},disabled:!!verComo||!!salvandoConta,onChange:function(e){enviarLogo(e.target.files&&e.target.files[0]);e.target.value="";}})),
+            lojaInfo&&lojaInfo.logo_url?ce("button",{className:"chip",style:{height:40},disabled:!!salvandoConta||!!verComo,onClick:removerLogo},"Remover"):null),
+          ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:6}},"PNG, JPG ou WEBP, até 2 MB. Fica melhor quadrada.")),
+        linhaEdit("Nome da loja","loja",(lojaInfo&&lojaInfo.nome)||"","text",salvarNomeLoja)),
+      ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Seus dados de acesso"),
+        linhaEdit("Seu nome","nome",(currentUser&&currentUser.user_metadata&&(currentUser.user_metadata.nome||currentUser.user_metadata.name))||"","text",salvarMeuNome),
+        linhaEdit("E-mail","email",verComo?verComo.email:userEmail,"email",salvarEmail),
+        verComo?null:linhaEdit("Nova senha","senha","","password",null,"Pelo menos 8 caracteres"),
+        verComo?null:linhaEdit("Repita a nova senha","senha2","","password",salvarSenha)),
       ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Sua conta"),
-        !verComo&&ce("button",{className:"card2-r",style:linhaBtn,onClick:trocarSenha},ce("span",null,"Trocar senha"),ico("seta",18,"var(--mu2)")),
         souAdmin&&ce("a",{href:"/admin.html",className:"card2-r",style:{color:"var(--ac2)",textDecoration:"none",fontWeight:600}},ce("span",null,"Painel Admin"),ico("seta",18)),
         souAdmin&&listaClientes.length>0&&ce("div",{className:"card2-r"},ce("span",null,"Ver como cliente"),ce("select",{"aria-label":"Ver como cliente",value:(verComo&&verComo.id)||"",onChange:function(e){entrarComoCliente(e.target.value);},style:{maxWidth:200,background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:8,color:"var(--tx)",fontSize:12,padding:"7px 8px",fontFamily:"inherit"}},ce("option",{value:""},"Minha conta"),listaClientes.filter(function(u){return u.id!==currentUser.id;}).map(function(u){return ce("option",{key:u.id,value:u.id},u.email);}))),
         ce("button",{className:"card2-r",style:Object.assign({},linhaBtn,{borderBottom:"none",color:"#FF6B5A"}),onClick:doLogout},ce("span",null,"Sair da conta")))

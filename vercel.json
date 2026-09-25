@@ -23,6 +23,9 @@
     },
     "api/lojas.js": {
       "maxDuration": 60
+    },
+    "api/ideias.js": {
+      "maxDuration": 120
     }
   },
   "crons": [

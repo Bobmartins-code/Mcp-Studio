@@ -222,6 +222,42 @@ async function publicoDoReportei(userId) {
     } catch (e) { return null; }
 }
 
+function montarSobreLoja(loja, projetos, met) {
+    const produtos = (projetos || []).map(function (p) { return corta((p.form && p.form.produto) || p.nome, 200); }).filter(Boolean).slice(0, 5);
+    return "LOJA: " + (loja.nome || "sem nome") + (loja.nicho ? " | nicho informado: " + loja.nicho : "") + (loja.site ? " | site: " + loja.site : "") +
+        (met.conta && met.conta.username ? " | Instagram @" + met.conta.username : "") + (met.conta && met.conta.seguidores ? " | " + met.conta.seguidores + " seguidores" : "") +
+        (produtos.length ? "\nPRODUTOS DOS ULTIMOS PROJETOS DE ROTEIRO: " + produtos.join(" | ") : "");
+}
+
+// "Gerar mais ideias" pedido pela dona: so o Agente de Ideias, com o que o time ja estudou (sem nova analise)
+const MAX_LEVAS_DIA = 3;
+class ErroIdeias extends Error { constructor(status, msg) { super(msg); this.status = status; } }
+async function gerarMaisIdeias(userId) {
+    const id = encodeURIComponent(userId);
+    const [contas, lojas, projetos] = await Promise.all([
+        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta"),
+        banco("lojas?user_id=eq." + id + "&select=nome,nicho,site").catch(function () { return []; }),
+        banco("projetos?user_id=eq." + id + "&select=nome,form&order=criado_em.desc&limit=5").catch(function () { return []; })
+    ]);
+    const conta = (contas && contas[0]) || {}, met = conta.metricas, dossie = conta.dossie || {};
+    if (!met || !(dossie.organico || dossie.anuncios || dossie.publico)) throw new ErroIdeias(409, "O time de agentes ainda está estudando a sua conta. Assim que a análise terminar, você pode pedir mais ideias.");
+    const hoje = diaSP(new Date()), ant = dossie.ideias || {};
+    const levas = ant.levas_dia === hoje ? (ant.levas || 0) : 0;
+    if (levas >= MAX_LEVAS_DIA) throw new ErroIdeias(429, "Você já pediu mais ideias " + MAX_LEVAS_DIA + " vezes hoje. Amanhã tem mais!");
+    aplicarMeta(met, conta.meta);
+    const ads = anunciosDaLoja(met);
+    const r = await perguntar("Agente de Ideias", pedidoIdeias({
+        sobreLoja: montarSobreLoja((lojas && lojas[0]) || {}, projetos, met), posts: postsDaLoja(met), ads: ads, comentarios: comentariosDaLoja(met, conta.meta),
+        relOrg: dossie.organico && dossie.organico.relatorio, relAds: dossie.anuncios && dossie.anuncios.relatorio, relPub: dossie.publico,
+        anteriores: (ant.lista || []).map(function (i) { return i.titulo; }), marcadas: []
+    }) + "\n\nESTA É UMA NOVA LEVA PEDIDA PELA DONA: traga ideias diferentes de todas as anteriores, explorando outros formatos, situações e ângulos, sempre com base nos dados desta loja.", ESQ_IDEIAS);
+    const novas = (r && r.ideias) || [];
+    if (!novas.length) throw new ErroIdeias(502, "Não consegui gerar ideias agora. Tente de novo em alguns minutos.");
+    const ideias = { gerado_em: new Date().toISOString(), resumo: ant.resumo || r.resumo, lista: novas.map(function (i) { return Object.assign({}, i, { nova: true }); }).concat((ant.lista || []).map(function (i) { const c = Object.assign({}, i); delete c.nova; return c; })).slice(0, 60), levas_dia: hoje, levas: levas + 1 };
+    await banco("contas_meta?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie: Object.assign({}, dossie, { ideias: ideias }) } });
+    return { ok: true, novas: novas.length, total: ideias.lista.length, restam_hoje: MAX_LEVAS_DIA - levas - 1 };
+}
+
 // pedido do Agente de Ideias (nao escreve roteiros: entrega ideias de conteudo)
 function pedidoIdeias(o) {
     const gravadas = o.marcadas.filter(function (m) { return m.status === "gravei"; }).map(function (m) { return m.titulo; });
@@ -267,11 +303,7 @@ async function analisarLoja(userId, motivo) {
     await marcar(userId, "Analisando");
     let cacheMeta = null;
     try {
-        const loja = (lojas && lojas[0]) || {};
-        const produtos = (projetos || []).map(function (p) { return corta((p.form && p.form.produto) || p.nome, 200); }).filter(Boolean).slice(0, 5);
-        const sobreLoja = "LOJA: " + (loja.nome || "sem nome") + (loja.nicho ? " | nicho informado: " + loja.nicho : "") + (loja.site ? " | site: " + loja.site : "") +
-            (met.conta && met.conta.username ? " | Instagram @" + met.conta.username : "") + (met.conta && met.conta.seguidores ? " | " + met.conta.seguidores + " seguidores" : "") +
-            (produtos.length ? "\nPRODUTOS DOS ULTIMOS PROJETOS DE ROTEIRO: " + produtos.join(" | ") : "");
+        const sobreLoja = montarSobreLoja((lojas && lojas[0]) || {}, projetos, met);
 
         // 1) Meta (so o que e novo: falas, textos dos anuncios, comentarios) + publico do Reportei, ao mesmo tempo
         const [daMeta, seguidores] = await Promise.all([
@@ -334,7 +366,7 @@ async function analisarLoja(userId, motivo) {
             texto: dir.texto, resumo_loja: dir.resumo_loja, por_metodo: dir.por_metodo, nicho: dir.nicho,
             organico: relOrg ? { relatorio: relOrg, total_posts: postsTodos.length, videos: posts.filter(function (p) { return p.transcricao; }).map(function (p) { return { id: p.id, link: p.link, legenda: corta(p.legenda, 80), transcricao: p.transcricao }; }) } : null,
             anuncios: ads ? { relatorio: relAds, tipo_resultado: ads.tipo, total: ads.lista.length, com_texto: comTexto, anuncios: ads.lista.filter(function (a) { return a.transcricao; }).map(function (a) { return { id: a.id, nome: a.nome, transcricao: a.transcricao }; }) } : null,
-            ideias: ideias ? { gerado_em: new Date().toISOString(), resumo: ideias.resumo, lista: ideias.ideias || [] } : ((conta.dossie && conta.dossie.ideias) || null),
+            ideias: ideias ? Object.assign({ gerado_em: new Date().toISOString(), resumo: ideias.resumo, lista: ideias.ideias || [] }, (conta.dossie && conta.dossie.ideias && conta.dossie.ideias.levas_dia) ? { levas_dia: conta.dossie.ideias.levas_dia, levas: conta.dossie.ideias.levas } : {}) : ((conta.dossie && conta.dossie.ideias) || null),
             publico: relPub, publico_fonte: comentarios.length ? "comentarios" : "legendas",
             meta: cacheMeta ? { em: cacheMeta.em, erro: cacheMeta.erro, comentarios: comentarios.length } : null
         };
@@ -366,4 +398,4 @@ function precisaAnalisar(c, agora) {
     return c.assinatura !== c.dossie_assinatura && idade >= NOVIDADE_MS;
 }
 
-module.exports = { analisarLoja, precisaAnalisar, VERSAO, _interno: { postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, ESQ_DIRETOR, SISTEMA_TIME } };
+module.exports = { analisarLoja, precisaAnalisar, gerarMaisIdeias, ErroIdeias, VERSAO, _interno: { postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, ESQ_DIRETOR, SISTEMA_TIME } };
