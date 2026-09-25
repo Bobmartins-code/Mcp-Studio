@@ -254,7 +254,9 @@ async function analisarLoja(userId, motivo) {
             "- resumo_loja: 2 ou 3 frases curtas para a dona da loja ler no celular, sem jargão: o que mais tem dado certo e o que gravar a seguir.\n" +
             "- por_metodo: para cada um dos 5 métodos abaixo, 1 ou 2 frases de como aplicar nesta loja com base nos dados (fftopo = Full Funnel Topo, ffmeio = Full Funnel Meio, fffundo = Full Funnel Fundo, dsb = DSB, angulo = Ângulo).\n" +
             "- nicho: o nicho desta loja.\n\n" + METODOS.trim() + "\n\n" + sobreLoja +
-            "\nRELATORIO ORGANICO: " + JSON.stringify(relOrg) + "\nRELATORIO DE ANUNCIOS: " + JSON.stringify(relAds) + "\nRELATORIO DE PUBLICO: " + JSON.stringify(relPub),
+            "\nRELATORIO ORGANICO: " + JSON.stringify(relOrg) + "\nRELATORIO DE ANUNCIOS: " + JSON.stringify(relAds) + "\nRELATORIO DE PUBLICO: " + JSON.stringify(relPub) +
+            // a base de metodos acima esta sem acento; o lembrete no fim evita que a resposta copie isso
+            "\n\nLEMBRETE FINAL: texto, resumo_loja e por_metodo vão para a tela da loja e para o Agente MCP, então escreva todos com acentuação completa do português (não, são, vídeo, anúncio, começam, gestão, prática).",
             ESQ_DIRETOR);
 
         const dossie = {
