@@ -38,3 +38,10 @@ create policy "admin grava contas" on public.contas_meta
   for all to authenticated
   using ((auth.jwt() ->> 'email') = 'rrubensmartins@gmail.com')
   with check ((auth.jwt() ->> 'email') = 'rrubensmartins@gmail.com');
+
+-- 3) Meta no time de agentes (so leitura): o que ja veio da Meta por loja (capas, textos e falas
+--    dos anuncios, falas e tempo assistido dos Reels, comentarios) e a pausa automatica
+alter table public.contas_meta add column if not exists meta jsonb;
+alter table public.meta_conexao add column if not exists pausa_ate timestamptz;
+alter table public.meta_conexao add column if not exists pausa_motivo text;
+alter table public.meta_conexao add column if not exists erro text;

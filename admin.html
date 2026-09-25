@@ -480,9 +480,14 @@ async function carregarMeta(){
     return;
   }
   var exp=metaCfg.conexao.expires_at?new Date(metaCfg.conexao.expires_at):null,dias=exp?Math.round((exp-Date.now())/864e5):null;
+  var pausa=metaCfg.conexao.pausa_ate&&new Date(metaCfg.conexao.pausa_ate)>new Date()?new Date(metaCfg.conexao.pausa_ate):null;
+  var alerta=metaCfg.conexao.erro?'<div style="margin-top:6px;color:var(--ac2)">'+escHtml(metaCfg.conexao.erro)+'</div>'
+    :(pausa?'<div style="margin-top:6px;color:var(--gold)">Consultas pausadas até '+pausa.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+' porque a Meta pediu para esperar. Volta sozinho; os números do Reportei seguem normais.</div>':'');
   box.innerHTML='Meta conectada como <b>'+escHtml(metaCfg.conexao.nome||"")+'</b> · '+(exp?'acesso vale por mais <b style="color:'+(dias<10?"var(--ac2)":"var(--ok)")+'">'+dias+' dias</b>':'<b style="color:var(--ok)">acesso sem prazo para expirar</b>')
+    +alerta+'<div style="font-size:12px;margin-top:6px">Só leitura: o sistema consulta só o que é novo (vídeos para transcrever, texto dos anúncios e comentários) e pausa sozinho se a Meta pedir.</div>'
     +'<div id="meta-contas" style="font-size:12px;margin-top:6px">Conferindo o que este acesso enxerga...</div>'
     +'<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px">Trocar a conexão</summary><div style="margin-top:10px"><button class="btn-sm" onclick="conectarMeta()">Entrar com o Facebook (vale 60 dias)</button></div>'+colar+'</details>';
+  if(pausa||metaCfg.conexao.erro){document.getElementById("meta-contas").textContent="";return;}
   try{var c=await apiMeta({acao:"contas"});document.getElementById("meta-contas").textContent="Enxerga "+c.instagram.length+" Instagrams e "+c.anuncios.length+" contas de anúncios.";}
   catch(e){document.getElementById("meta-contas").innerHTML='<span style="color:var(--ac2)">Erro ao listar as contas: '+escHtml(e.message)+'</span>';}
 }
@@ -527,7 +532,7 @@ async function analisarConta(uid){
   log("Time de agentes analisando os posts e anúncios (leva 1 a 2 minutos)...");
   try{
     var r=await apiConnect({acao:"analisar",user_id:uid});
-    log("Analisada agora · "+r.posts+" posts e "+r.anuncios+" anúncios"+(r.falas?" · "+r.falas+" falas de vídeo":""));
+    log("Analisada agora · "+r.posts+" posts e "+r.anuncios+" anúncios"+(r.falas?" · "+r.falas+" falas de vídeo":"")+(r.comentarios?" · "+r.comentarios+" comentários":"")+(r.meta_erro?" · "+r.meta_erro:""));
     return true;
   }catch(e){log("Erro: "+((e&&e.message)||e));return false;}
 }
@@ -751,7 +756,7 @@ async function carregarLojas(){
   try{var r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em");if(r.error)throw r.error;lojas={};(r.data||[]).forEach(function(l){lojas[l.user_id]=l;});lojasErro=false;}
   catch(e){lojasErro=true;}
   try{
-    var c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,metricas_em,status,atualizado_em,conta:metricas->conta,avisos:metricas->avisos,posts:metricas->organico->total_posts,ads90:metricas->anuncios->p90->totais,dossie_em:dossie->>gerado_em,dossie_versao:dossie->>versao");
+    var c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,metricas_em,status,atualizado_em,conta:metricas->conta,avisos:metricas->avisos,posts:metricas->organico->total_posts,ads90:metricas->anuncios->p90->totais,dossie_em:dossie->>gerado_em,dossie_versao:dossie->>versao,meta_em:meta->>em,meta_erro:meta->>erro");
     if(c.error)c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,status,atualizado_em");
     numeros={};((c&&c.data)||[]).forEach(function(x){numeros[x.user_id]=x;});
   }catch(e){}
@@ -795,9 +800,10 @@ function linhaAnalise(n){
   var st=n.status||"",t;
   if(st==="Analisando"&&diasAtras(n.atualizado_em)*1440<10)t='<span style="color:var(--ac2)">Time de agentes analisando agora...</span>';
   else if(/^Erro/.test(st))t='<span style="color:var(--gold)" title="'+escHtml(st)+'">Análise com erro · tenta de novo sozinha</span>';
-  else if(n.dossie_em&&String(n.dossie_versao)==="2")t='Analisada '+fmtCurto(n.dossie_em);
+  else if(n.dossie_em&&Number(n.dossie_versao)>=2)t='Analisada '+fmtCurto(n.dossie_em);
   else t='Análise na fila';
-  return '<div class="mini">'+t+'</div>';
+  var m=n.meta_erro?'<div class="mini" style="color:var(--gold)">'+escHtml(n.meta_erro)+'</div>':(n.meta_em?'<div class="mini">Meta: vídeos, textos e comentários lidos '+fmtCurto(n.meta_em)+'</div>':'');
+  return '<div class="mini">'+t+'</div>'+m;
 }
 function setStatusLoja(uid,t){statusLoja[uid]=t;var el=document.getElementById("ls-"+uid);if(el)el.textContent=t;}
 function verComoLoja(uid,projetoId){window.open("app.html#ver="+uid+(projetoId?"&projeto="+projetoId:""),"_blank");}

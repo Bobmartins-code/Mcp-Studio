@@ -288,11 +288,11 @@ function dadosLoja(cm){
   var met=cm.metricas||null,d=cm.dossie||{};
   var out={atualizado:(met&&met.atualizado_em)||cm.metricas_em||d.gerado_em||null,posts:[],ads:null,seguidores:null,username:cm.ig_username||null,contaAds:cm.ad_account_nome||null,dossie:d};
   if(met&&met.organico&&(met.organico.posts||[]).length)out.posts=met.organico.posts;
-  else if(d.organico&&d.versao!==2)out.posts=d.organico.videos||[];
+  else if(d.organico&&!(d.versao>=2))out.posts=d.organico.videos||[];
   if(met&&met.conta){if(met.conta.seguidores!=null)out.seguidores=met.conta.seguidores;out.username=met.conta.username||out.username;out.contaAds=met.conta.anuncios||out.contaAds;}
   if(out.seguidores==null&&d.organico&&d.organico.conta){out.seguidores=d.organico.conta.seguidores;out.username=out.username||d.organico.conta.username;}
   if(met&&met.anuncios&&(met.anuncios.p90||met.anuncios.p30))out.ads={p7:met.anuncios.p7,p30:met.anuncios.p30,p90:met.anuncios.p90};
-  else if(d.anuncios&&d.versao!==2)out.ads={p90:{tipo_resultado:d.anuncios.tipo_resultado,totais:d.anuncios.totais,medias:d.anuncios.medias,anuncios:d.anuncios.anuncios||[]}};
+  else if(d.anuncios&&!(d.versao>=2))out.ads={p90:{tipo_resultado:d.anuncios.tipo_resultado,totais:d.anuncios.totais,medias:d.anuncios.medias,anuncios:d.anuncios.anuncios||[]}};
   // a fala dos videos (transcrita pelo time de agentes) vem do dossie
   var falas={};
   ((d.organico&&d.organico.videos)||[]).forEach(function(v){if(v.transcricao){if(v.link)falas[v.link]=v.transcricao;falas[String(v.legenda||"").substring(0,60)]=v.transcricao;}});
@@ -993,6 +993,7 @@ function App(){
   // sem capa (anuncio subido direto no Gerenciador): mostra um icone no lugar do quadrado vazio
   function img(url,alt){return url?ce("img",{src:url,alt:alt||"",loading:"lazy",referrerPolicy:"no-referrer",onError:function(e){e.target.style.display="none";}}):ce("span",{className:"thumb-vazio","aria-hidden":"true"},ico("videos",22,"var(--mu)"));}
   function fmtX(n){return String(Math.round((Number(n)||0)*10)/10).replace(".",",")+"x";}
+  function textoDoAnuncio(v){return v&&(v.texto||v.titulo)?ce("div",{style:{margin:"0 0 14px",fontSize:13,lineHeight:1.5}},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",letterSpacing:".05em",color:"var(--mu)",marginBottom:4}},"Texto do anúncio"),v.titulo?ce("div",{style:{fontWeight:700}},v.titulo):null,v.texto?ce("div",{style:{whiteSpace:"pre-line",color:"var(--mu2)"}},v.texto):null):null;}
   function falaDoVideo(t){return t?ce("details",{style:{margin:"0 0 14px",fontSize:13,color:"var(--mu2)"}},ce("summary",{style:{cursor:"pointer",color:"var(--ac2)"}},"Ver a fala do vídeo"),ce("div",{style:{marginTop:6,lineHeight:1.5}},t)):null;}
   function chipsPeriodo(){return [7,30,90].map(function(p){return ce("button",{key:"p"+p,className:"chip"+(periodo===p?" on":""),onClick:function(){setPeriodo(p);}},p+" dias");});}
   function nomeDaLoja(){return (lojaInfo&&lojaInfo.nome)||(verComo?verComo.email:userEmail);}
@@ -1145,7 +1146,7 @@ function App(){
     return ce("div",null,
       (d.resumo_loja||d.texto)&&ce("div",{className:"nota"},ce("b",null,"O que o time de agentes descobriu: "),d.resumo_loja||d.texto),
       d.gerado_em&&ce("div",{style:{fontSize:12,color:"var(--mu2)",margin:"-4px 0 14px"}},"Análise feita "+quando(d.gerado_em)+" com os últimos 90 dias. O time analisa de novo sozinho quando entra post ou anúncio novo."+(poucos?" Ainda há poucos dados, então algumas conclusões são iniciais.":"")),
-      blocoRelatorio("👥 Agente de Público",d.publico,{quem_e:"Quem é",idade_genero:"Idade e gênero",regioes:"Regiões",quem_compra:"Quem mais compra",dores:"Dores",desejos:"Desejos",objecoes:"Objeções",expressoes_reais:"Frases que mais engajaram"}),
+      blocoRelatorio("👥 Agente de Público",d.publico,{quem_e:"Quem é",idade_genero:"Idade e gênero",regioes:"Regiões",quem_compra:"Quem mais compra",dores:"Dores",desejos:"Desejos",objecoes:"Objeções",expressoes_reais:d.publico_fonte==="comentarios"?"Como o público fala (dos comentários)":"Frases que mais engajaram"}),
       blocoRelatorio("💰 Agente de Anúncios",d.anuncios&&d.anuncios.relatorio,{o_que_vende:"O que vende",ganchos_que_convertem:"Ganchos que convertem",argumentos_e_ofertas:"Argumentos e ofertas",ctas:"Chamadas que funcionam",diagnostico_dos_fracos:"Onde os fracos perdem"}),
       blocoRelatorio("🔎 Agente Orgânico",d.organico&&d.organico.relatorio,{o_que_funciona:"O que funciona",ganchos_que_funcionam:"Ganchos que funcionam",temas:"Temas",formatos:"Formatos",evitar:"Evitar"}));
   }
@@ -1199,6 +1200,7 @@ function App(){
         barras.map(function(b){var max=Math.max(b[1],b[2])*1.3||1,bom=b[1]>=b[2];return ce("div",{key:b[0],style:{marginBottom:12}},ce("div",{style:{display:"flex",justifyContent:"space-between",gap:8,fontSize:13.5}},ce("span",null,b[0]),ce("span",{style:{fontWeight:700,color:bom?"var(--ok)":"var(--ac2)"}},String(b[1]).replace(".",",")+"%")),ce("div",{className:"bar"},ce("i",{style:{width:Math.min(100,b[1]/max*100)+"%",background:bom?"var(--ok)":"var(--ac2)"}}),ce("b",{style:{left:Math.min(99,b[2]/max*100)+"%"}})));}),
         ce("div",{style:{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--mu2)"}},ce("span",{style:{width:2,height:12,background:"var(--tx)"}}),"média da sua conta")):null,
       dica.length?ce("div",{className:"nota"},ce("b",null,"Dica do agente: "),dica.join(", ").replace(/^./,function(c){return c.toUpperCase();})+"."):null,
+      textoDoAnuncio(v),
       falaDoVideo(v.transcricao),
       ce("button",{className:"btn-pri",onClick:function(){usarComoReferencia("anuncio",v,false,tr);}},"Gerar roteiro a partir deste")
     ));

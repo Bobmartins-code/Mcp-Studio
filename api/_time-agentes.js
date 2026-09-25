@@ -1,7 +1,8 @@
 // =====================================================================
 //  TIME DE AGENTES (roda no servidor, sozinho)
 //  Estuda os numeros reais de UMA loja (que chegam do Reportei a cada
-//  5 minutos em contas_meta.metricas) e entrega o dossie da conta que o
+//  5 minutos em contas_meta.metricas), completados pela Meta (fala dos
+//  videos, texto dos anuncios e comentarios, em api/_meta-leitura.js), e entrega o dossie da conta que o
 //  Agente MCP (api/_agente-mcp.js) usa em todos os roteiros.
 //
 //  1. Agente Organico e Agente de Anuncios analisam ao mesmo tempo
@@ -18,10 +19,10 @@ const crypto = require("crypto");
 const { banco } = require("./_seguranca.js");
 const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
 const { blocoDaResposta, diaSP, assinaturaDe } = require("./_coleta.js");
-const { transcreverReel } = require("./_transcricao.js");
+const { enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja } = require("./_meta-leitura.js");
 
 const MODELO = "claude-sonnet-5";
-const VERSAO = 2;
+const VERSAO = 3; // 3: com a Meta (falas dos videos, texto dos anuncios e comentarios reais)
 const NICHOS = ["moda feminina", "moda masculina", "moda infantil", "moda fitness", "lingerie e moda intima", "calcados", "bolsas e acessorios", "joias e bijuterias", "beleza e cosmeticos", "saude e suplementos", "casa e decoracao", "alimentos e doces", "pet", "servicos", "cursos e infoprodutos", "outros"];
 
 // quando o time volta a analisar uma loja
@@ -45,6 +46,7 @@ REGRAS
 COMO MEDIMOS RESULTADO
 - Orgânico: engajamento (curtidas, comentários, salvamentos) e compartilhamentos, com compartilhamento valendo o dobro, sempre em relação ao alcance. O índice compara cada post com a média da própria conta: 1,0 é na média, 2,0 é o dobro. Posts dos últimos 30 dias pesam mais que os 60 dias anteriores.
 - Anúncios: resultado é venda. Se a loja não tem pixel e vende pelo WhatsApp ou Direct, resultado são as conversas iniciadas. Quando as campanhas têm objetivos diferentes (alcance, visitas ao perfil, cliques), compare cada anúncio só com os de mesmo objetivo e nunca some objetivos diferentes.
+- Tempo médio assistido (Reels, vem da Meta): quantos segundos, em média, as pessoas assistem. Compare entre os Reels da própria loja: o que segura mais tempo mostra o assunto e o ritmo que prendem.
 - Taxa de gancho = quem assistiu 3 segundos dividido pelas impressões (força do gancho). Retenção = quem assistiu até o fim dividido por quem assistiu 3 segundos (força do corpo). Taxa de clique = cliques dividido pelas impressões (força da chamada).
 `.trim();
 
@@ -144,6 +146,7 @@ function postsDaLoja(met) {
 function linhaPost(p, i) {
     return (i + 1) + ") " + (p.tipo || "Post") + " de " + String(p.data || "").slice(0, 10) + (p.recente ? " (ultimos 30 dias)" : "") +
         " | " + String(arred(p.indice, 2)).replace(".", ",") + "x a media | alcance " + p.alcance + " | visualizacoes " + (p.visualizacoes || 0) +
+        (p.tempo_medio_s ? " | tempo medio assistido " + String(p.tempo_medio_s).replace(".", ",") + " s" : "") +
         " | curtidas " + p.curtidas + " | comentarios " + p.comentarios + " | salvamentos " + p.salvamentos + " | compartilhamentos " + p.compartilhamentos +
         " | legenda: " + corta(p.legenda, 300) + (p.transcricao ? " | FALA DO VIDEO: " + corta(p.transcricao, 700) : "");
 }
@@ -166,7 +169,8 @@ function linhaAnuncio(tipo, a, i) {
         (a.custo_por_resultado ? " | custo por resultado " + brl(a.custo_por_resultado) : "") +
         (a.taxa_gancho != null ? " | taxa de gancho " + a.taxa_gancho + "%" : "") + (a.retencao != null ? " | retencao " + a.retencao + "%" : "") +
         (a.ctr != null ? " | taxa de clique " + a.ctr + "%" : "") + (a.compras ? " | compras " + a.compras : "") + (a.conversas ? " | conversas " + a.conversas : "") +
-        (a.diagnostico ? " | " + a.diagnostico : "") + (a.transcricao ? " | FALA DO VIDEO: " + corta(a.transcricao, 700) : "");
+        (a.diagnostico ? " | " + a.diagnostico : "") + (a.titulo ? " | TITULO: " + corta(a.titulo, 120) : "") + (a.texto ? " | TEXTO DO ANUNCIO: " + corta(a.texto, 400) : "") +
+        (a.transcricao ? " | FALA DO VIDEO: " + corta(a.transcricao, 700) : "");
 }
 
 // idade, genero e cidades de quem segue (Reportei), uma vez por analise
@@ -196,33 +200,21 @@ async function publicoDoReportei(userId) {
     } catch (e) { return null; }
 }
 
-// transcreve a fala dos melhores Reels (guarda as que ja foram feitas para nao repetir)
-async function transcreverVencedores(posts, anteriores) {
-    const falas = {};
-    posts.forEach(function (p) { if (anteriores[p.id]) falas[p.id] = anteriores[p.id]; });
-    const alvos = posts.filter(function (p) { return p.tipo === "Reels" && p.link && !falas[p.id] && (p.indice || 0) >= 1; }).slice(0, 3);
-    // o Instagram pode bloquear: segue sem a fala e deixa o motivo no log do Vercel
-    const tarefas = alvos.map(async function (p) { try { falas[p.id] = await transcreverReel(p.link); } catch (e) { console.error("[time] fala de " + p.link + ": " + (e && e.message)); } });
-    await Promise.race([Promise.all(tarefas), espera(45000)]);
-    return Object.assign({}, falas);
-}
-
 // ---------- a analise completa de uma loja ----------
 async function analisarLoja(userId, motivo) {
     const id = encodeURIComponent(userId);
     const [contas, lojas, projetos] = await Promise.all([
-        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie"),
+        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta"),
         banco("lojas?user_id=eq." + id + "&select=nome,nicho,site").catch(function () { return []; }),
         banco("projetos?user_id=eq." + id + "&select=nome,form&order=criado_em.desc&limit=5").catch(function () { return []; })
     ]);
     const conta = (contas && contas[0]) || {};
     const met = conta.metricas;
-    const anterior = conta.dossie || {};
     const postsTodos = (met && met.organico && met.organico.posts) || [];
-    const ads = anunciosDaLoja(met);
-    if (!postsTodos.length && !ads) throw new Error("Ainda nao ha numeros desta loja. Conecte o Instagram e os anuncios e atualize os dados.");
+    if (!postsTodos.length && !anunciosDaLoja(met)) throw new Error("Ainda nao ha numeros desta loja. Conecte o Instagram e os anuncios e atualize os dados.");
 
     await marcar(userId, "Analisando");
+    let cacheMeta = null;
     try {
         const loja = (lojas && lojas[0]) || {};
         const produtos = (projetos || []).map(function (p) { return corta((p.form && p.form.produto) || p.nome, 200); }).filter(Boolean).slice(0, 5);
@@ -230,12 +222,18 @@ async function analisarLoja(userId, motivo) {
             (met.conta && met.conta.username ? " | Instagram @" + met.conta.username : "") + (met.conta && met.conta.seguidores ? " | " + met.conta.seguidores + " seguidores" : "") +
             (produtos.length ? "\nPRODUTOS DOS ULTIMOS PROJETOS DE ROTEIRO: " + produtos.join(" | ") : "");
 
-        // 1) fala dos videos vencedores + publico do Reportei, enquanto nada depende deles
-        const falasAntes = {};
-        ((anterior.organico && anterior.organico.videos) || []).forEach(function (v) { if (v.id && v.transcricao) falasAntes[v.id] = v.transcricao; });
-        const selecionados = postsDaLoja(met);
-        const [falas, seguidores] = await Promise.all([transcreverVencedores(selecionados, falasAntes), publicoDoReportei(userId)]);
-        const posts = selecionados.map(function (p) { return falas[p.id] ? Object.assign({}, p, { transcricao: falas[p.id] }) : p; });
+        // 1) Meta (so o que e novo: falas, textos dos anuncios, comentarios) + publico do Reportei, ao mesmo tempo
+        const [daMeta, seguidores] = await Promise.all([
+            enriquecerLoja(met, conta.meta).catch(function (e) { console.error("[time] meta: " + (e && e.message)); return { cache: conta.meta || null, pendentes: [] }; }),
+            publicoDoReportei(userId)
+        ]);
+        cacheMeta = daMeta.cache;
+        await esperarFalas(daMeta.pendentes);
+        aplicarMeta(met, cacheMeta);
+        const posts = postsDaLoja(met);
+        const comentarios = comentariosDaLoja(met, cacheMeta);
+        const ads = anunciosDaLoja(met);
+        const comTexto = ads ? ads.lista.filter(function (a) { return a.texto || a.transcricao; }).length : 0;
 
         // 2) Agente Organico e Agente de Anuncios, ao mesmo tempo
         const pOrg = posts.length ? perguntar("Agente Organico",
@@ -244,7 +242,9 @@ async function analisarLoja(userId, motivo) {
             ESQ_ORGANICO) : Promise.resolve(null);
         const tipoTxt = !ads ? "" : ads.tipo === "vendas" ? "compras (a loja tem pixel)" : ads.tipo === "conversas" ? "conversas iniciadas no WhatsApp ou Direct (a loja vende por conversa)" : (ads.totais.misto ? "cada campanha tem o proprio objetivo (veja objetivo medido em cada anuncio); compare so anuncios de mesmo objetivo" : "o objetivo da campanha, indicado em cada anuncio");
         const pAds = ads ? perguntar("Agente de Anuncios",
-            "Você é o AGENTE DE ANÚNCIOS. Estude os anúncios desta loja nos últimos 90 dias. O Reportei não traz o texto nem o vídeo dos anúncios, só o nome (que costuma descrever o vídeo) e os números. Descubra o que os anúncios que mais dão resultado têm em comum (gancho, assunto, argumento, oferta, chamada) e onde os fracos perdem gente (no gancho, no corpo ou na chamada). Em resumo, 2 frases para a dona da loja.\n\n" +
+            "Você é o AGENTE DE ANÚNCIOS. Estude os anúncios desta loja nos últimos 90 dias. " +
+            (comTexto ? "Os números vêm do Reportei. Em " + comTexto + " de " + ads.lista.length + " anúncios também vêm o TEXTO DO ANÚNCIO e a FALA DO VÍDEO (da Meta): use-os como fonte principal do gancho e do argumento. Nos outros só há o nome, que costuma descrever o vídeo." : "Só há o nome de cada anúncio (que costuma descrever o vídeo) e os números.") +
+            " Descubra o que os anúncios que mais dão resultado têm em comum (gancho, assunto, argumento, oferta, chamada) e onde os fracos perdem gente (no gancho, no corpo ou na chamada). Em resumo, 2 frases para a dona da loja.\n\n" +
             sobreLoja + "\nRESULTADO = " + tipoTxt + "\nTOTAIS 90 DIAS: investido " + brl(ads.totais.gasto) + " | alcance " + (ads.totais.alcance || 0) + " | cliques " + (ads.totais.cliques || 0) +
             (ads.tipo !== "resultados" ? " | " + ads.totais.resultados + " " + nomeResultado(ads.tipo) : "") +
             "\nMEDIAS DA CONTA: taxa de gancho " + (ads.medias.taxa_gancho || 0) + "% | retencao " + (ads.medias.retencao || 0) + "% | taxa de clique " + (ads.medias.ctr || 0) + "%\nANUNCIOS (do que mais deu resultado para o que menos deu):\n" +
@@ -254,8 +254,11 @@ async function analisarLoja(userId, motivo) {
 
         // 3) Agente de Publico, com o que os outros dois descobriram
         const relPub = await perguntar("Agente de Publico",
-            "Você é o AGENTE DE PÚBLICO. Monte o retrato de quem é o público desta loja: quem é, idade e gênero, regiões, quem mais compra, dores, desejos e objeções. Use os dados de seguidores, as legendas e falas dos posts que mais funcionaram e o que os outros agentes descobriram. Idade, gênero e cidades vêm dos dados de seguidores; quem é, dores, desejos e objeções são leituras suas a partir do conteúdo que engajou, então diga isso quando não houver dado direto. Não há comentários do público nos dados. Em expressoes_reais, traga as frases das legendas ou falas da loja que mais engajaram (são palavras da loja, não do público); se não houver, deixe a lista vazia. Em resumo, 2 frases para a dona da loja.\n\n" +
+            "Você é o AGENTE DE PÚBLICO. Monte o retrato de quem é o público desta loja: quem é, idade e gênero, regiões, quem mais compra, dores, desejos e objeções. Use os dados de seguidores, as legendas e falas dos posts que mais funcionaram e o que os outros agentes descobriram. Idade, gênero e cidades vêm dos dados de seguidores; quem é, dores, desejos e objeções são leituras suas a partir do conteúdo que engajou, então diga isso quando não houver dado direto. " +
+            (comentarios.length ? "Há COMENTÁRIOS REAIS das seguidoras nos melhores posts: são a fonte principal para dores, desejos, objeções e jeito de falar. Em expressoes_reais, traga de 5 a 10 expressões que as seguidoras usam de verdade nos comentários, copiadas como elas escreveram (corrigindo só a acentuação), sem inventar." : "Não há comentários do público nos dados. Em expressoes_reais, traga as frases das legendas ou falas da loja que mais engajaram (são palavras da loja, não do público); se não houver, deixe a lista vazia.") +
+            " Em resumo, 2 frases para a dona da loja.\n\n" +
             sobreLoja + "\nSEGUIDORES POR IDADE E GENERO: " + ((seguidores && seguidores.idade_genero) || "nao disponivel") + "\nCIDADES DOS SEGUIDORES: " + ((seguidores && seguidores.cidades) || "nao disponivel") +
+            (comentarios.length ? "\nCOMENTARIOS REAIS DAS SEGUIDORAS (dos melhores posts):\n" + comentarios.map(function (c) { return "- " + c; }).join("\n") : "") +
             "\nLEGENDAS E FALAS DOS MELHORES POSTS:\n" + (posts.slice(0, 6).map(function (p, i) { return (i + 1) + ") " + corta(p.legenda, 250) + (p.transcricao ? " | fala: " + corta(p.transcricao, 500) : ""); }).join("\n") || "nenhum") +
             "\nRELATORIO DO AGENTE ORGANICO: " + JSON.stringify(relOrg) + "\nRELATORIO DO AGENTE DE ANUNCIOS: " + JSON.stringify(relAds),
             ESQ_PUBLICO);
@@ -276,13 +279,18 @@ async function analisarLoja(userId, motivo) {
             assinatura: met.assinatura || assinaturaDe(met), modelo: MODELO,
             texto: dir.texto, resumo_loja: dir.resumo_loja, por_metodo: dir.por_metodo, nicho: dir.nicho,
             organico: relOrg ? { relatorio: relOrg, total_posts: postsTodos.length, videos: posts.filter(function (p) { return p.transcricao; }).map(function (p) { return { id: p.id, link: p.link, legenda: corta(p.legenda, 80), transcricao: p.transcricao }; }) } : null,
-            anuncios: ads ? { relatorio: relAds, tipo_resultado: ads.tipo, total: ads.lista.length } : null,
-            publico: relPub
+            anuncios: ads ? { relatorio: relAds, tipo_resultado: ads.tipo, total: ads.lista.length, com_texto: comTexto, anuncios: ads.lista.filter(function (a) { return a.transcricao; }).map(function (a) { return { id: a.id, nome: a.nome, transcricao: a.transcricao }; }) } : null,
+            publico: relPub, publico_fonte: comentarios.length ? "comentarios" : "legendas",
+            meta: cacheMeta ? { em: cacheMeta.em, erro: cacheMeta.erro, comentarios: comentarios.length } : null
         };
-        await banco("contas_meta", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: { user_id: userId, dossie: dossie, status: "Analisada", atualizado_em: dossie.gerado_em } });
-        return { ok: true, posts: posts.length, anuncios: ads ? ads.lista.length : 0, falas: Object.keys(falas).length, nicho: dossie.nicho };
+        // o cache da Meta vai junto: falas que terminaram durante a analise tambem ficam guardadas
+        await banco("contas_meta", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: Object.assign({ user_id: userId, dossie: dossie, status: "Analisada", atualizado_em: dossie.gerado_em }, cacheMeta ? { meta: cacheMeta } : {}) });
+        const falas = posts.filter(function (p) { return p.transcricao; }).length + (ads ? ads.lista.filter(function (a) { return a.transcricao; }).length : 0);
+        return { ok: true, posts: posts.length, anuncios: ads ? ads.lista.length : 0, falas: falas, comentarios: comentarios.length, meta_erro: cacheMeta ? cacheMeta.erro : null, nicho: dossie.nicho };
     } catch (e) {
         await marcar(userId, "Erro na analise: " + corta(e && e.message, 160)).catch(function () {});
+        // o que ja veio da Meta nao se perde se um agente falhar
+        if (cacheMeta) await banco("contas_meta?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { meta: cacheMeta } }).catch(function () {});
         throw e;
     }
 }

@@ -11,6 +11,8 @@
 // =====================================================================
 
 const { validarAdmin, banco, criptografar, descriptografar, auditar } = require("./_seguranca.js");
+// consulta so de leitura, com o recuo automatico quando a Meta pede para esperar
+const { g, limparEstado, transcrever } = require("./_meta-leitura.js");
 const GRAPH = "https://graph.facebook.com/v23.0";
 const DIAS = 90;
 const ESCOPOS = "instagram_basic,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,ads_read,business_management";
@@ -18,23 +20,11 @@ const ESCOPOS = "instagram_basic,instagram_manage_insights,instagram_manage_comm
 // ---------- apoio ----------
 // token da Meta: so o servidor le (chave de servico) e ele fica criptografado no banco
 async function tokenMeta() {
-    const rows = await banco("meta_conexao?id=eq.1&select=access_token,expires_at");
+    const rows = await banco("meta_conexao?id=eq.1&select=access_token,expires_at,pausa_ate");
     if (!rows || !rows.length) throw new Error("A Meta ainda nao foi conectada no painel admin.");
+    const ate = rows[0].pausa_ate ? new Date(rows[0].pausa_ate) : null;
+    if (ate && ate.getTime() > Date.now()) throw new Error("A Meta pediu uma pausa nas consultas. Volta sozinho as " + ate.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }) + ".");
     return descriptografar(rows[0].access_token);
-}
-
-async function g(caminho, params, token) {
-    // link completo (proxima pagina) ja vem com tudo, inclusive o token
-    let url = caminho;
-    if (caminho.indexOf("http") !== 0) {
-        const p = Object.assign({}, params || {});
-        if (token) p.access_token = token;
-        url = GRAPH + caminho + "?" + new URLSearchParams(p).toString();
-    }
-    const r = await fetch(url);
-    const d = await r.json();
-    if (d && d.error) { const e = new Error(d.error.message || "Erro da Meta"); e.meta = d.error; throw e; }
-    return d;
 }
 
 // Busca varias paginas ate "parar" dizer chega
@@ -220,26 +210,6 @@ async function coletarAnuncios(adAccountId, token) {
     };
 }
 
-// ---------- TRANSCRICAO de um video vencedor ----------
-async function transcrever(url) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("Sem chave da OpenAI");
-    const r = await fetch(url);
-    if (!r.ok) throw new Error("Nao consegui baixar o video");
-    const tam = num(r.headers.get("content-length"));
-    if (tam > 24 * 1024 * 1024) throw new Error("Video grande demais para transcrever");
-    const buf = Buffer.from(await r.arrayBuffer());
-    if (buf.length > 24 * 1024 * 1024) throw new Error("Video grande demais para transcrever");
-    const form = new FormData();
-    form.append("file", new Blob([buf], { type: "video/mp4" }), "video.mp4");
-    form.append("model", "whisper-1");
-    form.append("language", "pt");
-    const t = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + apiKey }, body: form });
-    const d = await t.json();
-    if (!t.ok) throw new Error((d.error && d.error.message) || "Erro ao transcrever");
-    return d.text || "";
-}
-
 // ---------- rotas ----------
 module.exports = async function handler(req, res) {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -253,7 +223,7 @@ module.exports = async function handler(req, res) {
     try {
         if (b.acao === "config") {
             let conexao = null;
-            try { const rows = await banco("meta_conexao?id=eq.1&select=nome,expires_at,atualizado_em"); conexao = (rows && rows[0]) || null; } catch (e) { conexao = null; }
+            try { const rows = await banco("meta_conexao?id=eq.1&select=nome,expires_at,atualizado_em,pausa_ate,pausa_motivo,erro"); conexao = (rows && rows[0]) || null; } catch (e) { conexao = null; }
             return res.status(200).json({ appId: APP_ID || null, configId: process.env.META_CONFIG_ID || null, escopos: ESCOPOS, conexao: conexao });
         }
         if (b.acao === "conectar") {
@@ -263,6 +233,7 @@ module.exports = async function handler(req, res) {
             const eu = await g("/me", { fields: "id,name" }, longo.access_token);
             const expira = new Date(Date.now() + num(longo.expires_in || 5184000) * 1000).toISOString();
             await banco("meta_conexao", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: { id: 1, access_token: criptografar(longo.access_token), nome: eu.name, meta_user_id: eu.id, expires_at: expira, atualizado_em: new Date().toISOString() } });
+            await limparEstado();
             await auditar(admin.id, "conectou a Meta", eu.name);
             return res.status(200).json({ ok: true, nome: eu.name, expires_at: expira });
         }
@@ -283,6 +254,7 @@ module.exports = async function handler(req, res) {
                 faltam = ["instagram_basic", "instagram_manage_insights", "pages_read_engagement", "ads_read"].filter(function (s) { return tem.indexOf(s) < 0; });
             }
             await banco("meta_conexao", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: { id: 1, access_token: criptografar(novo), nome: eu.name, meta_user_id: eu.id, expires_at: expira, atualizado_em: new Date().toISOString() } });
+            await limparEstado();
             await auditar(admin.id, "conectou a Meta com codigo colado", eu.name + (tipo ? " (" + tipo + ")" : ""));
             return res.status(200).json({ ok: true, nome: eu.name, tipo: tipo, expires_at: expira, faltam: faltam });
         }

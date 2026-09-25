@@ -11,6 +11,7 @@
 const crypto = require("crypto");
 const { banco } = require("./_seguranca.js");
 const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
+const { aplicarMeta } = require("./_meta-leitura.js");
 
 // ---------- leitura tolerante das celulas (numero, texto, capa, link) ----------
 function numero(v) {
@@ -421,6 +422,11 @@ function resumoDaColeta(met) {
 
 async function atualizarLoja(userId) {
     const met = await coletarLoja(userId);
+    // o que ja veio da Meta (capa e texto dos anuncios, falas, tempo assistido) entra junto, sem consultar a Meta de novo
+    try {
+        const r = await banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&select=meta");
+        aplicarMeta(met, r && r[0] && r[0].meta);
+    } catch (e) { console.error("[coleta] meta: " + e.message); }
     await salvarMetricas(userId, met);
     return resumoDaColeta(met);
 }
