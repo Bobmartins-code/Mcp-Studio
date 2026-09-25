@@ -996,6 +996,8 @@ function App(){
   function brl(n){return n==null?"-":"R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
   function numBR(n){return n==null?"-":Number(n).toLocaleString("pt-BR");}
   // sem capa (anuncio subido direto no Gerenciador): mostra um icone no lugar do quadrado vazio
+  // abre como post (/p/) e nao no feed de Reels, que no computador pode pular para outro video
+  function linkIG(u){return String(u||"").replace(/instagram\.com\/reels?\//,"instagram.com/p/");}
   function img(url,alt){return url?ce("img",{src:url,alt:alt||"",loading:"lazy",referrerPolicy:"no-referrer",onError:function(e){e.target.style.display="none";}}):ce("span",{className:"thumb-vazio","aria-hidden":"true"},ico("videos",22,"var(--mu)"));}
   function fmtX(n){return String(Math.round((Number(n)||0)*10)/10).replace(".",",")+"x";}
   function textoDoAnuncio(v){return v&&(v.texto||v.titulo)?ce("div",{style:{margin:"0 0 14px",fontSize:13,lineHeight:1.5}},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",letterSpacing:".05em",color:"var(--mu)",marginBottom:4}},"Texto do anúncio"),v.titulo?ce("div",{style:{fontWeight:700}},v.titulo):null,v.texto?ce("div",{style:{whiteSpace:"pre-line",color:"var(--mu2)"}},v.texto):null):null;}
@@ -1185,7 +1187,7 @@ function App(){
           ce("div",{style:{display:"flex",flexDirection:"column",gap:8,minWidth:0}},
             ce("div",{style:{fontSize:14,lineHeight:1.45,color:"#D9D7D0",display:"-webkit-box",WebkitLineClamp:4,WebkitBoxOrient:"vertical",overflow:"hidden"}},v.legenda||"Sem legenda"),
             v.indice?ce("span",{className:"badge-ix",style:{alignSelf:"flex-start",fontSize:12,padding:"3px 9px"}},fmtX(v.indice)+" a média da conta"):null,
-            v.link?ce("a",{href:v.link,target:"_blank",rel:"noopener",style:{fontSize:13,fontWeight:600,color:"var(--ac2)",textDecoration:"none"}},"Ver no Instagram ↗"):null)),
+            v.link?ce("a",{href:linkIG(v.link),target:"_blank",rel:"noopener",style:{fontSize:13,fontWeight:600,color:"var(--ac2)",textDecoration:"none"}},"Ver no Instagram ↗"):null)),
         ce("div",{className:"counters"},[["coracao",v.curtidas,"curtidas"],["balao",v.comentarios,"comentários"],["enviar",v.compartilhamentos,"compartilhamentos"],["salvo",v.salvamentos,"salvos"]].map(function(c){return ce("div",{key:c[0],title:c[2],"aria-label":c[2]},ico(c[0],22),numBR(c[1]||0));})),
         ce("div",{className:"sec-h"},"Visão geral"),
         ce("div",{style:{marginBottom:16}},linhas.map(function(l){return ce("div",{key:l[0],className:"linha"},ce("span",null,l[0]),ce("span",null,l[1]));})),
@@ -1206,7 +1208,7 @@ function App(){
     var FRASES={"gancho forte":"o começo prende","gancho fraco":"o começo não está prendendo","corpo segura":"o meio segura a atenção","corpo perde gente":"o meio perde gente","CTA puxa clique":"a chamada puxa clique","CTA fraco":"a chamada está fraca"};
     var dica=String(v.diagnostico||"").split(",").map(function(t){return FRASES[t.trim()];}).filter(Boolean);
     return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:560}},topo,
-      ce("div",{style:{display:"flex",gap:14,alignItems:"center",marginBottom:14}},ce("div",{className:"thumb",style:{width:72,height:96}},img(v.miniatura)),ce("div",{style:{minWidth:0}},ce("div",{style:{fontWeight:700,fontSize:17,lineHeight:1.3}},v.nome),v.post_link?ce("a",{href:v.post_link,target:"_blank",rel:"noopener",style:{display:"inline-block",marginTop:6,fontSize:13,fontWeight:600,color:"var(--ac2)",textDecoration:"none"}},"Ver o post no Instagram ↗"):null)),
+      ce("div",{style:{display:"flex",gap:14,alignItems:"center",marginBottom:14}},ce("div",{className:"thumb",style:{width:72,height:96}},img(v.miniatura)),ce("div",{style:{minWidth:0}},ce("div",{style:{fontWeight:700,fontSize:17,lineHeight:1.3}},v.nome),v.post_link?ce("a",{href:linkIG(v.post_link),target:"_blank",rel:"noopener",style:{display:"inline-block",marginTop:6,fontSize:13,fontWeight:600,color:"var(--ac2)",textDecoration:"none"}},"Ver o post no Instagram ↗"):null)),
       ce("div",{className:"card2",style:{padding:16,display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:10}},
         ce("div",null,ce("div",{style:{fontSize:13,color:"var(--mu2)"}},"Resultado"),ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:28}},numBR(v.resultados||0)+" "+rotRes(tr,v.resultados,v.res_nome))),
         v.custo_por_resultado?ce("div",{style:{textAlign:"right"}},ce("div",{style:{fontSize:13,color:"var(--mu2)"}},"Por "+rotRes(tr,1,v.res_nome)),ce("div",{style:{fontWeight:800,fontSize:20}},brl(v.custo_por_resultado))):null),
