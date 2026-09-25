@@ -80,22 +80,20 @@ const ESQ_DIRETOR = objeto({
     nicho: { type: "string", enum: NICHOS }
 });
 
-// Agente de Ideias: cerca de 15 ideias de conteudo (nao sao roteiros), narradas e sem narracao
+// Agente de Ideias: cerca de 15 ideias de conteudo (nao sao roteiros), no estilo das sugestoes
+// que a consultoria entrega para as lojas: titulo curto e concreto + como fazer
+const FORMATOS_IDEIA = ["rápido com transições", "narrado", "provador"];
 const ESQ_IDEIAS = objeto({
     resumo: textoPT("2 frases para a dona ler no celular: por onde começar esta semana e por quê."),
     ideias: {
         type: "array",
         items: objeto({
-            titulo: textoPT("Como a ideia aparece para a dona, curto e no jeito de falar das seguidoras (exemplo: pov: a peça perfeita para o jantar de sexta)."),
-            narracao: { type: "string", enum: ["sem narração", "narrado"] },
-            formato: textoPT("O formato em poucas palavras (exemplo: POV com texto na tela, transição de look, close do tecido, dica para a câmera)."),
+            titulo: textoPT("A ideia em uma frase curta e concreta, do jeito que a dona entende na hora (exemplos: POV: você foi convidada para ser madrinha de casamento; 1 peça, 5 looks; Looks por menos de R$ 150)."),
+            como_fazer: textoPT("1 ou 2 frases práticas: o que mostrar e como gravar, só com o celular."),
+            formatos: { type: "array", items: { type: "string", enum: FORMATOS_IDEIA }, description: "Em quais formatos esta ideia funciona: rápido com transições (até 15 segundos, sem fala), narrado (30 a 45 segundos, a dona falando) e provador (mostrando no corpo, com transições e narração leve)." },
             funil: { type: "string", enum: ["topo", "meio", "fundo"] },
-            metodo: { type: "string", enum: ["fftopo", "ffmeio", "fffundo", "dsb", "angulo"], description: "O método de roteiro mais próximo, usado se a dona quiser transformar a ideia em roteiro." },
-            como_gravar: textoPT("1 ou 2 frases práticas: o que filmar e em que ordem, só com o celular."),
-            texto_na_tela: textoPT("A frase escrita no vídeo; vazio se não tiver."),
-            audio: textoPT("Música em alta, som ambiente ou narração, e o clima."),
-            por_que: textoPT("A evidência desta loja que sustenta a ideia, em uma frase (post, anúncio, comentário ou padrão do público)."),
-            esforco: { type: "string", enum: ["fácil", "médio"] }
+            metodo: { type: "string", enum: ["fftopo", "ffmeio", "fffundo", "dsb", "angulo"], description: "O método de roteiro mais próximo, usado se a dona quiser transformar a ideia narrada em roteiro." },
+            por_que: textoPT("De onde veio a ideia nesta loja, em uma frase curta (post, anúncio, comentário, público ou data do calendário).")
         })
     }
 });
@@ -259,31 +257,61 @@ async function gerarMaisIdeias(userId) {
 }
 
 // pedido do Agente de Ideias (nao escreve roteiros: entrega ideias de conteudo)
+// O repertorio abaixo vem das sugestoes que a consultoria ja entrega para as lojas (moda, acessorios,
+// moda praia e fitness): e referencia de estilo e de formato, nao lista para copiar.
+const REPERTORIO_IDEIAS = [
+    "POV: você foi convidada para ser madrinha de casamento",
+    "POV: você tem um casamento de dia e não sabe o que usar",
+    "Looks para show sertanejo / para Barretos / para formatura / para batizado",
+    "1 peça, 5 looks (a peça mais vendida em várias combinações)",
+    "1 vestido, várias ocasiões (mudando só os acessórios)",
+    "Looks por menos de R$ X (se vestir bem gastando pouco)",
+    "Do dia para a noite: o look simples que vira sofisticado",
+    "Do trabalho ao happy hour",
+    "Arrume-se comigo para um dia de trabalho",
+    "O que eu usaria em um aero look",
+    "Close no tecido e na costura: a diferença que você sente no toque",
+    "Será que essa calça veste bem no quadril? (prova real com cliente)",
+    "Por que todo mundo está falando da nossa [peça campeã de vendas]?",
+    "Lançamentos: as peças que chegaram (as que têm mais estoque)",
+    "As cores que vão dominar a estação já estão aqui",
+    "Não é a peça, é como usar (truques de styling)",
+    "X peças que toda mulher precisa no guarda-roupa",
+    "Sabe aquela bolsa que todo mundo pergunta onde você comprou? É essa aqui",
+    "Depoimento: o sapato mais confortável que eu já usei",
+    "Apresentação da loja: onde fica, quanto tempo de mercado, o que vende",
+    "Se essa peça fosse sua, em qual look você usaria? (pergunta nos stories)"
+].join("\n- ");
+
 function pedidoIdeias(o) {
     const gravadas = o.marcadas.filter(function (m) { return m.status === "gravei"; }).map(function (m) { return m.titulo; });
-    const naoCurtiu = o.marcadas.filter(function (m) { return m.status === "nao_curti"; }).map(function (m) { return m.titulo; });
-    return "Você é o AGENTE DE IDEIAS, especialista em conteúdo para lojas brasileiras no Instagram. Você NÃO escreve roteiros: você entrega ideias de conteúdo que a dona da loja consegue gravar, com base em tudo o que o time estudou sobre esta conta.\n\n" +
-        "ENTREGUE CERCA DE 15 IDEIAS, variadas de propósito:\n" +
-        "- Pelo menos 6 SEM NARRAÇÃO: conteúdo visual, rápido e dopaminérgico, que prende pelo olho e pelo ritmo, principalmente para o topo do funil. Formatos possíveis: POV (pov: a peça perfeita para o casamento da sua amiga), transição de look, antes e depois, montagem rápida de looks, close de detalhe do produto, embalando o pedido, unboxing, 3 jeitos de usar, provador, bastidor da loja, trend com áudio do momento, texto na tela com música.\n" +
-        "- As outras NARRADAS, para quando a dona fala para a câmera: dica, resposta a uma dúvida real dos comentários, história de cliente, erro comum, comparação.\n" +
-        "- Priorize ideias simples de gravar, só com o celular e sem produção.\n" +
-        "- Distribua entre topo (atrair gente nova), meio (fazer desejar) e fundo (fazer comprar), pesando para a etapa em que esta conta está mais fraca.\n" +
-        "- Use o que os dados mostram: os ganchos e assuntos que seguram mais gente nos 3 primeiros segundos e por mais tempo, os formatos que mais engajam, o que vende nos anúncios, as dúvidas e desejos dos comentários, o perfil do público.\n\n" +
+    const hoje = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
+    return "Você é o AGENTE DE IDEIAS, especialista em conteúdo de Reels para lojas brasileiras. Você NÃO escreve roteiros: você entrega uma pauta de ideias de conteúdo que a dona da loja consegue gravar sozinha, com o celular.\n\n" +
+        "COMO SÃO AS BOAS IDEIAS (é o estilo que a consultoria já entrega para as lojas; use como referência de jeito e formato, sem copiar):\n- " + REPERTORIO_IDEIAS + "\n\n" +
+        "O QUE ENTREGAR: cerca de 15 ideias.\n" +
+        "- Títulos curtos e concretos, ligados a peças, ocasiões, eventos e situações da vida da cliente (casamento, date, trabalho, viagem, show, praia, treino). Nada de tema abstrato.\n" +
+        "- Cada ideia diz em quais formatos funciona: rápido com transições (até 15 segundos, sem fala, conteúdo visual e dopaminérgico que prende pelo ritmo), narrado (30 a 45 segundos, a dona falando) e provador (mostrando no corpo, com transições e narração leve). O mesmo tema pode render mais de um formato, porque cada pessoa consome de um jeito.\n" +
+        "- Pelo menos 6 ideias precisam funcionar como rápido com transições, principalmente para atrair gente nova.\n" +
+        "- Distribua entre topo (atrair gente nova), meio (fazer desejar) e fundo (fazer comprar: prova, depoimento, dúvida de tamanho, preço, qualidade), pesando para a etapa em que esta conta está mais fraca.\n" +
+        "- Hoje é " + hoje + ". Aproveite datas e eventos das próximas semanas que combinem com esta loja e com a região do público (feriados, datas do varejo, estação, festas e eventos locais). Só use evento que você tem certeza que existe.\n\n" +
+        "COMO USAR OS DADOS DESTA LOJA\n" +
+        "- Parta do que já funcionou: os assuntos e ganchos que mais seguram gente nos 3 primeiros segundos e por mais tempo, os posts acima da média, os anúncios que mais venderam.\n" +
+        "- Transforme as dúvidas e desejos dos comentários em ideias (exemplo: perguntaram do tamanho, vira uma prova real no corpo).\n" +
+        "- Use o perfil do público (idade, cidades, ocasiões da vida) para escolher as situações das ideias.\n" +
+        "- Em por_que, diga em poucas palavras de onde veio cada ideia.\n\n" +
         "REGRAS\n" +
-        "- Cada ideia nasce dos dados desta loja; em por_que, diga de onde veio em uma frase. Sem evidência, não sugira.\n" +
-        "- Use o jeito de falar das seguidoras nos títulos e nos textos de tela.\n" +
-        "- Nunca use estatística, porcentagem ou número que não esteja escrito nos dados desta loja (legendas, falas, comentários ou números). Na dúvida, escreva a ideia sem o número.\n" +
-        "- Nunca invente produto, preço, promoção ou depoimento. Se a ideia depender de uma peça, diga o tipo de peça (um vestido de festa da loja), sem inventar um produto.\n" +
-        "- Não repita as ideias já sugeridas nem as já gravadas listadas abaixo. Evite o estilo das que a dona não curtiu.\n" +
-        "- Títulos curtos. Português do Brasil com acentuação completa, sem travessão, sem jargão.\n\n" +
+        "- Nunca invente produto, preço, promoção, depoimento ou número. Se a ideia precisar de um valor ou de uma peça específica, deixe em aberto para a dona completar (Looks por menos de R$ X, a peça campeã de vendas).\n" +
+        "- Nunca use estatística ou porcentagem que não esteja escrita nos dados desta loja.\n" +
+        "- Quando a ideia for boa para virar anúncio, lembre em como_fazer de conferir o estoque da peça antes de anunciar.\n" +
+        "- Não repita as ideias já sugeridas nem as já gravadas listadas abaixo.\n" +
+        "- Português do Brasil com acentuação completa, sem travessão, sem jargão de marketing.\n\n" +
         o.sobreLoja +
         "\n\nPOSTS DA LOJA (do melhor para o pior):\n" + o.posts.slice(0, 15).map(linhaPost).join("\n") +
         (o.ads ? "\n\nANÚNCIOS (do que mais deu resultado para o que menos deu):\n" + o.ads.lista.slice(0, 12).map(function (a, i) { return linhaAnuncio(o.ads.tipo, a, i); }).join("\n") : "") +
         (o.comentarios.length ? "\n\nCOMENTÁRIOS REAIS DAS SEGUIDORAS:\n" + o.comentarios.slice(0, 40).map(function (c) { return "- " + c; }).join("\n") : "") +
         "\n\nRELATÓRIO ORGÂNICO: " + JSON.stringify(o.relOrg) + "\nRELATÓRIO DE ANÚNCIOS: " + JSON.stringify(o.relAds) + "\nRELATÓRIO DE PÚBLICO: " + JSON.stringify(o.relPub) +
         (o.anteriores.length ? "\n\nIDEIAS JÁ SUGERIDAS ANTES (não repita): " + o.anteriores.join(" | ") : "") +
-        (gravadas.length ? "\nIDEIAS QUE A DONA JÁ GRAVOU (não repita; ideias parecidas com as que funcionaram são bem-vindas): " + gravadas.join(" | ") : "") +
-        (naoCurtiu.length ? "\nIDEIAS QUE A DONA NÃO CURTIU (evite esse estilo): " + naoCurtiu.join(" | ") : "");
+        (gravadas.length ? "\nIDEIAS QUE A DONA JÁ GRAVOU (não repita): " + gravadas.join(" | ") : "");
 }
 
 // ---------- a analise completa de uma loja ----------
