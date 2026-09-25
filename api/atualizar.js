@@ -4,14 +4,19 @@
 //  e, de reserva, pelo Vercel Cron uma vez por dia. Para cada loja ativada
 //  no Reportei Connect: puxa posts e anuncios e grava em contas_meta.metricas
 //  + uma foto do dia em metricas_diarias. So quem tem o CRON_SECRET chama.
+//  Depois, se sobrar tempo, roda o time de agentes (api/_time-agentes.js)
+//  nas lojas que precisam: nunca analisadas, com post ou anuncio novo, ou
+//  com a ultima analise de mais de 24 horas.
 // =====================================================================
 
 const { banco } = require("./_seguranca.js");
 const { atualizarLoja } = require("./_coleta.js");
+const { analisarLoja, precisaAnalisar } = require("./_time-agentes.js");
 
 const LIMITE_MS = 270000; // para antes do tempo maximo da funcao
 const JUNTAS = 3;         // lojas atualizadas ao mesmo tempo
 const INTERVALO_MS = 4 * 60000; // loja atualizada ha menos que isso fica para a proxima rodada
+const INICIO_ANALISE_MS = 100000; // o time leva 1 a 2 minutos: so comeca uma analise ate este ponto da rodada
 
 module.exports = async function handler(req, res) {
     const segredo = process.env.CRON_SECRET;
@@ -38,7 +43,21 @@ module.exports = async function handler(req, res) {
             }
         }
         await Promise.all(Array.from({ length: Math.min(JUNTAS, fila.length) }, trabalhador));
-        return res.status(200).json({ ok: true, atualizadas: feitos.length, falhas: falhas, puladas: puladas.length, ms: Date.now() - inicio });
+
+        // time de agentes: uma loja por vez, a que esta ha mais tempo sem analise primeiro
+        const analisadas = [], falhasAnalise = [];
+        const estado = await banco("contas_meta?select=user_id,status,atualizado_em,assinatura:metricas->>assinatura,dossie_versao:dossie->>versao,dossie_em:dossie->>gerado_em,dossie_assinatura:dossie->>assinatura");
+        const ativas = {};
+        (clientes || []).forEach(function (c) { ativas[c.user_id] = 1; });
+        const agora = Date.now();
+        const paraAnalisar = (estado || []).filter(function (c) { return ativas[c.user_id] && precisaAnalisar(c, agora); })
+            .sort(function (a, b) { return (a.dossie_em ? new Date(a.dossie_em).getTime() : 0) - (b.dossie_em ? new Date(b.dossie_em).getTime() : 0); });
+        for (const c of paraAnalisar) {
+            if (Date.now() - inicio > INICIO_ANALISE_MS) break;
+            try { await analisarLoja(c.user_id, "automatica"); analisadas.push(c.user_id); }
+            catch (e) { falhasAnalise.push({ user_id: c.user_id, erro: (e && e.message) || "erro" }); console.error("[atualizar] analise " + c.user_id + ": " + (e && e.message)); }
+        }
+        return res.status(200).json({ ok: true, atualizadas: feitos.length, falhas: falhas, puladas: puladas.length, analisadas: analisadas.length, falhas_analise: falhasAnalise, na_fila_analise: paraAnalisar.length - analisadas.length - falhasAnalise.length, ms: Date.now() - inicio });
     } catch (e) {
         console.error("[atualizar] " + (e && e.message));
         return res.status(500).json({ error: (e && e.message) || "Erro na atualizacao" });

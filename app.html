@@ -287,11 +287,11 @@ function dadosLoja(cm){
   var met=cm.metricas||null,d=cm.dossie||{};
   var out={atualizado:(met&&met.atualizado_em)||cm.metricas_em||d.gerado_em||null,posts:[],ads:null,seguidores:null,username:cm.ig_username||null,contaAds:cm.ad_account_nome||null,dossie:d};
   if(met&&met.organico&&(met.organico.posts||[]).length)out.posts=met.organico.posts;
-  else if(d.organico)out.posts=d.organico.videos||[];
+  else if(d.organico&&d.versao!==2)out.posts=d.organico.videos||[];
   if(met&&met.conta){if(met.conta.seguidores!=null)out.seguidores=met.conta.seguidores;out.username=met.conta.username||out.username;out.contaAds=met.conta.anuncios||out.contaAds;}
   if(out.seguidores==null&&d.organico&&d.organico.conta){out.seguidores=d.organico.conta.seguidores;out.username=out.username||d.organico.conta.username;}
   if(met&&met.anuncios&&(met.anuncios.p90||met.anuncios.p30))out.ads={p7:met.anuncios.p7,p30:met.anuncios.p30,p90:met.anuncios.p90};
-  else if(d.anuncios)out.ads={p90:{tipo_resultado:d.anuncios.tipo_resultado,totais:d.anuncios.totais,medias:d.anuncios.medias,anuncios:d.anuncios.anuncios||[]}};
+  else if(d.anuncios&&d.versao!==2)out.ads={p90:{tipo_resultado:d.anuncios.tipo_resultado,totais:d.anuncios.totais,medias:d.anuncios.medias,anuncios:d.anuncios.anuncios||[]}};
   // a fala dos videos (transcrita pelo time de agentes) vem do dossie
   var falas={};
   ((d.organico&&d.organico.videos)||[]).forEach(function(v){if(v.transcricao){if(v.link)falas[v.link]=v.transcricao;falas[String(v.legenda||"").substring(0,60)]=v.transcricao;}});
@@ -319,11 +319,10 @@ function limparRoteiro(s){["titulo","gancho","corpo","cta"].forEach(function(k){
 var NICHOS=["moda feminina","moda masculina","moda infantil","moda fitness","lingerie e moda intima","calcados","bolsas e acessorios","joias e bijuterias","beleza e cosmeticos","saude e suplementos","casa e decoracao","alimentos e doces","pet","servicos","cursos e infoprodutos","outros"];
 function nichoDoProjeto(p){if(!p)return "";if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.rodadas||[];for(var i=rs.length-1;i>=0;i--){if(rs[i].direcao&&rs[i].direcao.nicho)return rs[i].direcao.nicho;}return "";}
 // Padroes aprendidos com varias lojas (anonimos, so padroes) para o nicho e metodo
-function padroesDoNicho(padroes,nicho,metodo){var out=[];(padroes||[]).forEach(function(p){if((p.metodo===metodo||p.metodo==="todos")&&(p.nicho===nicho||p.nicho==="geral"))out.push(p);});out.sort(function(a,b){return (a.nicho==="geral")-(b.nicho==="geral");});return out;}
-// Dossie da conta (feito pelo time de agentes no painel admin) e video de referencia escolhido pela cliente
-var CONTA_AGENTE={texto:"",nicho:""},REFERENCIA_ATUAL="";
-function memoriaAgente(projects,perfil,metodo,padroes,nicho){
-  nicho=nicho||CONTA_AGENTE.nicho;
+// Dossie da conta (feito pelo time de agentes no servidor, so com os dados desta loja) e video de referencia escolhido pela cliente
+var CONTA_AGENTE={texto:"",nicho:"",por_metodo:null},REFERENCIA_ATUAL="";
+function contaDoDossie(d){d=d||{};return {texto:d.texto||"",nicho:d.nicho||"",por_metodo:d.por_metodo||null};}
+function memoriaAgente(projects,perfil,metodo){
   var total=0,cands=[],vistos={};
   (projects||[]).forEach(function(p){todosRoteiros(p).forEach(function(s){
     total++;
@@ -338,12 +337,12 @@ function memoriaAgente(projects,perfil,metodo,padroes,nicho){
   var partes=[];
   if(REFERENCIA_ATUAL)partes.push("VIDEO DE REFERENCIA ESCOLHIDO PELA CLIENTE (os roteiros devem partir do que fez este video dar resultado: o angulo, o tipo de gancho e a estrutura; crie roteiros novos, sem copiar): "+REFERENCIA_ATUAL);
   if(CONTA_AGENTE.texto)partes.push("DOSSIE DA CONTA (feito pelo time de agentes com os dados reais dos ultimos 90 dias do Instagram e dos anuncios desta loja; e a fonte mais importante para saber o que da resultado): "+CONTA_AGENTE.texto);
+  var dica=CONTA_AGENTE.por_metodo&&CONTA_AGENTE.por_metodo[metodo];
+  if(dica)partes.push("ORIENTACAO DO TIME DE AGENTES PARA O METODO "+metodoInfo(metodo).lb.toUpperCase()+" NESTA CONTA: "+dica);
   if(top.length)partes.push("ROTEIROS QUE DERAM RESULTADO PARA ESTA CONTA (replique o padrao de gancho, estrutura e CTA, sem copiar o texto): "+top.map(function(c){var s=c.s;return "["+(s.vendeu?"VENDEU":"APROVADO")+(s.pilar?" | "+s.pilar:"")+" | gancho: "+String(s.gancho||"").substring(0,110)+" | cta: "+String(s.cta||"").substring(0,70)+"]";}).join(" "));
   if(ajustes.length)partes.push("AJUSTES QUE ESTA CLIENTE COSTUMA PEDIR (ja entregue assim de primeira): "+ajustes.join(" | "));
   if(descartados.length)partes.push("GANCHOS QUE ESTA CLIENTE DESCARTOU (evite esse estilo): "+descartados.map(function(g){return String(g).substring(0,80);}).join(" | "));
-  var pn=padroesDoNicho(padroes,nicho,metodo);
-  if(pn.length)partes.push("PADROES QUE ESTAO DANDO RESULTADO "+pn.map(function(p){return (p.nicho==="geral"?"EM TODAS AS LOJAS":"NO NICHO "+p.nicho.toUpperCase())+" (aprendido com "+p.amostras+" roteiros de varias lojas; use como direcao de abordagem e estrutura, nunca como texto pronto): "+p.padroes;}).join(" ; "));
-  return {total:total,sinais:cands.length,nicho:pn.length?nicho:"",texto:partes.length?" MEMORIA DO AGENTE: "+partes.join(" ")+".":"",conta:!!CONTA_AGENTE.texto};
+  return {total:total,sinais:cands.length,texto:partes.length?" MEMORIA DO AGENTE: "+partes.join(" ")+".":"",conta:!!CONTA_AGENTE.texto};
 }
 var TONS=[
   {id:"direto",lb:"Direto e objetivo",ds:"Vai ao ponto, sem enrolacao, foco no beneficio"},
@@ -522,7 +521,6 @@ function App(){
   var sMet=useState("fftopo"),metodoSel=sMet[0],setMetodoSel=sMet[1];
   var sDir=useState(null),direcao=sDir[0],setDirecao=sDir[1];
   var dirTok=useRef(0);
-  var sPg=useState([]),padroesGlobais=sPg[0],setPadroesGlobais=sPg[1];
   var sCm=useState(null),contaMeta=sCm[0],setContaMeta=sCm[1];
   var sVt=useState("anuncios"),videosTab=sVt[0],setVideosTab=sVt[1];
   var sRf=useState(null),referencia=sRf[0],setReferenciaSt=sRf[1];
@@ -547,7 +545,7 @@ function App(){
     setGenStep(0);
   },[generating]);
 
-  useEffect(function(){carregarProjetos();carregarPerfil();carregarPadroes();carregarContaMeta();carregarLoja(currentUser.id,true);carregarRecados(currentUser.id);},[]);
+  useEffect(function(){carregarProjetos();carregarPerfil();carregarContaMeta();carregarLoja(currentUser.id,true);carregarRecados(currentUser.id);},[]);
   useEffect(function(){
     if(view==="briefing"&&perfil&&!form.produto&&!form.descricao&&!form.diferenciais){setForm(function(f){return Object.assign({},f,{descricao:perfil.descricao||f.descricao,diferenciais:perfil.diferenciais||f.diferenciais,caracteristicas:perfil.caracteristicas||f.caracteristicas,preco:perfil.preco||f.preco,exemploConteudo:perfil.exemploConteudo||f.exemploConteudo});});}
   },[view,perfil]);
@@ -594,7 +592,7 @@ function App(){
       var ps=rp.data.filter(function(p){return p.user_id===uid;}).map(mapearProjeto);
       setProjects(ps);
       setContaMeta((cm&&cm.data)||null);
-      var d=(cm&&cm.data&&cm.data.dossie)||{};CONTA_AGENTE={texto:d.texto||"",nicho:d.nicho||""};
+      var d=(cm&&cm.data&&cm.data.dossie)||{};CONTA_AGENTE=contaDoDossie(d);
       carregarLoja(uid,false);carregarRecados(uid);
       var alvo=projetoId&&ps.find(function(p){return p.id===projetoId;});
       setActiveProject(alvo||null);setReferencia(null);setVideoSel(null);setView(alvo?"results":"home");setSbOpen(false);
@@ -602,7 +600,7 @@ function App(){
     }catch(e){showToast("Nao foi possivel abrir a conta. Se a verificacao em 2 etapas estiver ativa, confirme o codigo no Painel Admin.","err");}
   }
   function sairDoModoCliente(){
-    setVerComo(null);setActiveProject(null);setReferencia(null);setContaMeta(null);setVideoSel(null);CONTA_AGENTE={texto:"",nicho:""};
+    setVerComo(null);setActiveProject(null);setReferencia(null);setContaMeta(null);setVideoSel(null);CONTA_AGENTE=contaDoDossie(null);
     if(location.hash)history.replaceState(null,"",location.pathname);
     setProjects([]);carregarProjetos();carregarContaMeta();carregarLoja(currentUser.id,false);carregarRecados(currentUser.id);setView("home");
   }
@@ -631,7 +629,7 @@ function App(){
     return true;
   }
 
-  async function carregarContaMeta(){try{var r=await supaClient.from("contas_meta").select(CAMPOS_CONTA).eq("user_id",currentUser.id).maybeSingle();if(r&&r.error)r=await supaClient.from("contas_meta").select("ig_username,ad_account_nome,dossie,atualizado_em").eq("user_id",currentUser.id).maybeSingle();if(r&&!r.error&&r.data){setContaMeta(r.data);var d=r.data.dossie||{};CONTA_AGENTE={texto:d.texto||"",nicho:d.nicho||""};}}catch(e){}}
+  async function carregarContaMeta(){try{var r=await supaClient.from("contas_meta").select(CAMPOS_CONTA).eq("user_id",currentUser.id).maybeSingle();if(r&&r.error)r=await supaClient.from("contas_meta").select("ig_username,ad_account_nome,dossie,atualizado_em").eq("user_id",currentUser.id).maybeSingle();if(r&&!r.error&&r.data){setContaMeta(r.data);var d=r.data.dossie||{};CONTA_AGENTE=contaDoDossie(d);}}catch(e){}}
   function setReferencia(ref){REFERENCIA_ATUAL=ref?ref.texto:"";setReferenciaSt(ref);}
   // ficar=true: so escolhe a referencia (tela de novo roteiro); senao leva para a tela de novo roteiro
   function usarComoReferencia(tipo,x,ficar,tipoRes){
@@ -644,7 +642,6 @@ function App(){
     setVideoSel(null);setActiveProject(null);setView("briefing");
     showToast("Video escolhido como referencia. Descreva o produto e gere os roteiros.");
   }
-  async function carregarPadroes(){try{var r=await supaClient.from("aprendizado_agente").select("nicho,metodo,padroes,amostras");if(r&&!r.error&&Array.isArray(r.data))setPadroesGlobais(r.data);}catch(e){}}
   async function carregarPerfil(){try{var r=await supaClient.from("perfil_publico").select("dados").eq("user_id",currentUser.id).maybeSingle();if(r&&r.data&&r.data.dados)setPerfil(r.data.dados);}catch(e){}}
   async function salvarPerfil(dados){if(somenteLeitura())return;try{var r=await supaClient.from("perfil_publico").upsert({user_id:currentUser.id,dados:dados,atualizado_em:new Date().toISOString()},{onConflict:"user_id"}).select();if(r&&r.error)throw r.error;setPerfil(dados);showToast("Publico salvo! Os proximos projetos ja vem preenchidos.");}catch(e){showToast("Nao foi possivel salvar. Confirme se a tabela foi criada no Supabase.","err");}}
 
@@ -687,12 +684,11 @@ function App(){
     }catch(e){if(tok===dirTok.current){setDirecao(null);showToast("Erro ao preparar: "+(e&&e.message||""),"err");}}
   }
   async function montarDirecao(base,tok){
-    var mem=memoriaAgente(projects,perfil,base.metodo,padroesGlobais,(base.ff&&base.ff.nicho)||"");
+    var mem=memoriaAgente(projects,perfil,base.metodo);
     base=Object.assign({},base,{mem:{total:mem.total,sinais:mem.sinais,conta:mem.conta,referencia:!!REFERENCIA_ATUAL}});
     setDirecao(Object.assign({},base,{loading:true,campos:null}));
     var c=await gerarDirecao(base.ff,base.metodo,base.imgs,mem.texto);
     if(tok!==dirTok.current)return;
-    if(c&&c.nicho&&padroesDoNicho(padroesGlobais,c.nicho,base.metodo).some(function(p){return p.nicho===c.nicho;}))base=Object.assign({},base,{mem:Object.assign({},base.mem,{nicho:c.nicho})});
     setDirecao(Object.assign({},base,{loading:false,campos:c||{objetivo:"",publico:"",mensagem:"",chamada:""},falhou:!c}));
   }
   function pedirDirecao(metodo){
@@ -717,9 +713,9 @@ function App(){
       var messages;
       if(dir.imgs&&dir.imgs.length){
         var txtExtra=ff.produto?" Informacoes adicionais: "+ff.produto:"";
-        messages=[{role:"user",content:dir.imgs.concat([{type:"text",text:"Analise as imagens do produto."+txtExtra+" Destino: "+ff.objetivo+". "+buildP(Object.assign({},ff,{produto:"[Produto nas imagens]"+txtExtra}),rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo,padroesGlobais,(campos&&campos.nicho)||"").texto)}])}];
+        messages=[{role:"user",content:dir.imgs.concat([{type:"text",text:"Analise as imagens do produto."+txtExtra+" Destino: "+ff.objetivo+". "+buildP(Object.assign({},ff,{produto:"[Produto nas imagens]"+txtExtra}),rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo).texto)}])}];
       }else{
-        messages=[{role:"user",content:buildP(ff,rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo,padroesGlobais,(campos&&campos.nicho)||"").texto)}];
+        messages=[{role:"user",content:buildP(ff,rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo).texto)}];
       }
       // Analise + geracao numa unica chamada (Opus faz a analise profunda internamente)
       if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
@@ -809,7 +805,7 @@ function App(){
       var hist=activeProject.rodadas||[];
       var rodada=hist.length+1;
       if(rodada>MAX_RODADAS){showToast("Limite de "+MAX_RODADAS+" geracoes por projeto atingido.","err");setLiveText("");setGenerating(false);return;}
-      var messages=[{role:"user",content:buildP(ff,rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo,padroesGlobais,(campos&&campos.nicho)||nichoDoProjeto(activeProject)||CONTA_AGENTE.nicho).texto)}];
+      var messages=[{role:"user",content:buildP(ff,rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo).texto)}];
       // Analise + geracao numa unica chamada (Opus faz a analise profunda internamente)
       if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
       setGenStep(1);setLiveText("");
@@ -955,7 +951,7 @@ function App(){
     try{
       var f=activeProject.form||{};
       var _m=metodoInfo(metodoDoRoteiro(s));var prompt="Escreva UM novo roteiro para Reels seguindo o METODO "+_m.lb+" (codigo "+_m.id+") da sua base de metodos, pilar "+(s.pilar||"")+" (funil "+(s.funil||"")+"), para este negocio. Produto: "+(f.produto||"")+". Publico: "+(f.descricao||"")+". Diferenciais: "+(f.diferenciais||"")+". Crie algo DIFERENTE do roteiro atual (gancho atual: "+s.gancho+"). Gancho hiper-especifico nos 3 primeiros segundos, linguagem de pessoa real sem cara de IA e sem traco longo, corpo com argumento concreto e CTA conectado a dor. Responda APENAS com JSON sem markdown: {titulo:texto, gancho:texto, corpo:texto, cta:texto}. Sem aspas duplas dentro dos textos.";
-      prompt+=memoriaAgente(projects,perfil,metodoDoRoteiro(s),padroesGlobais,nichoDoProjeto(activeProject)).texto;
+      prompt+=memoriaAgente(projects,perfil,metodoDoRoteiro(s)).texto;
       var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:6000,model:"claude-sonnet-5",effort:"medium"})});
       var data=await res.json();
       if(data.error)throw new Error(data.error.message||data.error);
@@ -1143,8 +1139,10 @@ function App(){
   }
   function renderDescobertas(dl){
     var d=dl.dossie||{};
+    var poucos=[d.organico&&d.organico.relatorio,d.anuncios&&d.anuncios.relatorio,d.publico].some(function(x){return x&&x.confianca==="baixa";});
     return ce("div",null,
-      d.texto&&ce("div",{className:"nota"},ce("b",null,"Resumo do time de agentes: "),d.texto),
+      (d.resumo_loja||d.texto)&&ce("div",{className:"nota"},ce("b",null,"O que o time de agentes descobriu: "),d.resumo_loja||d.texto),
+      d.gerado_em&&ce("div",{style:{fontSize:12,color:"var(--mu2)",margin:"-4px 0 14px"}},"Análise feita "+quando(d.gerado_em)+" com os últimos 90 dias. O time analisa de novo sozinho quando entra post ou anúncio novo."+(poucos?" Ainda há poucos dados, então algumas conclusões são iniciais.":"")),
       blocoRelatorio("👥 Agente de Público",d.publico,{quem_e:"Quem é",idade_genero:"Idade e gênero",regioes:"Regiões",quem_compra:"Quem mais compra",dores:"Dores",desejos:"Desejos",objecoes:"Objeções",expressoes_reais:"Como o público fala"}),
       blocoRelatorio("💰 Agente de Anúncios",d.anuncios&&d.anuncios.relatorio,{o_que_vende:"O que vende",ganchos_que_convertem:"Ganchos que convertem",argumentos_e_ofertas:"Argumentos e ofertas",ctas:"Chamadas que funcionam",diagnostico_dos_fracos:"Onde os fracos perdem"}),
       blocoRelatorio("🔎 Agente Orgânico",d.organico&&d.organico.relatorio,{o_que_funciona:"O que funciona",ganchos_que_funcionam:"Ganchos que funcionam",temas:"Temas",formatos:"Formatos",evitar:"Evitar"}));
@@ -1403,7 +1401,7 @@ function App(){
         :ce("div",null,
           ce("div",{style:{display:"inline-block",fontSize:11.5,fontWeight:600,color:"var(--ac2)",background:"rgba(255,77,0,.1)",border:"1px solid rgba(255,77,0,.25)",borderRadius:20,padding:"3px 11px",marginBottom:12}},metodoInfo(direcao.metodo).ic+" "+metodoInfo(direcao.metodo).amigo),
           ce("div",{className:"ov-h",style:{marginBottom:6}},"Direcao do conteudo"),
-          direcao.mem&&ce("div",{style:{fontSize:12,color:"var(--ok)",marginBottom:8,lineHeight:1.45}},"🧠 Agente MCP: "+(direcao.mem.conta?"usando o dossie da sua conta (Instagram e anuncios dos ultimos 90 dias)":"usando o que aprendeu com os seus projetos")+(direcao.mem.referencia?" + o video de referencia que voce escolheu":"")+(direcao.mem.nicho?" + padroes que estao dando certo no nicho "+direcao.mem.nicho:"")),
+          direcao.mem&&ce("div",{style:{fontSize:12,color:"var(--ok)",marginBottom:8,lineHeight:1.45}},"🧠 Agente MCP: "+(direcao.mem.conta?"usando o dossie da sua conta (Instagram e anuncios dos ultimos 90 dias)":"usando o que aprendeu com os seus projetos")+(direcao.mem.referencia?" + o video de referencia que voce escolheu":"")+""),
           ce("div",{className:"ov-p",style:{marginBottom:18}},direcao.falhou?"Nao consegui montar a direcao automaticamente. Preencha o que quiser ou gere assim mesmo.":"Os "+POR_RODADA+" roteiros vao seguir esta direcao. Ajuste o que quiser antes de gerar."),
           DIR_CAMPOS.map(function(f){return ce("div",{key:f.k,style:{marginBottom:12}},ce("div",{style:{fontSize:10.5,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"var(--mu)",marginBottom:5}},f.lb),ce("textarea",{className:"edit-ta",style:{minHeight:54},placeholder:f.ph,value:(direcao.campos&&direcao.campos[f.k])||"",onChange:function(e){editarCampoDirecao(f.k,e.target.value);}}));}),
           ce("button",{className:"gbtn",onClick:confirmarDirecao},"Gerar "+POR_RODADA+" roteiros com esta direcao"),

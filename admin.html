@@ -395,16 +395,6 @@ function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo
 function nichoSalvo(p){if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.rodadas||[];for(var i=rs.length-1;i>=0;i--){if(rs[i].direcao&&rs[i].direcao.nicho)return rs[i].direcao.nicho;}return "";}
 function csvSeguro(t){t=String(t==null?"":t).replace(/"/g,'""');return /^[=+\-@]/.test(t)?"'"+t:t;}
 function escHtml(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
-async function chamarIA(prompt,maxTok){
-  var s=await supaClient.auth.getSession();var tk=s.data&&s.data.session&&s.data.session.access_token;
-  var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:(maxTok||1500)+4000,model:"claude-sonnet-5",effort:"medium"})});
-  var d=await res.json();
-  if(!res.ok||d.error)throw new Error((d.error&&(d.error.message||d.error))||("Erro "+res.status));
-  var raw=(d.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
-  var st=raw.indexOf("{"),en=raw.lastIndexOf("}");
-  if(st<0||en<0)throw new Error("Resposta da IA sem JSON");
-  return JSON.parse(raw.substring(st,en+1));
-}
 // ===== Reportei Connect: ativar cliente, abrir a tela de conexao e ver o que foi conectado =====
 var connectCfg=null,connectClientes={},connectIntegracoes={};
 async function apiConnect(body){
@@ -522,56 +512,24 @@ async function salvarContaMeta(uid,silencioso){
   if(!silencioso)document.getElementById("st-"+uid).textContent="Contas salvas. Clique em Analisar.";
   return true;
 }
-function linhasOrg(lista,extra){return (lista||[]).map(function(v,i){return (i+1)+") "+v.tipo+" de "+String(v.data).substring(0,10)+(v.recente?" (ultimos 30 dias)":"")+" | indice "+v.indice+"x a media | alcance "+v.alcance+" | curtidas "+v.curtidas+" | comentarios "+v.comentarios+" | salvamentos "+v.salvamentos+" | compartilhamentos "+v.compartilhamentos+" | legenda: "+String(v.legenda||"").substring(0,280)+(v.transcricao?" | FALA DO VIDEO: "+String(v.transcricao).substring(0,700):"");}).join("\n");}
-function linhasAds(lista){return (lista||[]).map(function(a,i){return (i+1)+") "+a.nome+" | gasto "+a.gasto+" | resultados "+a.resultados+" (30d: "+a.resultados_30d+") | custo por resultado "+a.custo_por_resultado+(a.roas?" | ROAS "+a.roas:"")+" | taxa de gancho "+a.taxa_gancho+"% | retencao "+a.retencao+"% | CTR "+a.ctr+"% | "+(a.diagnostico||"")+" | texto: "+String(a.texto||a.titulo||"").substring(0,280)+(a.transcricao?" | FALA DO VIDEO: "+String(a.transcricao).substring(0,700):"");}).join("\n");}
+// o time de agentes roda no servidor (api/_time-agentes.js): aqui so pede e mostra o andamento
 async function analisarConta(uid){
   function log(t){var l=document.getElementById("st-"+uid);if(l)l.textContent=t;setStatusLoja(uid,t);}
-  if(document.getElementById("ig-"+uid)){var ok=await salvarContaMeta(uid,true);if(!ok)return;}
-  var c=contasMeta[uid]||{};
-  // com a Meta conectada direto usa ela; senao usa os numeros que chegam pelo Reportei
-  var viaMeta=!!(metaCfg&&metaCfg.conexao&&(c.ig_id||c.ad_account_id));
+  log("Time de agentes analisando os posts e anúncios (leva 1 a 2 minutos)...");
   try{
-    var org=null,ads=null;
-    if(viaMeta){
-      if(c.ig_id){log("Agente Organico coletando os posts dos ultimos 90 dias...");org=await apiMeta({acao:"organico",ig_id:c.ig_id});}
-      if(c.ad_account_id){log("Agente de Anuncios coletando os anuncios dos ultimos 90 dias...");ads=await apiMeta({acao:"anuncios",ad_account_id:c.ad_account_id});}
-    }else{
-      log("Lendo os números da loja...");
-      var rm=await supaClient.from("contas_meta").select("metricas").eq("user_id",uid).maybeSingle();
-      var met=rm&&rm.data&&rm.data.metricas;
-      org=orgDoReportei(met);ads=adsDoReportei(met);
-      if(!org&&!ads){log("Ainda não há números desta loja. Conecte o Instagram e os anúncios e use Atualizar dados agora.");return;}
-    }
-    // transcreve a fala dos videos vencedores
-    var alvos=[];
-    if(org)org.videos.filter(function(v){return v.video&&v.media_url;}).slice(0,3).forEach(function(v){alvos.push({obj:v,body:{acao:"transcrever",url:v.media_url}});});
-    if(ads)ads.anuncios.filter(function(a){return a.video_id&&a.resultados>0;}).slice(0,3).forEach(function(a){alvos.push({obj:a,body:{acao:"transcrever",video_id:a.video_id}});});
-    for(var i=0;i<alvos.length;i++){log("Transcrevendo a fala dos videos vencedores ("+(i+1)+" de "+alvos.length+")...");try{alvos[i].obj.transcricao=(await apiMeta(alvos[i].body)).texto;}catch(e){}}
-    if(org)org.videos.forEach(function(v){delete v.media_url;});
-    var produtos=allProjetos.filter(function(p){return p.user_id===uid;}).slice(0,3).map(function(p){return String((p.form&&p.form.produto)||p.nome||"").substring(0,200);});
-    log("Time de agentes analisando (organico, anuncios e publico)...");
-    var pOrg=org?chamarIA("Voce agora atua como AGENTE ORGANICO do time do MCP Studio, analista de conteudo organico do Instagram. Abaixo estao os melhores e os piores posts dos ultimos 90 dias de uma loja (@"+org.conta.username+", "+org.conta.seguidores+" seguidores). Resultado no organico = engajamento (curtidas, comentarios, salvamentos) e principalmente compartilhamentos, relativo ao alcance. O indice compara cada post com a media da propria conta (1.0 = media). Posts dos ultimos 30 dias pesam mais. Descubra o que os melhores tem em comum e o que os piores fazem diferente. Responda APENAS com JSON valido sem markdown: {\"resumo\":\"2 frases\",\"o_que_funciona\":[\"...\"],\"ganchos_que_funcionam\":[\"ganchos reais dos melhores posts\"],\"temas\":[\"...\"],\"formatos\":[\"...\"],\"evitar\":[\"...\"]}. NUNCA use aspas duplas dentro dos textos. MELHORES:\n"+linhasOrg(org.videos)+"\nPIORES:\n"+linhasOrg(org.piores),2500):Promise.resolve(null);
-    var pAds=ads?chamarIA("Voce agora atua como AGENTE DE ANUNCIOS do time do MCP Studio, analista de trafego pago. Abaixo estao os anuncios dos ultimos 90 dias de uma loja. Resultado = "+ads.tipo_resultado+" (vendas quando a loja tem pixel; conversas no WhatsApp quando vende por conversa). Medias da conta: taxa de gancho "+ads.medias.taxa_gancho+"%, retencao "+ads.medias.retencao+"%, CTR "+ads.medias.ctr+"%. Descubra o que os anuncios que mais dao resultado tem em comum (gancho, argumento, oferta, CTA) e onde os fracos perdem (gancho, corpo ou CTA). Responda APENAS com JSON valido sem markdown: {\"resumo\":\"2 frases\",\"o_que_vende\":[\"...\"],\"ganchos_que_convertem\":[\"...\"],\"argumentos_e_ofertas\":[\"...\"],\"ctas\":[\"...\"],\"diagnostico_dos_fracos\":[\"...\"]}. NUNCA use aspas duplas dentro dos textos. MELHORES:\n"+linhasAds(ads.anuncios)+"\nPIORES:\n"+linhasAds(ads.piores)+"\nSEGMENTOS QUE MAIS DAO RESULTADO: "+JSON.stringify(ads.segmentos),2500):Promise.resolve(null);
-    var pPub=chamarIA("Voce agora atua como AGENTE DE PUBLICO do time do MCP Studio. Monte o retrato do publico desta loja com base em dados reais. PRODUTOS DA LOJA: "+produtos.join(" | ")+". "+(org?"SEGUIDORES (idade, genero, cidades): "+JSON.stringify(org.publico)+". BIO: "+org.conta.bio+". COMENTARIOS REAIS DOS MELHORES POSTS: "+org.comentarios.join(" | ")+". ":"")+(ads?"QUEM MAIS GERA RESULTADO NOS ANUNCIOS: "+JSON.stringify(ads.segmentos)+". ":"")+"Responda APENAS com JSON valido sem markdown: {\"resumo\":\"2 frases\",\"quem_e\":\"...\",\"idade_genero\":\"...\",\"regioes\":\"...\",\"dores\":[\"...\"],\"desejos\":[\"...\"],\"objecoes\":[\"...\"],\"expressoes_reais\":[\"palavras e expressoes que o publico usa nos comentarios\"],\"quem_compra\":\"segmento que mais converte\"}. NUNCA use aspas duplas dentro dos textos.",2000);
-    var rel=await Promise.all([pOrg,pAds,pPub]);
-    log("Diretor juntando tudo no dossie da conta...");
-    var dir=await chamarIA("Voce e o DIRETOR do time de agentes do MCP Studio. Junte os relatorios abaixo em um DOSSIE DA CONTA curto (no maximo 1400 caracteres) que o agente de roteiros vai usar: quem e o publico e como fala, o que funciona no organico, o que vende nos anuncios, ganchos modelo que ja funcionaram nesta conta e o que evitar. Seja concreto e especifico desta loja. Classifique tambem o nicho em exatamente um destes: "+NICHOS.join(", ")+". Responda APENAS com JSON valido sem markdown: {\"texto\":\"...\",\"nicho\":\"...\"}. NUNCA use aspas duplas dentro dos textos. PRODUTOS: "+produtos.join(" | ")+". RELATORIO ORGANICO: "+JSON.stringify(rel[0])+". RELATORIO ANUNCIOS: "+JSON.stringify(rel[1])+". RELATORIO PUBLICO: "+JSON.stringify(rel[2]),2000);
-    var nicho=String(dir.nicho||"").toLowerCase().trim();
-    var dossie={periodo_dias:90,gerado_em:new Date().toISOString(),organico:org?Object.assign({},org,{relatorio:rel[0]}):null,anuncios:ads?Object.assign({},ads,{relatorio:rel[1]}):null,publico:rel[2],texto:dir.texto||"",nicho:NICHOS.indexOf(nicho)>-1?nicho:"outros"};
-    var up=await supaClient.from("contas_meta").upsert({user_id:uid,dossie:dossie,status:"Analisada",atualizado_em:new Date().toISOString()},{onConflict:"user_id"});
-    if(up.error)throw up.error;
-    contasMeta[uid]=Object.assign({},contasMeta[uid],{status:"Analisada",atualizado_em:new Date().toISOString()});
-    log("Analisada agora · "+(org?org.videos.length+" posts":"")+(org&&ads?" e ":"")+(ads?ads.anuncios.length+" anuncios":"")+" no dossie");
-  }catch(e){log("Erro: "+((e&&e.message)||e));}
+    var r=await apiConnect({acao:"analisar",user_id:uid});
+    log("Analisada agora · "+r.posts+" posts e "+r.anuncios+" anúncios"+(r.falas?" · "+r.falas+" falas de vídeo":""));
+    return true;
+  }catch(e){log("Erro: "+((e&&e.message)||e));return false;}
 }
 async function analisarTodas(){
   var btn=document.getElementById("btn-analisar-todas");btn.disabled=true;
   try{
-    var ids={};
-    Object.keys(contasMeta).forEach(function(uid){var c=contasMeta[uid];if(c.ig_id||c.ad_account_id)ids[uid]=1;});
-    Object.keys(numeros).forEach(function(uid){if(numeros[uid].metricas_em)ids[uid]=1;});
-    for(var uid in ids)await analisarConta(uid);
-  }finally{btn.disabled=false;}
+    var ids=Object.keys(numeros).filter(function(uid){return numeros[uid].metricas_em;});
+    if(!ids.length){avisar("Nenhuma loja tem números ainda. Conecte o Instagram e os anúncios primeiro.");return;}
+    for(var i=0;i<ids.length;i++){btn.textContent="Analisando "+(i+1)+" de "+ids.length+"...";await analisarConta(ids[i]);}
+    carregarLojas();
+  }finally{btn.disabled=false;btn.textContent="Analisar todas com o agente";}
 }
 
 async function apagarUsuario(uid){
@@ -783,7 +741,7 @@ async function carregarLojas(){
   try{var r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em");if(r.error)throw r.error;lojas={};(r.data||[]).forEach(function(l){lojas[l.user_id]=l;});lojasErro=false;}
   catch(e){lojasErro=true;}
   try{
-    var c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,metricas_em,status,atualizado_em,conta:metricas->conta,avisos:metricas->avisos,posts:metricas->organico->total_posts,ads90:metricas->anuncios->p90->totais");
+    var c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,metricas_em,status,atualizado_em,conta:metricas->conta,avisos:metricas->avisos,posts:metricas->organico->total_posts,ads90:metricas->anuncios->p90->totais,dossie_em:dossie->>gerado_em,dossie_versao:dossie->>versao");
     if(c.error)c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,status,atualizado_em");
     numeros={};((c&&c.data)||[]).forEach(function(x){numeros[x.user_id]=x;});
   }catch(e){}
@@ -813,12 +771,23 @@ function renderLojas(){
     var acesso=u.last_sign_in_at?'<span class="ch ch-ok">Ativo</span><div class="mini">Entrou '+fmtCurto(u.last_sign_in_at)+'</div>':'<span class="ch ch-av">Aguardando 1º acesso</span><div class="mini"><button class="lk" onclick="copiarLinkAcesso(\''+u.id+'\')">Copiar link de acesso</button></div>';
     var t90=n.ads90||null;
     var num=n.metricas_em?fmtCurto(n.metricas_em)+'<div class="mini">'+(n.posts!=null?n.posts+" posts":"")+(t90&&t90.gasto!=null?(n.posts!=null?" · ":"")+"R$ "+Math.round(t90.gasto).toLocaleString("pt-BR")+" em 90d":"")+'</div>':'<span class="mini" style="margin:0">Ainda sem números</span>';
+    num+=linhaAnalise(n);
     if((n.avisos||[]).length)num+='<div class="mini" style="color:var(--gold);max-width:260px;white-space:normal" title="'+escHtml(n.avisos.join(" | "))+'">Aviso: '+escHtml(String(n.avisos[0]).slice(0,120))+(n.avisos.length>1?' (+'+(n.avisos.length-1)+')':'')+'</div>';
     html+='<tr><td><div style="display:flex;gap:12px;align-items:center"><div class="av">'+escHtml(iniciais(nomeLoja(u.id)))+'</div><div style="min-width:0"><div style="font-weight:600;font-size:14.5px">'+escHtml(nomeLoja(u.id))+(u.id===ADMIN_ID?' <span class="ch ch-mu" style="font-size:10px">você</span>':'')+'</div><div class="mini">'+escHtml(l&&l.nicho?l.nicho+" · "+u.email:u.email)+'</div>'+(!l?'<div class="mini"><button class="lk" onclick="abrirDrawerLoja(\''+u.id+'\')">Completar dados da loja</button></div>':'')+'</div></div></td>'
       +'<td>'+ig+'</td><td>'+ads+'</td><td>'+acesso+'</td><td style="font-size:13px">'+num+'<div class="mini" id="ls-'+u.id+'" style="color:var(--ac2);max-width:260px;white-space:normal">'+escHtml(statusLoja[u.id]||"")+'</div></td>'
       +'<td style="white-space:nowrap;text-align:right"><button class="btn-out" onclick="verComoLoja(\''+u.id+'\')">Abrir loja</button> <button class="btn-dots" aria-label="Mais opções da loja" aria-haspopup="menu" onclick="abrirMenu(\''+u.id+'\',this)">⋯</button></td></tr>';
   });
   el.innerHTML=html+'</tbody></table>';
+}
+// situacao do time de agentes da loja (roda sozinho quando entra post ou anuncio novo e 1 vez por dia)
+function linhaAnalise(n){
+  if(!n||!n.metricas_em)return "";
+  var st=n.status||"",t;
+  if(st==="Analisando"&&diasAtras(n.atualizado_em)*1440<10)t='<span style="color:var(--ac2)">Time de agentes analisando agora...</span>';
+  else if(/^Erro/.test(st))t='<span style="color:var(--gold)" title="'+escHtml(st)+'">Análise com erro · tenta de novo sozinha</span>';
+  else if(n.dossie_em&&String(n.dossie_versao)==="2")t='Analisada '+fmtCurto(n.dossie_em);
+  else t='Análise na fila';
+  return '<div class="mini">'+t+'</div>';
 }
 function setStatusLoja(uid,t){statusLoja[uid]=t;var el=document.getElementById("ls-"+uid);if(el)el.textContent=t;}
 function verComoLoja(uid,projetoId){window.open("app.html#ver="+uid+(projetoId?"&projeto="+projetoId:""),"_blank");}
@@ -1060,19 +1029,6 @@ async function enviarRecado(uid,projetoId,texto){
 function mandarRecado(uid){var t=window.prompt("Recado para "+nomeLoja(uid)+" (aparece no app dela):");if(t&&t.trim())enviarRecado(uid,null,t.trim());}
 
 // ===== numeros do Reportei no formato que o time de agentes ja entende =====
-function orgDoReportei(met){
-  var o=met&&met.organico;if(!o||!(o.posts||[]).length)return null;
-  var recente=Date.now()-30*864e5;
-  var ord=o.posts.filter(function(p){return p.alcance>0;}).map(function(p){return Object.assign({},p,{recente:!!(p.data&&new Date(p.data).getTime()>=recente)});}).sort(function(a,b){return (b.indice*(b.recente?1.3:1))-(a.indice*(a.recente?1.3:1));});
-  return {conta:{username:(met.conta&&met.conta.username)||"",seguidores:(met.conta&&met.conta.seguidores)||0,bio:""},periodo_dias:90,total_posts:o.total_posts,taxa_media:o.taxa_media,videos:ord.slice(0,12),piores:ord.slice(-3).reverse().filter(function(x){return ord.indexOf(x)>=12;}),publico:{},comentarios:[]};
-}
-function adsDoReportei(met){
-  var a=met&&met.anuncios&&met.anuncios.p90;if(!a||!(a.anuncios||[]).length)return null;
-  var r30={};((met.anuncios.p30&&met.anuncios.p30.anuncios)||[]).forEach(function(x){r30[x.id]=x.resultados;});
-  var l=a.anuncios.map(function(x){return Object.assign({},x,{resultados_30d:r30[x.id]||0});}).sort(function(x,y){return (y.resultados-x.resultados)||(y.gasto-x.gasto);});
-  return {conta:{nome:met.anuncios.conta},periodo_dias:90,tipo_resultado:a.tipo_resultado==="resultados"?"resultados da campanha":a.tipo_resultado,totais:a.totais,medias:a.medias,anuncios:l.slice(0,12),piores:l.slice(12).slice(-3).reverse(),segmentos:[]};
-}
-
 initAdmin();
 </script>
 </body>

@@ -14,6 +14,7 @@
 const { validarAdmin, banco, criptografar, auditar } = require("./_seguranca.js");
 const { PLATAFORMAS, ErroConnect, connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
 const { atualizarLoja } = require("./_coleta.js");
+const { analisarLoja } = require("./_time-agentes.js");
 
 // ---------- rotas ----------
 module.exports = async function handler(req, res) {
@@ -88,6 +89,14 @@ module.exports = async function handler(req, res) {
             const r = await atualizarLoja(b.user_id);
             await auditar(admin.id, "atualizou os numeros da loja", b.user_id);
             return res.status(200).json(Object.assign({ ok: true }, r));
+        }
+
+        // roda agora o time de agentes da loja (organico, anuncios, publico e diretor)
+        if (b.acao === "analisar") {
+            if (!b.user_id) throw new ErroConnect(400, { message: "Informe a loja." });
+            const r = await analisarLoja(b.user_id, "manual");
+            await auditar(admin.id, "rodou o time de agentes da loja", b.user_id);
+            return res.status(200).json(r);
         }
 
         return res.status(400).json({ error: "Acao desconhecida" });

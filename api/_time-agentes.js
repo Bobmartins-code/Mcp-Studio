@@ -1,0 +1,291 @@
+// =====================================================================
+//  TIME DE AGENTES (roda no servidor, sozinho)
+//  Estuda os numeros reais de UMA loja (que chegam do Reportei a cada
+//  5 minutos em contas_meta.metricas) e entrega o dossie da conta que o
+//  Agente MCP (api/_agente-mcp.js) usa em todos os roteiros.
+//
+//  1. Agente Organico e Agente de Anuncios analisam ao mesmo tempo
+//  2. Agente de Publico monta o retrato do publico com o que eles acharam
+//  3. Diretor junta tudo no dossie (com uma orientacao por metodo)
+//
+//  Cada loja aprende so com os proprios dados: nada passa de uma loja
+//  para outra. Chamado pela atualizacao automatica (api/atualizar.js) e
+//  pelo botao "Analisar" do painel admin (api/connect.js).
+//  Fica em /api com "_" no nome: nao vira rota publica.
+// =====================================================================
+
+const crypto = require("crypto");
+const { banco } = require("./_seguranca.js");
+const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
+const { blocoDaResposta, diaSP, assinaturaDe } = require("./_coleta.js");
+const { transcreverReel } = require("./_transcricao.js");
+const { METODOS } = require("./_agente-mcp.js");
+
+const MODELO = "claude-sonnet-5";
+const VERSAO = 2;
+const NICHOS = ["moda feminina", "moda masculina", "moda infantil", "moda fitness", "lingerie e moda intima", "calcados", "bolsas e acessorios", "joias e bijuterias", "beleza e cosmeticos", "saude e suplementos", "casa e decoracao", "alimentos e doces", "pet", "servicos", "cursos e infoprodutos", "outros"];
+
+// quando o time volta a analisar uma loja
+const DIA_MS = 24 * 3600 * 1000;
+const NOVIDADE_MS = 2 * 3600 * 1000;     // entrou post ou anuncio novo: analisa de novo, no maximo a cada 2 horas
+const TRAVADA_MS = 10 * 60 * 1000;       // "Analisando" ha mais que isso e considerado travado
+
+const SISTEMA_TIME = `
+QUEM VOCES SAO
+Voces sao o time de analistas do MCP Studio. Voces estudam os dados reais de UMA loja brasileira (Instagram e anuncios da Meta dos ultimos 90 dias) para que o Agente MCP escreva roteiros de Reels que dao resultado para ela.
+
+REGRAS
+- Use so os dados desta loja que vierem na mensagem. Nunca invente numero, depoimento, produto ou publico. Se faltar dado para uma conclusao, diga que falta em vez de chutar.
+- Cada conclusao precisa se apoiar no que os dados mostram (exemplo: os 3 Reels acima da media abrem com uma pergunta direta).
+- Com poucos dados (menos de 5 posts ou anuncios), seja cauteloso, marque a confianca como baixa e diga isso no resumo.
+- Seja especifico desta loja. Frases genericas como conteudo de valor ou engaje seu publico sao proibidas.
+- Escreva em portugues do Brasil com acentuacao correta, frases curtas e linguagem simples de dona de loja. Nunca use travessao. Sem cliches de IA.
+- Quem le os resumos e a propria dona da loja, no celular. Nao use siglas como CTR, CPC ou ROAS sem explicar em palavras.
+- Nunca use etiquetas de acao para anuncios como Escalar, Manter ou Otimizar.
+
+COMO MEDIMOS RESULTADO
+- Organico: engajamento (curtidas, comentarios, salvamentos) e compartilhamentos, com compartilhamento valendo o dobro, sempre em relacao ao alcance. O indice compara cada post com a media da propria conta: 1,0 e na media, 2,0 e o dobro. Posts dos ultimos 30 dias pesam mais que os 60 dias anteriores.
+- Anuncios: resultado e venda. Se a loja nao tem pixel e vende pelo WhatsApp ou Direct, resultado sao as conversas iniciadas. Quando as campanhas tem objetivos diferentes (alcance, visitas ao perfil, cliques), compare cada anuncio so com os de mesmo objetivo e nunca some objetivos diferentes.
+- Taxa de gancho = quem assistiu 3 segundos dividido pelas impressoes (forca do gancho). Retencao = quem assistiu ate o fim dividido por quem assistiu 3 segundos (forca do corpo). Taxa de clique = cliques dividido pelas impressoes (forca da chamada).
+`.trim();
+
+// ---------- esquemas das respostas (a API garante o formato) ----------
+const lista = { type: "array", items: { type: "string" } };
+const confianca = { type: "string", enum: ["baixa", "media", "alta"] };
+function objeto(props) { return { type: "object", properties: props, required: Object.keys(props), additionalProperties: false }; }
+
+const ESQ_ORGANICO = objeto({ resumo: { type: "string" }, o_que_funciona: lista, ganchos_que_funcionam: lista, temas: lista, formatos: lista, evitar: lista, confianca: confianca });
+const ESQ_ANUNCIOS = objeto({ resumo: { type: "string" }, o_que_vende: lista, ganchos_que_convertem: lista, argumentos_e_ofertas: lista, ctas: lista, diagnostico_dos_fracos: lista, confianca: confianca });
+const ESQ_PUBLICO = objeto({ resumo: { type: "string" }, quem_e: { type: "string" }, idade_genero: { type: "string" }, regioes: { type: "string" }, quem_compra: { type: "string" }, dores: lista, desejos: lista, objecoes: lista, expressoes_reais: lista, confianca: confianca });
+const ESQ_DIRETOR = objeto({
+    texto: { type: "string" },
+    resumo_loja: { type: "string" },
+    por_metodo: objeto({ fftopo: { type: "string" }, ffmeio: { type: "string" }, fffundo: { type: "string" }, dsb: { type: "string" }, angulo: { type: "string" } }),
+    nicho: { type: "string", enum: NICHOS }
+});
+
+// ---------- chamada da IA ----------
+function espera(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+// garantia final: troca qualquer travessao que escape por virgula (mesma regra do api/generate.js)
+function semTravessao(v) {
+    if (typeof v === "string") return v.replace(/,?[ \t]*[—–][ \t]*/g, ", ");
+    if (Array.isArray(v)) return v.map(semTravessao);
+    if (v && typeof v === "object") { const o = {}; Object.keys(v).forEach(function (k) { o[k] = semTravessao(v[k]); }); return o; }
+    return v;
+}
+
+async function perguntar(nome, pedido, esquema) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY nao configurada no Vercel.");
+    const corpo = {
+        model: MODELO,
+        max_tokens: 12000,
+        system: [{ type: "text", text: SISTEMA_TIME, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: pedido }],
+        output_config: { effort: "medium", format: { type: "json_schema", schema: esquema } }
+    };
+    for (let t = 0; t < 3; t++) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(function () { ctrl.abort(); }, 120000);
+        let r;
+        try {
+            r = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+                body: JSON.stringify(corpo),
+                signal: ctrl.signal
+            });
+        } catch (e) {
+            clearTimeout(timer);
+            if (t < 2) { await espera(1500 * (t + 1)); continue; }
+            throw new Error(nome + ": " + (e.name === "AbortError" ? "a IA demorou demais" : "falha de rede"));
+        }
+        clearTimeout(timer);
+        const d = await r.json().catch(function () { return {}; });
+        // 429, 529 e 5xx podem passar na proxima tentativa
+        if ((r.status === 429 || r.status >= 500) && t < 2) { await espera(2000 * (t + 1)); continue; }
+        if (!r.ok) throw new Error(nome + ": " + ((d.error && d.error.message) || ("erro " + r.status)));
+        if (d.stop_reason === "refusal") throw new Error(nome + ": a IA recusou o pedido");
+        if (d.stop_reason === "max_tokens") throw new Error(nome + ": resposta cortada");
+        const bloco = (d.content || []).find(function (b) { return b.type === "text"; });
+        if (!bloco) throw new Error(nome + ": resposta vazia");
+        return semTravessao(JSON.parse(bloco.text));
+    }
+}
+
+// ---------- preparo dos dados para cada agente ----------
+function arred(n, c) { const f = Math.pow(10, c || 0); return Math.round((n || 0) * f) / f; }
+function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n) + "..." : t; }
+function brl(n) { return "R$ " + arred(n, 2).toFixed(2).replace(".", ","); }
+
+function postsDaLoja(met) {
+    const posts = (met && met.organico && met.organico.posts) || [];
+    const desde30 = Date.now() - 30 * 864e5;
+    const peso = function (p) { return (p.indice || 0) * (p.recente ? 1.3 : 1); };
+    const ord = posts.filter(function (p) { return p.alcance > 0; })
+        .map(function (p) { return Object.assign({}, p, { recente: !!(p.data && new Date(p.data).getTime() >= desde30) }); })
+        .sort(function (a, b) { return peso(b) - peso(a); });
+    // conta pequena: manda tudo; conta grande: os 15 melhores e os 5 piores
+    return ord.length <= 20 ? ord : ord.slice(0, 15).concat(ord.slice(-5));
+}
+function linhaPost(p, i) {
+    return (i + 1) + ") " + (p.tipo || "Post") + " de " + String(p.data || "").slice(0, 10) + (p.recente ? " (ultimos 30 dias)" : "") +
+        " | " + String(arred(p.indice, 2)).replace(".", ",") + "x a media | alcance " + p.alcance + " | visualizacoes " + (p.visualizacoes || 0) +
+        " | curtidas " + p.curtidas + " | comentarios " + p.comentarios + " | salvamentos " + p.salvamentos + " | compartilhamentos " + p.compartilhamentos +
+        " | legenda: " + corta(p.legenda, 300) + (p.transcricao ? " | FALA DO VIDEO: " + corta(p.transcricao, 700) : "");
+}
+
+function anunciosDaLoja(met) {
+    const a90 = met && met.anuncios && met.anuncios.p90;
+    if (!a90 || !(a90.anuncios || []).length) return null;
+    const r30 = {};
+    ((met.anuncios.p30 && met.anuncios.p30.anuncios) || []).forEach(function (x) { r30[x.id] = x.resultados; });
+    return { tipo: a90.tipo_resultado, totais: a90.totais || {}, medias: a90.medias || {}, lista: a90.anuncios.slice(0, 25).map(function (x) { return Object.assign({}, x, { resultados_30d: r30[x.id] || 0 }); }) };
+}
+function nomeResultado(tipo, a) {
+    if (tipo === "vendas") return "compras";
+    if (tipo === "conversas") return "conversas";
+    return (a && a.res_nome && a.res_nome[1]) || "resultados da campanha";
+}
+function linhaAnuncio(tipo, a, i) {
+    return (i + 1) + ") " + corta(a.nome, 140) + " | objetivo medido: " + nomeResultado(tipo, a) + " | investido " + brl(a.gasto) +
+        " | resultados em 90 dias " + a.resultados + " (ultimos 30 dias: " + a.resultados_30d + ")" +
+        (a.custo_por_resultado ? " | custo por resultado " + brl(a.custo_por_resultado) : "") +
+        (a.taxa_gancho != null ? " | taxa de gancho " + a.taxa_gancho + "%" : "") + (a.retencao != null ? " | retencao " + a.retencao + "%" : "") +
+        (a.ctr != null ? " | taxa de clique " + a.ctr + "%" : "") + (a.compras ? " | compras " + a.compras : "") + (a.conversas ? " | conversas " + a.conversas : "") +
+        (a.diagnostico ? " | " + a.diagnostico : "") + (a.transcricao ? " | FALA DO VIDEO: " + corta(a.transcricao, 700) : "");
+}
+
+// idade, genero e cidades de quem segue (Reportei), uma vez por analise
+async function publicoDoReportei(userId) {
+    try {
+        const cli = await clienteDoUsuario(userId);
+        const ints = await integracoesDoCliente(cli);
+        const ig = ints.find(function (i) { return i.plataforma === "instagram_business" && i.status === "active"; }) || ints.find(function (i) { return i.plataforma === "instagram_business"; });
+        if (!ig) return null;
+        const fim = diaSP(new Date()), inicio = diaSP(new Date(Date.now() - 29 * 864e5));
+        const pedidos = {
+            idade_genero: { reference_key: "ig:followers_gender_age", component: "chart_v1", metrics: ["followers"], dimensions: ["age", "gender"] },
+            cidades: { reference_key: "ig:followers_city", component: "datatable_v1", metrics: ["followers"], dimensions: ["city"], sort: ["-followers"] }
+        };
+        const out = {};
+        await Promise.all(Object.keys(pedidos).map(async function (k) {
+            const w = Object.assign({ id: crypto.randomUUID() }, pedidos[k]);
+            try {
+                const d = await connect("/metrics/get-data", { method: "POST", customerToken: cli.api_token, timeout: 60000, body: { customer_integration: ig.uuid, start: inicio, end: fim, client_timezone: "America/Sao_Paulo", metrics: [w] } });
+                const b = blocoDaResposta(d, w.id);
+                if (!b || b.warning) return;
+                const v = k === "cidades" && Array.isArray(b.values) ? { values: b.values.slice(0, 10) } : b;
+                out[k] = JSON.stringify(v).slice(0, 1500);
+            } catch (e) { /* sem esse dado o agente de publico segue com o resto */ }
+        }));
+        return Object.keys(out).length ? out : null;
+    } catch (e) { return null; }
+}
+
+// transcreve a fala dos melhores Reels (guarda as que ja foram feitas para nao repetir)
+async function transcreverVencedores(posts, anteriores) {
+    const falas = {};
+    posts.forEach(function (p) { if (anteriores[p.id]) falas[p.id] = anteriores[p.id]; });
+    const alvos = posts.filter(function (p) { return p.tipo === "Reels" && p.link && !falas[p.id] && (p.indice || 0) >= 1; }).slice(0, 3);
+    const tarefas = alvos.map(async function (p) { try { falas[p.id] = await transcreverReel(p.link); } catch (e) { /* o Instagram pode bloquear: segue sem a fala */ } });
+    await Promise.race([Promise.all(tarefas), espera(45000)]);
+    return Object.assign({}, falas);
+}
+
+// ---------- a analise completa de uma loja ----------
+async function analisarLoja(userId, motivo) {
+    const id = encodeURIComponent(userId);
+    const [contas, lojas, projetos] = await Promise.all([
+        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie"),
+        banco("lojas?user_id=eq." + id + "&select=nome,nicho,site").catch(function () { return []; }),
+        banco("projetos?user_id=eq." + id + "&select=nome,form&order=criado_em.desc&limit=5").catch(function () { return []; })
+    ]);
+    const conta = (contas && contas[0]) || {};
+    const met = conta.metricas;
+    const anterior = conta.dossie || {};
+    const postsTodos = (met && met.organico && met.organico.posts) || [];
+    const ads = anunciosDaLoja(met);
+    if (!postsTodos.length && !ads) throw new Error("Ainda nao ha numeros desta loja. Conecte o Instagram e os anuncios e atualize os dados.");
+
+    await marcar(userId, "Analisando");
+    try {
+        const loja = (lojas && lojas[0]) || {};
+        const produtos = (projetos || []).map(function (p) { return corta((p.form && p.form.produto) || p.nome, 200); }).filter(Boolean).slice(0, 5);
+        const sobreLoja = "LOJA: " + (loja.nome || "sem nome") + (loja.nicho ? " | nicho informado: " + loja.nicho : "") + (loja.site ? " | site: " + loja.site : "") +
+            (met.conta && met.conta.username ? " | Instagram @" + met.conta.username : "") + (met.conta && met.conta.seguidores ? " | " + met.conta.seguidores + " seguidores" : "") +
+            (produtos.length ? "\nPRODUTOS DOS ULTIMOS PROJETOS DE ROTEIRO: " + produtos.join(" | ") : "");
+
+        // 1) fala dos videos vencedores + publico do Reportei, enquanto nada depende deles
+        const falasAntes = {};
+        ((anterior.organico && anterior.organico.videos) || []).forEach(function (v) { if (v.id && v.transcricao) falasAntes[v.id] = v.transcricao; });
+        const selecionados = postsDaLoja(met);
+        const [falas, seguidores] = await Promise.all([transcreverVencedores(selecionados, falasAntes), publicoDoReportei(userId)]);
+        const posts = selecionados.map(function (p) { return falas[p.id] ? Object.assign({}, p, { transcricao: falas[p.id] }) : p; });
+
+        // 2) Agente Organico e Agente de Anuncios, ao mesmo tempo
+        const pOrg = posts.length ? perguntar("Agente Organico",
+            "Voce e o AGENTE ORGANICO. Estude os posts do Instagram desta loja nos ultimos 90 dias, ordenados do melhor para o pior pelo indice (com peso maior para os ultimos 30 dias). Descubra o que os posts acima da media tem em comum (gancho, formato, assunto, tamanho, fala) e o que os abaixo da media fazem diferente. Em ganchos_que_funcionam, traga os ganchos reais dos melhores posts (da legenda ou da fala), reescritos de forma curta. Em resumo, 2 frases para a dona da loja.\n\n" +
+            sobreLoja + "\nTOTAL DE POSTS NOS 90 DIAS: " + postsTodos.length + " | taxa media de engajamento da conta: " + ((met.organico && met.organico.taxa_media) || 0) + "%\nPOSTS:\n" + posts.map(linhaPost).join("\n"),
+            ESQ_ORGANICO) : Promise.resolve(null);
+        const tipoTxt = !ads ? "" : ads.tipo === "vendas" ? "compras (a loja tem pixel)" : ads.tipo === "conversas" ? "conversas iniciadas no WhatsApp ou Direct (a loja vende por conversa)" : (ads.totais.misto ? "cada campanha tem o proprio objetivo (veja objetivo medido em cada anuncio); compare so anuncios de mesmo objetivo" : "o objetivo da campanha, indicado em cada anuncio");
+        const pAds = ads ? perguntar("Agente de Anuncios",
+            "Voce e o AGENTE DE ANUNCIOS. Estude os anuncios desta loja nos ultimos 90 dias. O Reportei nao traz o texto nem o video dos anuncios, so o nome (que costuma descrever o video) e os numeros. Descubra o que os anuncios que mais dao resultado tem em comum (gancho, assunto, argumento, oferta, chamada) e onde os fracos perdem gente (no gancho, no corpo ou na chamada). Em resumo, 2 frases para a dona da loja.\n\n" +
+            sobreLoja + "\nRESULTADO = " + tipoTxt + "\nTOTAIS 90 DIAS: investido " + brl(ads.totais.gasto) + " | alcance " + (ads.totais.alcance || 0) + " | cliques " + (ads.totais.cliques || 0) +
+            (ads.tipo !== "resultados" ? " | " + ads.totais.resultados + " " + nomeResultado(ads.tipo) : "") +
+            "\nMEDIAS DA CONTA: taxa de gancho " + (ads.medias.taxa_gancho || 0) + "% | retencao " + (ads.medias.retencao || 0) + "% | taxa de clique " + (ads.medias.ctr || 0) + "%\nANUNCIOS (do que mais deu resultado para o que menos deu):\n" +
+            ads.lista.map(function (a, i) { return linhaAnuncio(ads.tipo, a, i); }).join("\n"),
+            ESQ_ANUNCIOS) : Promise.resolve(null);
+        const [relOrg, relAds] = await Promise.all([pOrg, pAds]);
+
+        // 3) Agente de Publico, com o que os outros dois descobriram
+        const relPub = await perguntar("Agente de Publico",
+            "Voce e o AGENTE DE PUBLICO. Monte o retrato de quem e o publico desta loja: quem e, idade e genero, regioes, quem mais compra, dores, desejos, objecoes e as expressoes reais que esse publico usa. Use os dados de seguidores, as legendas e falas dos posts que mais funcionaram e o que os outros agentes descobriram. Em expressoes_reais, so frases que aparecem de fato nas legendas ou falas; se nao houver, deixe a lista vazia. Em resumo, 2 frases para a dona da loja.\n\n" +
+            sobreLoja + "\nSEGUIDORES POR IDADE E GENERO: " + ((seguidores && seguidores.idade_genero) || "nao disponivel") + "\nCIDADES DOS SEGUIDORES: " + ((seguidores && seguidores.cidades) || "nao disponivel") +
+            "\nLEGENDAS E FALAS DOS MELHORES POSTS:\n" + (posts.slice(0, 6).map(function (p, i) { return (i + 1) + ") " + corta(p.legenda, 250) + (p.transcricao ? " | fala: " + corta(p.transcricao, 500) : ""); }).join("\n") || "nenhum") +
+            "\nRELATORIO DO AGENTE ORGANICO: " + JSON.stringify(relOrg) + "\nRELATORIO DO AGENTE DE ANUNCIOS: " + JSON.stringify(relAds),
+            ESQ_PUBLICO);
+
+        // 4) Diretor: o dossie que o Agente MCP le em cada roteiro
+        const dir = await perguntar("Diretor",
+            "Voce e o DIRETOR do time. Junte os relatorios num dossie para o Agente MCP, que escreve os roteiros desta loja.\n" +
+            "- texto: ate 1400 caracteres, denso e especifico, para o Agente MCP: quem e o publico e como fala, o que funciona no organico, o que da resultado nos anuncios, de 3 a 5 ganchos modelo no estilo do que ja funcionou nesta conta e o que evitar.\n" +
+            "- resumo_loja: 2 ou 3 frases curtas para a dona da loja ler no celular, sem jargao: o que mais tem dado certo e o que gravar a seguir.\n" +
+            "- por_metodo: para cada um dos 5 metodos abaixo, 1 ou 2 frases de como aplicar nesta loja com base nos dados (fftopo = Full Funnel Topo, ffmeio = Full Funnel Meio, fffundo = Full Funnel Fundo, dsb = DSB, angulo = Angulo).\n" +
+            "- nicho: o nicho desta loja.\n\n" + METODOS.trim() + "\n\n" + sobreLoja +
+            "\nRELATORIO ORGANICO: " + JSON.stringify(relOrg) + "\nRELATORIO DE ANUNCIOS: " + JSON.stringify(relAds) + "\nRELATORIO DE PUBLICO: " + JSON.stringify(relPub),
+            ESQ_DIRETOR);
+
+        const dossie = {
+            versao: VERSAO, periodo_dias: 90, gerado_em: new Date().toISOString(), motivo: motivo || "manual",
+            assinatura: met.assinatura || assinaturaDe(met), modelo: MODELO,
+            texto: dir.texto, resumo_loja: dir.resumo_loja, por_metodo: dir.por_metodo, nicho: dir.nicho,
+            organico: relOrg ? { relatorio: relOrg, total_posts: postsTodos.length, videos: posts.filter(function (p) { return p.transcricao; }).map(function (p) { return { id: p.id, link: p.link, legenda: corta(p.legenda, 80), transcricao: p.transcricao }; }) } : null,
+            anuncios: ads ? { relatorio: relAds, tipo_resultado: ads.tipo, total: ads.lista.length } : null,
+            publico: relPub
+        };
+        await banco("contas_meta", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: { user_id: userId, dossie: dossie, status: "Analisada", atualizado_em: dossie.gerado_em } });
+        return { ok: true, posts: posts.length, anuncios: ads ? ads.lista.length : 0, falas: Object.keys(falas).length, nicho: dossie.nicho };
+    } catch (e) {
+        await marcar(userId, "Erro na analise: " + corta(e && e.message, 160)).catch(function () {});
+        throw e;
+    }
+}
+
+function marcar(userId, status) {
+    return banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { status: status, atualizado_em: new Date().toISOString() } });
+}
+
+// A loja precisa de uma analise nova? (linha de contas_meta com os campos do filtro em api/atualizar.js)
+function precisaAnalisar(c, agora) {
+    if (!c || !c.assinatura) return false;                                   // sem numeros ainda
+    const desde = c.atualizado_em ? agora - new Date(c.atualizado_em).getTime() : Infinity;
+    if (c.status === "Analisando" && desde < TRAVADA_MS) return false;       // ja tem uma rodando
+    if (/^Erro/.test(c.status || "") && desde < NOVIDADE_MS) return false;   // deu erro: espera antes de tentar de novo
+    if (String(c.dossie_versao) !== String(VERSAO) || !c.dossie_em) return true; // nunca analisada neste formato
+    const idade = agora - new Date(c.dossie_em).getTime();
+    if (idade >= DIA_MS) return true;
+    return c.assinatura !== c.dossie_assinatura && idade >= NOVIDADE_MS;
+}
+
+module.exports = { analisarLoja, precisaAnalisar, VERSAO, _interno: { postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, ESQ_DIRETOR, SISTEMA_TIME } };

@@ -328,6 +328,15 @@ async function coletarAnuncios(cli, fb, avisos) {
     return out;
 }
 
+// "impressao digital" dos posts e anuncios: muda quando entra um post ou anuncio novo
+// (o time de agentes usa para saber se vale analisar de novo)
+function assinaturaDe(met) {
+    const ids = [];
+    ((met && met.organico && met.organico.posts) || []).forEach(function (p) { ids.push("p:" + p.id); });
+    ((met && met.anuncios && met.anuncios.p90 && met.anuncios.p90.anuncios) || []).forEach(function (a) { ids.push("a:" + a.id); });
+    return ids.length ? crypto.createHash("sha1").update(ids.sort().join("|")).digest("hex").slice(0, 16) : "";
+}
+
 // ---------- coleta completa de uma loja ----------
 async function coletarLoja(userId) {
     const cli = await clienteDoUsuario(userId);
@@ -342,11 +351,13 @@ async function coletarLoja(userId) {
     ]);
     if (!ig) avisos.push("Nenhum Instagram conectado no Reportei.");
     if (!fb) avisos.push("Nenhuma conta de anuncios conectada no Reportei.");
-    return {
+    const met = {
         versao: 1, fonte: "reportei", atualizado_em: new Date().toISOString(),
         conta: { username: ig ? ig.nome : null, seguidores: org ? org.conta.seguidores : null, anuncios: fb ? fb.nome : null },
         organico: org, anuncios: ads, avisos: avisos
     };
+    met.assinatura = assinaturaDe(met);
+    return met;
 }
 
 // resumo do dia para o historico (mostrar se subiu ou caiu)
@@ -389,4 +400,4 @@ async function atualizarLoja(userId) {
     return resumoDaColeta(met);
 }
 
-module.exports = { coletarLoja, salvarMetricas, atualizarLoja, resumoDaColeta, numero, _interno: { numero, linhasDaTabela, montarAnuncios, textoDe, imagemDe, linkDe, dataDe, tipoDe } };
+module.exports = { coletarLoja, salvarMetricas, atualizarLoja, resumoDaColeta, numero, assinaturaDe, blocoDaResposta, diaSP, _interno: { numero, linhasDaTabela, montarAnuncios, textoDe, imagemDe, linkDe, dataDe, tipoDe } };
