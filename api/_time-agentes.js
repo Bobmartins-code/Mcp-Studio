@@ -236,6 +236,7 @@ function pedidoIdeias(o) {
         "REGRAS\n" +
         "- Cada ideia nasce dos dados desta loja; em por_que, diga de onde veio em uma frase. Sem evidência, não sugira.\n" +
         "- Use o jeito de falar das seguidoras nos títulos e nos textos de tela.\n" +
+        "- Nunca use estatística, porcentagem ou número que não esteja escrito nos dados desta loja (legendas, falas, comentários ou números). Na dúvida, escreva a ideia sem o número.\n" +
         "- Nunca invente produto, preço, promoção ou depoimento. Se a ideia depender de uma peça, diga o tipo de peça (um vestido de festa da loja), sem inventar um produto.\n" +
         "- Não repita as ideias já sugeridas nem as já gravadas listadas abaixo. Evite o estilo das que a dona não curtiu.\n" +
         "- Títulos curtos. Português do Brasil com acentuação completa, sem travessão, sem jargão.\n\n" +
