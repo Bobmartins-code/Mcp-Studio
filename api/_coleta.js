@@ -328,6 +328,30 @@ async function coletarAnuncios(cli, fb, avisos) {
     return out;
 }
 
+// O Reportei nao manda a imagem dos anuncios. Anuncio feito a partir de um Reels leva no nome
+// a primeira frase da legenda ("[Reels] - Antes de comprar, muita gente..."), entao a capa
+// e o link vem do post organico correspondente. Anuncio subido direto no Gerenciador fica sem capa.
+function chaveTexto(t) {
+    return String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+        .replace(/^\s*\[[^\]]*\]\s*[-\u2013\u2014:|]*\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function vincularCapas(org, ads) {
+    if (!org || !ads) return;
+    const posts = (org.posts || []).map(function (p) { return { p: p, k: chaveTexto(p.legenda) }; }).filter(function (x) { return x.k; });
+    ["p7", "p30", "p90"].forEach(function (per) {
+        ((ads[per] && ads[per].anuncios) || []).forEach(function (a) {
+            if (a.miniatura) return;
+            const k = chaveTexto(a.nome).slice(0, 50);
+            if (k.length < 15) return;
+            const x = posts.find(function (x) { return x.k.indexOf(k) === 0; });
+            if (!x) return;
+            a.miniatura = x.p.miniatura || "";
+            a.post_link = x.p.link || "";
+            a.post_id = x.p.id;
+        });
+    });
+}
+
 // "impressao digital" dos posts e anuncios: muda quando entra um post ou anuncio novo
 // (o time de agentes usa para saber se vale analisar de novo)
 function assinaturaDe(met) {
@@ -349,6 +373,7 @@ async function coletarLoja(userId) {
         ig ? coletarOrganico(cli, ig, inicio90, fim, avisos).catch(function (e) { avisos.push("Instagram: " + e.message); return null; }) : null,
         fb ? coletarAnuncios(cli, fb, avisos).catch(function (e) { avisos.push("Anuncios: " + e.message); return null; }) : null
     ]);
+    vincularCapas(org, ads);
     if (!ig) avisos.push("Nenhum Instagram conectado no Reportei.");
     if (!fb) avisos.push("Nenhuma conta de anuncios conectada no Reportei.");
     const met = {
@@ -400,4 +425,4 @@ async function atualizarLoja(userId) {
     return resumoDaColeta(met);
 }
 
-module.exports = { coletarLoja, salvarMetricas, atualizarLoja, resumoDaColeta, numero, assinaturaDe, blocoDaResposta, diaSP, _interno: { numero, linhasDaTabela, montarAnuncios, textoDe, imagemDe, linkDe, dataDe, tipoDe } };
+module.exports = { coletarLoja, salvarMetricas, atualizarLoja, resumoDaColeta, numero, assinaturaDe, blocoDaResposta, diaSP, _interno: { numero, chaveTexto, vincularCapas, linhasDaTabela, montarAnuncios, textoDe, imagemDe, linkDe, dataDe, tipoDe } };
