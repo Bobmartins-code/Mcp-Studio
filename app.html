@@ -1110,10 +1110,11 @@ function App(){
     var todos=dl.posts||[],comData=todos.some(function(p){return p.data;});
     var lista=comData?postsDoPeriodo(dl,periodo):todos;
     // mais engajamento = curtidas, comentarios, salvos e compartilhamentos (valendo dobrado) em relacao a quem viu, comparado com a media da conta
-    var ord={vistos:function(a,b){return (b.visualizacoes||0)-(a.visualizacoes||0);},engaj:function(a,b){return (b.indice||0)-(a.indice||0)||(b.taxa||0)-(a.taxa||0);},compart:function(a,b){return (b.compartilhamentos||0)-(a.compartilhamentos||0);},recentes:function(a,b){return String(b.data||"").localeCompare(String(a.data||""));}};
+    var ord={vistos:function(a,b){return (b.visualizacoes||0)-(a.visualizacoes||0);},engaj:function(a,b){return (b.indice||0)-(a.indice||0)||(b.taxa||0)-(a.taxa||0);},
+      tempo:function(a,b){return (b.tempo_medio_s||0)-(a.tempo_medio_s||0);},gancho:function(a,b){return (b.retencao_3s==null?-1:b.retencao_3s)-(a.retencao_3s==null?-1:a.retencao_3s);},compart:function(a,b){return (b.compartilhamentos||0)-(a.compartilhamentos||0);},recentes:function(a,b){return String(b.data||"").localeCompare(String(a.data||""));}};
     lista=lista.slice().sort(ord[ordemOrg]||ord.vistos);
     return ce("div",null,
-      ce("div",{className:"chips rolar"},[{id:"vistos",lb:"Mais vistos"},{id:"engaj",lb:"Mais engajamento"},{id:"compart",lb:"Mais compartilhados"},{id:"recentes",lb:"Mais recentes"}].map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemOrg===o.id?" on":""),onClick:function(){setOrdemOrg(o.id);}},o.lb);})),
+      ce("div",{className:"chips rolar"},[{id:"vistos",lb:"Mais vistos"},{id:"engaj",lb:"Mais engajamento"},{id:"tempo",lb:"Mais tempo assistido",so:"tempo_medio_s"},{id:"gancho",lb:"Seguram nos 3 primeiros segundos",so:"retencao_3s"},{id:"compart",lb:"Mais compartilhados"},{id:"recentes",lb:"Mais recentes"}].filter(function(o){return !o.so||todos.some(function(p){return p[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemOrg===o.id?" on":""),onClick:function(){setOrdemOrg(o.id);}},o.lb);})),
       comData&&ce("div",{className:"chips"},chipsPeriodo(),ce("span",{style:{marginLeft:"auto",fontSize:12.5,color:"var(--mu2)"}},lista.length+(lista.length===1?" post":" posts"))),
       lista.length
         ?ce("div",{className:"igrid"},lista.map(function(p,i){return ce("button",{key:(p.id||p.link||"")+i,className:"itile",onClick:function(){setVideoSel({tipo:"org",item:p});},"aria-label":"Abrir post: "+String(p.legenda||p.tipo||"").substring(0,60)},
@@ -1121,7 +1122,9 @@ function App(){
           img(p.miniatura),ce("span",{className:"scr"}),
           p.tipo&&p.tipo!=="Reels"?ce("span",{className:"tp"},p.tipo):null,
           p.indice>=1.5?ce("span",{className:"ix"},fmtX(p.indice)):null,
-          ordemOrg==="engaj"&&p.taxa!=null?ce("span",{className:"vw"},String(p.taxa).replace(".",",")+"% engajamento"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));}))
+          ordemOrg==="engaj"&&p.taxa!=null?ce("span",{className:"vw"},String(p.taxa).replace(".",",")+"% engajamento"):
+          ordemOrg==="tempo"&&p.tempo_medio_s?ce("span",{className:"vw"},String(p.tempo_medio_s).replace(".",",")+" s assistidos"):
+          ordemOrg==="gancho"&&p.retencao_3s!=null?ce("span",{className:"vw"},String(p.retencao_3s).replace(".",",")+"% ficaram"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));}))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum post nos últimos "+periodo+" dias."+(periodo<90?" Tente 90 dias.":"")),
       lista.some(function(p){return p.indice>=1.5;})&&ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"2x"),"quantas vezes o post foi melhor que a média da sua conta")
     );
@@ -1181,6 +1184,7 @@ function App(){
       if(v.seguiram)linhas.push(["Começaram a seguir",numBR(v.seguiram)]);
       if(v.visitas_perfil)linhas.push(["Visitas ao perfil",numBR(v.visitas_perfil)]);
       if(v.tempo_medio_s)linhas.push(["Tempo médio assistido",String(v.tempo_medio_s).replace(".",",")+" s"]);
+      if(v.retencao_3s!=null)linhas.push(["Ficaram nos 3 primeiros segundos",String(v.retencao_3s).replace(".",",")+"%"]);
       return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:560}},topo,
         ce("div",{style:{display:"flex",gap:14,marginBottom:16}},
           ce("div",{className:"thumb",style:{width:96,height:128}},img(v.miniatura)),

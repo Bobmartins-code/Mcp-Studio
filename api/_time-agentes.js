@@ -46,6 +46,7 @@ REGRAS
 COMO MEDIMOS RESULTADO
 - Orgânico: engajamento (curtidas, comentários, salvamentos) e compartilhamentos, com compartilhamento valendo o dobro, sempre em relação ao alcance. O índice compara cada post com a média da própria conta: 1,0 é na média, 2,0 é o dobro. Posts dos últimos 30 dias pesam mais que os 60 dias anteriores.
 - Anúncios: resultado é venda. Se a loja não tem pixel e vende pelo WhatsApp ou Direct, resultado são as conversas iniciadas. Quando as campanhas têm objetivos diferentes (alcance, visitas ao perfil, cliques), compare cada anúncio só com os de mesmo objetivo e nunca some objetivos diferentes.
+- Ficaram nos 3 primeiros segundos (Reels, vem da Meta): quem não pulou o vídeo logo no começo. Mostra a força do gancho no orgânico.
 - Tempo médio assistido (Reels, vem da Meta): quantos segundos, em média, as pessoas assistem. Compare entre os Reels da própria loja: o que segura mais tempo mostra o assunto e o ritmo que prendem.
 - Taxa de gancho = quem assistiu 3 segundos dividido pelas impressões (força do gancho). Retenção = quem assistiu até o fim dividido por quem assistiu 3 segundos (força do corpo). Taxa de clique = cliques dividido pelas impressões (força da chamada).
 `.trim();
@@ -147,6 +148,7 @@ function linhaPost(p, i) {
     return (i + 1) + ") " + (p.tipo || "Post") + " de " + String(p.data || "").slice(0, 10) + (p.recente ? " (ultimos 30 dias)" : "") +
         " | " + String(arred(p.indice, 2)).replace(".", ",") + "x a media | alcance " + p.alcance + " | visualizacoes " + (p.visualizacoes || 0) +
         (p.tempo_medio_s ? " | tempo medio assistido " + String(p.tempo_medio_s).replace(".", ",") + " s" : "") +
+        (p.retencao_3s != null ? " | ficaram nos 3 primeiros segundos " + String(p.retencao_3s).replace(".", ",") + "%" : "") +
         " | curtidas " + p.curtidas + " | comentarios " + p.comentarios + " | salvamentos " + p.salvamentos + " | compartilhamentos " + p.compartilhamentos +
         " | legenda: " + corta(p.legenda, 300) + (p.transcricao ? " | FALA DO VIDEO: " + corta(p.transcricao, 700) : "");
 }

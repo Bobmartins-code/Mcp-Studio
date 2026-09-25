@@ -132,7 +132,7 @@ async function transcrever(url) {
 // met = contas_meta.metricas (numeros do Reportei); anterior = contas_meta.meta (o que ja veio da Meta)
 // Devolve o cache atualizado. Se a Meta nao estiver conectada ou estiver pausada, devolve o anterior.
 async function enriquecerLoja(met, anterior) {
-    const cache = { em: (anterior && anterior.em) || null, erro: (anterior && anterior.erro) || null, posts: Object.assign({}, anterior && anterior.posts), anuncios: Object.assign({}, anterior && anterior.anuncios) };
+    const cache = { em: (anterior && anterior.em) || null, erro: (anterior && anterior.erro) || null, sem_pulo: !!(anterior && anterior.sem_pulo), posts: Object.assign({}, anterior && anterior.posts), anuncios: Object.assign({}, anterior && anterior.anuncios) };
     const con = await conexao();
     if (!con || con.pausada) return { cache: cache, pendentes: [] };
     const token = con.token;
@@ -200,27 +200,42 @@ async function enriquecerLoja(met, anterior) {
         }
 
         // link oficial de cada post (1 consulta por post, uma vez so): o link que vem do Reportei pode apontar para outro post
-        for (const p of posts.filter(function (p) { return !(cache.posts[p.id] || {}).permalink; }).slice(0, 30)) {
+        for (const p of posts.filter(function (p) { return (cache.posts[p.id] || {}).permalink === undefined; }).slice(0, 30)) {
             if (sem.ig) break;
             try {
                 const d = await g("/" + p.id, { fields: "permalink" }, token);
-                if (d.permalink) post(p.id).permalink = d.permalink;
+                post(p.id).permalink = d.permalink || "";
             } catch (e) { falhou("link do post " + p.id, e, "ig"); }
         }
 
-        // 2) Reels: tempo medio assistido (1 consulta por Reels; recentes 1 vez por dia, antigos 1 vez so)
+        // 2) Reels: tempo medio assistido e taxa de pulo nos 3 primeiros segundos
+        //    (1 consulta por Reels; recentes 1 vez por dia, antigos 1 vez so; a taxa de pulo entrou na API em dez/2025)
         const reels = posts.filter(function (p) {
             if (p.tipo !== "Reels") return false;
             const c = cache.posts[p.id] || {};
             if (!c.ins_em) return true;
+            if (c.pulo_pct === undefined && !cache.sem_pulo) return true;
             return p.data && Date.now() - new Date(p.data).getTime() < REELS_RECENTE_MS && velho(c.ins_em, DIA_MS);
         }).slice(0, 15);
+        function valor(d, nome) {
+            const m = (d.data || []).find(function (x) { return x.name === nome; }) || {};
+            return m.total_value ? m.total_value.value : (m.values && m.values[0] ? m.values[0].value : null);
+        }
         for (const p of reels) {
             try {
-                const d = await g("/" + p.id + "/insights", { metric: "ig_reels_avg_watch_time" }, token);
-                const m = ((d.data || [])[0]) || {};
-                const ms = m.total_value ? num(m.total_value.value) : (m.values && m.values[0] ? num(m.values[0].value) : 0);
-                Object.assign(post(p.id), { tempo_medio_s: ms ? Math.round(ms / 100) / 10 : null, ins_em: agora });
+                let d = null;
+                if (!cache.sem_pulo) {
+                    try { d = await g("/" + p.id + "/insights", { metric: "ig_reels_avg_watch_time,reels_skip_rate" }, token); }
+                    catch (e) {
+                        // metrica que esta conta ou versao nao entrega: nao pede de novo
+                        if (e instanceof MetaPausada || semPermissao(e) || Number(e.meta && e.meta.code) !== 100) throw e;
+                        cache.sem_pulo = true;
+                    }
+                }
+                if (!d) d = await g("/" + p.id + "/insights", { metric: "ig_reels_avg_watch_time" }, token);
+                // a taxa de pulo pode vir como 0,25 ou 25
+                const ms = num(valor(d, "ig_reels_avg_watch_time")), pulo = valor(d, "reels_skip_rate");
+                Object.assign(post(p.id), { tempo_medio_s: ms ? Math.round(ms / 100) / 10 : null, pulo_pct: pulo == null ? null : Math.round((num(pulo) <= 1 ? num(pulo) * 100 : num(pulo)) * 10) / 10, ins_em: agora });
             } catch (e) { falhou("Instagram", e, "ig"); if (sem.ig) break; post(p.id).ins_em = agora; }
         }
 
@@ -300,6 +315,7 @@ function aplicarMeta(met, cache) {
         const c = cp[p.id]; if (!c) return;
         if (c.permalink) p.link = c.permalink;
         if (c.tempo_medio_s) p.tempo_medio_s = c.tempo_medio_s;
+        if (c.pulo_pct != null) p.retencao_3s = Math.round((100 - c.pulo_pct) * 10) / 10;
         if (c.transcricao) p.transcricao = c.transcricao;
     });
     ["p7", "p30", "p90"].forEach(function (per) {
