@@ -1,6 +1,6 @@
 // Agente MCP: o cerebro do agente (quem ele e, como escreve e os metodos) fica em api/_agente-mcp.js
 const { SISTEMA: AGENTE } = require("./_agente-mcp.js");
-const FORMATO = "Voce gera JSON puro sem markdown. REGRA CRITICA: NUNCA use aspas duplas dentro dos valores de texto. Use apenas aspas simples quando precisar de citacao dentro de um texto. Todo o JSON deve ser valido e parseable.";
+const FORMATO = "FORMATO DA RESPOSTA: quando o pedido for JSON, responda só com o JSON puro, sem markdown. Dentro dos textos, use aspas simples para citações, porque aspas duplas quebram o JSON e a cliente perde o resultado.";
 const SYSTEM = AGENTE + " " + FORMATO;
 // Garantia final: troca qualquer travessao que escape por virgula
 function semTravessao(t) { return typeof t === "string" ? t.replace(/,?[ \t]*[\u2014\u2013][ \t]*/g, ", ") : t; }

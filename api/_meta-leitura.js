@@ -318,7 +318,7 @@ function aplicarMeta(met, cache) {
         if (c.pulo_pct != null) p.retencao_3s = Math.round((100 - c.pulo_pct) * 10) / 10;
         if (c.transcricao) p.transcricao = c.transcricao;
     });
-    ["p7", "p30", "p90"].forEach(function (per) {
+    ["p7", "p30", "p90", "mes", "mes_ant"].forEach(function (per) {
         ((met.anuncios && met.anuncios[per] && met.anuncios[per].anuncios) || []).forEach(function (a) {
             const c = ca[a.id]; if (!c) return;
             if (c.miniatura) a.miniatura = c.miniatura;

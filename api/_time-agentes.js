@@ -227,6 +227,39 @@ function montarSobreLoja(loja, projetos, met) {
         (produtos.length ? "\nPRODUTOS DOS ULTIMOS PROJETOS DE ROTEIRO: " + produtos.join(" | ") : "");
 }
 
+// Voz da loja e biblioteca de ganchos: tirados direto dos dados (sem IA), para o roteirista
+// escrever como a dona fala e partir dos ganchos que comprovadamente prendem nesta conta
+function primeiraFrase(t) {
+    const txt = String(t || "").replace(/\s+/g, " ").trim();
+    if (!txt) return "";
+    const m = txt.match(/^(.{12,160}?[.!?])(\s|$)/);
+    const f = m ? m[1] : txt;
+    const palavras = f.split(" ");
+    return palavras.length > 22 ? palavras.slice(0, 22).join(" ") + "..." : f;
+}
+function vozEGanchos(met, comentarios) {
+    const posts = ((met && met.organico && met.organico.posts) || []).filter(function (p) { return p.alcance > 0; });
+    // voz: trechos da fala dos melhores videos (a dona falando de verdade)
+    const falas = posts.filter(function (p) { return p.transcricao; }).sort(function (a, b) { return (b.indice || 0) - (a.indice || 0); })
+        .map(function (p) { return corta(p.transcricao, 1400); }).filter(function (t, i, v) { return v.indexOf(t) === i; }).slice(0, 2);
+    // ganchos organicos: medidos pela taxa de pulo (ficaram nos 3 s) ou, sem ela, pelo indice
+    const comGancho = posts.map(function (p) { return { texto: primeiraFrase(p.transcricao) || primeiraFrase(p.legenda), ficaram: p.retencao_3s, tempo: p.tempo_medio_s, indice: p.indice, fonte: p.transcricao ? "fala" : "legenda" }; })
+        .filter(function (g) { return g.texto; });
+    const temRet = comGancho.some(function (g) { return g.ficaram != null; });
+    const ord = comGancho.slice().sort(function (a, b) { return temRet ? ((b.ficaram == null ? -1 : b.ficaram) - (a.ficaram == null ? -1 : a.ficaram)) : ((b.indice || 0) - (a.indice || 0)); });
+    const medidos = temRet ? ord.filter(function (g) { return g.ficaram != null; }) : ord;
+    // ganchos de anuncio: taxa de gancho (pararam 3 s / impressoes)
+    const ads = ((met && met.anuncios && met.anuncios.p90 && met.anuncios.p90.anuncios) || [])
+        .filter(function (a) { return a.taxa_gancho != null && (a.transcricao || a.texto || a.nome); })
+        .map(function (a) { return { texto: primeiraFrase(a.transcricao) || primeiraFrase(a.texto) || corta(String(a.nome).replace(/^\s*\[[^\]]*\]\s*[-–:|]*\s*/, ""), 120), gancho_anuncio: a.taxa_gancho, fonte: a.transcricao ? "fala" : a.texto ? "texto" : "nome" }; })
+        .sort(function (a, b) { return b.gancho_anuncio - a.gancho_anuncio; });
+    return {
+        voz: { falas: falas, comentarios: (comentarios || []).slice(0, 15) },
+        tempo_medio_conta: (function () { const t = posts.map(function (p) { return p.tempo_medio_s; }).filter(function (x) { return x > 0; }).sort(function (a, b) { return a - b; }); return t.length ? t[Math.floor(t.length / 2)] : null; })(),
+        ganchos: { medida: temRet ? "ficaram nos 3 primeiros segundos" : "engajamento em relação à média da conta", melhores: medidos.slice(0, 5), piores: medidos.length > 6 ? medidos.slice(-3).reverse() : [], anuncios: ads.slice(0, 4) }
+    };
+}
+
 // "Gerar mais ideias" pedido pela dona: so o Agente de Ideias, com o que o time ja estudou (sem nova analise)
 const MAX_LEVAS_DIA = 3;
 class ErroIdeias extends Error { constructor(status, msg) { super(msg); this.status = status; } }
@@ -392,6 +425,7 @@ async function analisarLoja(userId, motivo) {
             versao: VERSAO, periodo_dias: 90, gerado_em: new Date().toISOString(), motivo: motivo || "manual",
             assinatura: met.assinatura || assinaturaDe(met), modelo: MODELO,
             texto: dir.texto, resumo_loja: dir.resumo_loja, por_metodo: dir.por_metodo, nicho: dir.nicho,
+            ...vozEGanchos(met, comentarios),
             organico: relOrg ? { relatorio: relOrg, total_posts: postsTodos.length, videos: posts.filter(function (p) { return p.transcricao; }).map(function (p) { return { id: p.id, link: p.link, legenda: corta(p.legenda, 80), transcricao: p.transcricao }; }) } : null,
             anuncios: ads ? { relatorio: relAds, tipo_resultado: ads.tipo, total: ads.lista.length, com_texto: comTexto, anuncios: ads.lista.filter(function (a) { return a.transcricao; }).map(function (a) { return { id: a.id, nome: a.nome, transcricao: a.transcricao }; }) } : null,
             ideias: ideias ? Object.assign({ gerado_em: new Date().toISOString(), resumo: ideias.resumo, lista: ideias.ideias || [] }, (conta.dossie && conta.dossie.ideias && conta.dossie.ideias.levas_dia) ? { levas_dia: conta.dossie.ideias.levas_dia, levas: conta.dossie.ideias.levas } : {}) : ((conta.dossie && conta.dossie.ideias) || null),
@@ -426,4 +460,4 @@ function precisaAnalisar(c, agora) {
     return c.assinatura !== c.dossie_assinatura && idade >= NOVIDADE_MS;
 }
 
-module.exports = { analisarLoja, precisaAnalisar, gerarMaisIdeias, ErroIdeias, VERSAO, _interno: { postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, ESQ_DIRETOR, SISTEMA_TIME } };
+module.exports = { analisarLoja, precisaAnalisar, gerarMaisIdeias, ErroIdeias, VERSAO, _interno: { vozEGanchos, primeiraFrase, postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, ESQ_DIRETOR, SISTEMA_TIME } };

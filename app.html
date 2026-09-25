@@ -199,7 +199,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .arow:hover{background:rgba(255,255,255,.02)}
 .mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:16px}
 .mcell{background:var(--sur);border:1px solid var(--bo);border-radius:12px;padding:10px 12px;min-width:0}
-.mcell-l{font-size:11.5px;color:var(--mu2)}.mcell-v{font-weight:800;font-size:16px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcell-l{font-size:11.5px;color:var(--mu2)}.mcell-s{font-size:11.5px;color:var(--ac2);font-weight:700;margin-top:1px}.mcell-v{font-weight:800;font-size:16px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .back{display:inline-flex;align-items:center;gap:4px;background:none;border:none;color:var(--tx);font-size:15px;font-weight:600;cursor:pointer;padding:6px 0;font-family:inherit;margin-bottom:10px}
 .counters{display:flex;justify-content:space-around;background:var(--sur);border:1px solid var(--bo);border-radius:16px;padding:14px 6px;margin-bottom:16px}
 .counters div{display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:700;font-size:15px}
@@ -309,19 +309,24 @@ function dadosLoja(cm){
   else if(d.organico&&!(d.versao>=2))out.posts=d.organico.videos||[];
   if(met&&met.conta){if(met.conta.seguidores!=null)out.seguidores=met.conta.seguidores;out.username=met.conta.username||out.username;out.contaAds=met.conta.anuncios||out.contaAds;}
   if(out.seguidores==null&&d.organico&&d.organico.conta){out.seguidores=d.organico.conta.seguidores;out.username=out.username||d.organico.conta.username;}
-  if(met&&met.anuncios&&(met.anuncios.p90||met.anuncios.p30))out.ads={p7:met.anuncios.p7,p30:met.anuncios.p30,p90:met.anuncios.p90};
+  if(met&&met.anuncios&&(met.anuncios.p90||met.anuncios.p30))out.ads={p7:met.anuncios.p7,p30:met.anuncios.p30,p90:met.anuncios.p90,mes:met.anuncios.mes,mes_ant:met.anuncios.mes_ant};
   else if(d.anuncios&&!(d.versao>=2))out.ads={p90:{tipo_resultado:d.anuncios.tipo_resultado,totais:d.anuncios.totais,medias:d.anuncios.medias,anuncios:d.anuncios.anuncios||[]}};
   // a fala dos videos (transcrita pelo time de agentes) vem do dossie
   var falas={};
   ((d.organico&&d.organico.videos)||[]).forEach(function(v){if(v.transcricao){if(v.link)falas[v.link]=v.transcricao;falas[String(v.legenda||"").substring(0,60)]=v.transcricao;}});
   ((d.anuncios&&d.anuncios.anuncios)||[]).forEach(function(a){if(a.transcricao)falas["ad:"+a.nome]=a.transcricao;});
   out.posts=out.posts.map(function(p){var f=p.transcricao||falas[p.link]||falas[String(p.legenda||"").substring(0,60)];return f?Object.assign({},p,{transcricao:f}):p;});
-  if(out.ads)["p7","p30","p90"].forEach(function(k){var a=out.ads[k];if(a&&a.anuncios)out.ads[k]=Object.assign({},a,{anuncios:a.anuncios.map(function(x){var f=x.transcricao||falas["ad:"+x.nome];return f?Object.assign({},x,{transcricao:f}):x;})});});
+  if(out.ads)["p7","p30","p90","mes","mes_ant"].forEach(function(k){var a=out.ads[k];if(a&&a.anuncios)out.ads[k]=Object.assign({},a,{anuncios:a.anuncios.map(function(x){var f=x.transcricao||falas["ad:"+x.nome];return f?Object.assign({},x,{transcricao:f}):x;})});});
   return out;
 }
 // anuncios do periodo; sem o periodo exato (dossie antigo), usa os 90 dias e avisa
-function adsDoPeriodo(dl,per){if(!dl||!dl.ads)return null;var a=dl.ads["p"+per];if(a&&(a.anuncios||[]).length)return {dados:a,per:per};var alt=dl.ads.p90||dl.ads.p30||dl.ads.p7;return alt?{dados:alt,per:dl.ads.p90?90:dl.ads.p30?30:7}:null;}
-function postsDoPeriodo(dl,per){var desde=Date.now()-per*864e5;return ((dl&&dl.posts)||[]).filter(function(p){return p.data&&new Date(p.data).getTime()>=desde;});}
+// periodo: 7, 30 ou 90 (dias) ou "mes" (este mes) e "mes_ant" (mes anterior inteiro)
+var PERIODOS=[[7,"7 dias"],[30,"30 dias"],[90,"90 dias"],["mes","Este mês"],["mes_ant","Mês anterior"]];
+function textoPeriodo(per){return per==="mes"?"neste mês":per==="mes_ant"?"no mês anterior":"nos últimos "+per+" dias";}
+function faixaDoPeriodo(per){var h=new Date();if(per==="mes")return [new Date(h.getFullYear(),h.getMonth(),1).getTime(),Infinity];if(per==="mes_ant")return [new Date(h.getFullYear(),h.getMonth()-1,1).getTime(),new Date(h.getFullYear(),h.getMonth(),1).getTime()];return [Date.now()-per*864e5,Infinity];}
+// o mes que ainda nao foi coletado (loja atualizada antes desta versao) cai nos 30 dias; o mes vazio fica vazio
+function adsDoPeriodo(dl,per){if(!dl||!dl.ads)return null;var mes=typeof per==="string";var a=dl.ads[mes?per:"p"+per];if(a&&(mes||(a.anuncios||[]).length))return {dados:a,per:per};var alt=dl.ads.p90||dl.ads.p30||dl.ads.p7;if(mes&&dl.ads.p30)return {dados:dl.ads.p30,per:30};return alt?{dados:alt,per:dl.ads.p90?90:dl.ads.p30?30:7}:null;}
+function postsDoPeriodo(dl,per){var f=faixaDoPeriodo(per);return ((dl&&dl.posts)||[]).filter(function(p){if(!p.data)return false;var t=new Date(p.data).getTime();return t>=f[0]&&t<f[1];});}
 function rotRes(tipo,n,nome){var um=n===1;if(tipo!=="vendas"&&tipo!=="conversas"&&nome&&nome.length===2)return um?nome[0]:nome[1];if(tipo==="vendas")return um?"compra":"compras";if(tipo==="conversas")return um?"conversa":"conversas";return um?"resultado":"resultados";}
 function quando(iso){if(!iso)return "";var d=new Date(iso),h=d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}),hoje=new Date();var ontem=new Date(Date.now()-864e5);if(d.toDateString()===hoje.toDateString())return "hoje às "+h;if(d.toDateString()===ontem.toDateString())return "ontem às "+h;return "em "+d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" às "+h;}
 function compacto(n){if(n==null)return "-";n=Number(n)||0;if(n>=1e6)return (n/1e6).toFixed(1).replace(".",",")+" mi";if(n>=1e4)return (n/1e3).toFixed(1).replace(".",",")+" mil";return n.toLocaleString("pt-BR");}
@@ -339,8 +344,24 @@ var NICHOS=["moda feminina","moda masculina","moda infantil","moda fitness","lin
 function nichoDoProjeto(p){if(!p)return "";if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.rodadas||[];for(var i=rs.length-1;i>=0;i--){if(rs[i].direcao&&rs[i].direcao.nicho)return rs[i].direcao.nicho;}return "";}
 // Padroes aprendidos com varias lojas (anonimos, so padroes) para o nicho e metodo
 // Dossie da conta (feito pelo time de agentes no servidor, so com os dados desta loja) e video de referencia escolhido pela cliente
-var CONTA_AGENTE={texto:"",nicho:"",por_metodo:null},REFERENCIA_ATUAL="";
-function contaDoDossie(d){d=d||{};return {texto:d.texto||"",nicho:d.nicho||"",por_metodo:d.por_metodo||null};}
+var CONTA_AGENTE={texto:"",nicho:"",por_metodo:null,voz:null,ganchos:null},REFERENCIA_ATUAL="";
+function contaDoDossie(d){d=d||{};return {texto:d.texto||"",nicho:d.nicho||"",por_metodo:d.por_metodo||null,voz:d.voz||null,ganchos:d.ganchos||null};}
+// voz da loja (falas reais e comentarios) e ganchos com numeros desta conta, para o roteirista e o revisor
+function textoVozDaLoja(){
+  var v=CONTA_AGENTE.voz,partes=[];if(!v)return "";
+  if((v.falas||[]).length)partes.push("VOZ DA LOJA (falas reais e completas da dona nos vídeos que mais deram certo; estude como ela abre, desenvolve e fecha, e escreva nesse jeito, sem copiar as frases): "+v.falas.map(function(t,i){return "["+(i+1)+"] "+t;}).join(" "));
+  if((v.comentarios||[]).length)partes.push("COMENTÁRIOS REAIS DAS CLIENTES (use as palavras delas): "+v.comentarios.slice(0,12).map(function(t){return "'"+String(t).replace(/"/g,"'")+"'";}).join(" | "));
+  return partes.join(" ");
+}
+function textoGanchosDaConta(){
+  var g=CONTA_AGENTE.ganchos,partes=[];if(!g)return "";
+  function lin(x){return "'"+String(x.texto).replace(/"/g,"'")+"'"+(x.ficaram!=null?" ("+String(x.ficaram).replace(".",",")+"% ficaram"+(x.tempo?", "+String(x.tempo).replace(".",",")+" s assistidos em média":"")+")":x.indice?" ("+String(x.indice).replace(".",",")+"x a média)":"");}
+  if((g.melhores||[]).length)partes.push("GANCHOS QUE MAIS PRENDERAM NESTA CONTA (medida: "+g.medida+"): "+g.melhores.map(lin).join(" | "));
+  if((g.piores||[]).length)partes.push("GANCHOS QUE MAIS PERDERAM GENTE NESTA CONTA (fuja deste tipo de abertura): "+g.piores.map(lin).join(" | "));
+  if((g.anuncios||[]).length)partes.push("ABERTURAS DOS ANÚNCIOS COM MAIS GENTE PARANDO PARA VER: "+g.anuncios.map(function(x){return "'"+String(x.texto).replace(/"/g,"'")+"' ("+String(x.gancho_anuncio).replace(".",",")+"% pararam)";}).join(" | "));
+  if(g.tempo_medio_conta)partes.push("TEMPO MÉDIO ASSISTIDO NOS REELS DESTA CONTA: "+String(g.tempo_medio_conta).replace(".",",")+" segundos; o argumento principal precisa aparecer antes disso.");
+  return partes.length?"BIBLIOTECA DE GANCHOS DA CONTA: "+partes.join(" "):"";
+}
 function memoriaAgente(projects,perfil,metodo){
   var total=0,cands=[],vistos={};
   (projects||[]).forEach(function(p){todosRoteiros(p).forEach(function(s){
@@ -356,6 +377,9 @@ function memoriaAgente(projects,perfil,metodo){
   var partes=[];
   if(REFERENCIA_ATUAL)partes.push("VIDEO(S) DE REFERENCIA ESCOLHIDO(S) PELA CLIENTE (os roteiros devem partir do que fez estes videos darem resultado: o angulo, o tipo de gancho e a estrutura; com mais de um, combine o melhor de cada; crie roteiros novos, sem copiar): "+REFERENCIA_ATUAL);
   if(CONTA_AGENTE.texto)partes.push("DOSSIE DA CONTA (feito pelo time de agentes com os dados reais dos ultimos 90 dias do Instagram e dos anuncios desta loja; e a fonte mais importante para saber o que da resultado): "+CONTA_AGENTE.texto);
+  var voz=textoVozDaLoja(),gch=textoGanchosDaConta();
+  if(voz)partes.push(voz);
+  if(gch)partes.push(gch);
   var dica=CONTA_AGENTE.por_metodo&&CONTA_AGENTE.por_metodo[metodo];
   if(dica)partes.push("ORIENTACAO DO TIME DE AGENTES PARA O METODO "+metodoInfo(metodo).lb.toUpperCase()+" NESTA CONTA: "+dica);
   if(top.length)partes.push("ROTEIROS QUE DERAM RESULTADO PARA ESTA CONTA (replique o padrao de gancho, estrutura e CTA, sem copiar o texto): "+top.map(function(c){var s=c.s;return "["+(s.vendeu?"VENDEU":"APROVADO")+(s.pilar?" | "+s.pilar:"")+" | gancho: "+String(s.gancho||"").substring(0,110)+" | cta: "+String(s.cta||"").substring(0,70)+"]";}).join(" "));
@@ -373,7 +397,7 @@ var TONS=[
   {id:"educativo",lb:"Educativo e autoridade",ds:"Ensina algo novo, constroi credibilidade"},
   {id:"inspirador",lb:"Inspirador e motivacional",ds:"Motiva, eleva, faz a pessoa se ver no resultado"}
 ];
-var STEPS=["Lendo seu publico e conteudo...","Criando os roteiros...","Finalizando..."];
+var STEPS=["Lendo seu público e seus vídeos...","Criando os roteiros...","Revisando para soar como você..."];
 var ESTILOS=[
   {id:"minimalista",lb:"Minimalista",desc:"limpo, muito espaco em branco, poucas cores, tipografia grande e forte"},
   {id:"vibrante",lb:"Vibrante",desc:"cores fortes e energeticas, alto contraste, chamativo"},
@@ -397,16 +421,16 @@ function buildP(form,rod,hist,vencedores,metodo,direcao,memoria){
   var met=metodoInfo(metodo);
   var dirStr=(direcao&&(direcao.objetivo||direcao.publico||direcao.mensagem||direcao.chamada))?" DIRECAO DO CONTEUDO APROVADA PELO CLIENTE (siga obrigatoriamente em TODOS os roteiros): objetivo do conteudo: "+(direcao.objetivo||"-")+" | publico desta peca: "+(direcao.publico||"-")+" | mensagem principal: "+(direcao.mensagem||"-")+" | chamada (base do CTA de cada roteiro; adapte as palavras ao roteiro mantendo a ideia e o destino): "+(direcao.chamada||"-")+".":"";
   var h=hist.length>0?" USADOS:"+hist.slice(-1).map(function(r){return r.roteiros?r.roteiros.slice(0,2).map(function(s){return s.gancho.substring(0,30);}).join("|"):"";}).join(""):"";
-  var tons=(form.tons&&form.tons.length>0)?form.tons.map(function(id){var t=TONS.find(function(x){return x.id===id;});return t?t.lb:id;}).join(","):"variado";var proibidas=form.proibidas?"NUNCA USE:"+form.proibidas+". ":"";var caract=form.caracteristicas?"CARACTERISTICAS:"+form.caracteristicas+". ":"";var exemplo=form.exemploConteudo?"CONTEUDO QUE JA FUNCIONOU PARA ESTE CLIENTE (use como modelo de estrutura, gancho e vocabulario que deram certo; replique o que funciona, sem copiar literalmente):"+form.exemploConteudo+". ":"";
-  var ganchos=hist.reduce(function(a,r){return a.concat(((r.resultado&&r.resultado.roteiros)||r.roteiros||[]).map(function(s){return s.gancho.substring(0,50);}));},[]);var gStr=ganchos.length>0?" GANCHOS JA USADOS-NUNCA repita:"+ganchos.join("|")+" ":"";var liked=hist.reduce(function(a,r){return a.concat(((r.resultado&&r.resultado.roteiros)||r.roteiros||[]).filter(function(s){return s.liked;}));},[]);var lStr=liked.length>0?" ESTILO PREFERIDO:"+liked.slice(0,3).map(function(s){return "["+s.gancho.substring(0,40)+"]";}).join("|")+" ":"";var extra=rod>1?" RODADA "+rod+gStr+lStr+"gere roteiros TOTALMENTE DIFERENTES.":"";
+  var tons=(form.tons&&form.tons.length>0)?form.tons.map(function(id){var t=TONS.find(function(x){return x.id===id;});return t?t.lb:id;}).join(","):"variado";var proibidas=form.proibidas?"PALAVRAS E ASSUNTOS QUE A LOJA NÃO QUER NOS ROTEIROS: "+form.proibidas+". ":"";var caract=form.caracteristicas?"CARACTERISTICAS:"+form.caracteristicas+". ":"";var exemplo=form.exemploConteudo?"CONTEUDO QUE JA FUNCIONOU PARA ESTE CLIENTE (use como modelo de estrutura, gancho e vocabulario que deram certo; replique o que funciona, sem copiar literalmente):"+form.exemploConteudo+". ":"";
+  var ganchos=hist.reduce(function(a,r){return a.concat(((r.resultado&&r.resultado.roteiros)||r.roteiros||[]).map(function(s){return s.gancho.substring(0,50);}));},[]);var gStr=ganchos.length>0?" GANCHOS JÁ USADOS NAS RODADAS ANTERIORES (crie aberturas novas, diferentes destas): "+ganchos.join(" | ")+" ":"";var liked=hist.reduce(function(a,r){return a.concat(((r.resultado&&r.resultado.roteiros)||r.roteiros||[]).filter(function(s){return s.liked;}));},[]);var lStr=liked.length>0?" ESTILO QUE A CLIENTE CURTIU: "+liked.slice(0,3).map(function(s){return "["+s.gancho.substring(0,40)+"]";}).join("|")+" ":"";var extra=rod>1?" RODADA "+rod+"."+gStr+lStr+"Gere roteiros com ângulos e aberturas diferentes das rodadas anteriores.":"";
   var jaFeitos=hist.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros)||[]).length;},0);var idIni=jaFeitos+1,idFim=jaFeitos+POR_RODADA;
   var venc=(vencedores&&vencedores.length)?" EXEMPLOS QUE JA VENDERAM PARA ESTA CONTA (replique o padrao de gancho e de estrutura que funcionou, sem copiar literalmente): "+vencedores.slice(0,5).map(function(v){return "["+((v.gancho||"").substring(0,90))+" | CTA: "+((v.cta||"").substring(0,60))+"]";}).join(" ")+". ":"";
-  var DESTINOS={mensagens:{nome:"o cliente CHAMAR NO WHATSAPP / DIRECT para conversar (venda por conversa)",cta:"o CTA deve convidar a pessoa a mandar mensagem, ex: 'chama no direct que te mando os tamanhos' ou 'me chama no whats'; NUNCA mande clicar em link nem seguir o perfil"},seguidores:{nome:"o cliente SEGUIR O PERFIL no Instagram (construir audiencia)",cta:"o CTA deve convidar a pessoa a seguir o perfil, ex: 'segue aqui que todo dia eu mostro um look novo' ou 'me segue pra nao perder'; NUNCA mande chamar no direct nem clicar em link"},site:{nome:"o cliente ACESSAR A PAGINA DO PRODUTO / SITE / LINK DA BIO para comprar ou ver mais",cta:"o CTA deve direcionar para o link/site, ex: 'clica no link e garante o seu', 'acessa pelo link da bio' ou 'corre que o link ta aqui embaixo'; NUNCA mande chamar no direct nem seguir o perfil"}};var destInfo=DESTINOS[form.objetivo]||DESTINOS.site;
-  return "Gere roteiros de Reels para o negocio abaixo. METODO ESCOLHIDO NESTA GERACAO: "+met.lb+" (codigo "+met.id+"). Siga exatamente esse metodo da sua base de metodos e a estrutura de todo roteiro."
-    +" CONTEXTO DO NEGOCIO: Produto/Servico: "+form.produto+" | DESTINO / OBJETIVO FINAL deste anuncio (para onde o CTA deve levar a pessoa): "+destInfo.nome+". REGRA OBRIGATORIA DE DESTINO: "+destInfo.cta+". Todos os roteiros devem respeitar ESTE destino no CTA, sem excecao. | Publico e negocio: "+(form.descricao||"inferir")+" | Diferenciais: "+(form.diferenciais||"inferir")+" | Ticket medio: "+(form.preco||"inferir")+" | Tom de voz: "+tons+". "+caract+proibidas+exemplo+venc+(memoria||"")+extra+dirStr
-    +" NESTA RODADA "+rod+": gere 2 personas e EXATAMENTE "+POR_RODADA+" roteiros do metodo "+met.lb+". Numere os roteiros com id sequencial de "+idIni+" a "+idFim+"."
-    +" RESPONDA APENAS COM JSON VALIDO SEM MARKDOWN, exatamente neste formato: {\"personas\":[{\"nome\":\"...\",\"tipo\":\"...\",\"emoji\":\"1 emoji\",\"motivacao\":\"...\",\"dor\":\"...\",\"objecao\":\"...\",\"comunicacao\":\"...\"}],\"inteligencia\":{\"insight\":\"...\",\"bigIdea\":\"...\",\"mecanismo\":\"...\",\"diferencial\":\"...\",\"dores\":[\"...\"],\"desejos\":[\"...\"],\"objecoes\":[\"...\"],\"gatilhos\":[\"...\"]},\"roteiros\":[{\"id\":"+idIni+",\"titulo\":\"titulo curto\",\"pilar\":\"nome do pilar\",\"funil\":\"meio\",\"gancho\":\"...\",\"corpo\":\"...\",\"cta\":\"...\"}]}"
-    +" Os campos pilar e funil seguem o que o metodo indica; funil e exatamente topo, meio ou fundo em minusculo. NUNCA use aspas duplas dentro dos valores de texto, use aspas simples.";
+  var DESTINOS={mensagens:{nome:"a pessoa CHAMAR NO WHATSAPP OU NO DIRECT para conversar (a loja vende por conversa)",cta:"o CTA convida a pessoa a mandar mensagem, por exemplo 'chama no direct que te mando os tamanhos' ou 'me chama no whats', porque é na conversa que esta loja fecha a venda"},seguidores:{nome:"a pessoa SEGUIR O PERFIL no Instagram (construir audiência)",cta:"o CTA convida a pessoa a seguir o perfil, por exemplo 'segue aqui que todo dia eu mostro um look novo' ou 'me segue pra não perder', porque o objetivo deste vídeo é trazer seguidoras novas"},site:{nome:"a pessoa ACESSAR A PÁGINA DO PRODUTO, O SITE OU O LINK DA BIO para comprar ou ver mais",cta:"o CTA leva para o link ou o site, por exemplo 'clica no link e garante o seu', 'acessa pelo link da bio' ou 'corre que o link tá aqui embaixo', porque a compra acontece no site"}};var destInfo=DESTINOS[form.objetivo]||DESTINOS.site;
+  return "Gere roteiros de Reels para o negócio abaixo. MÉTODO ESCOLHIDO NESTA GERAÇÃO: "+met.lb+" (código "+met.id+"). Siga esse método da sua base de métodos e a estrutura de todo roteiro."
+    +" CONTEXTO DO NEGÓCIO: Produto ou serviço: "+form.produto+" | DESTINO DESTE ANÚNCIO (para onde o CTA leva a pessoa): "+destInfo.nome+". COMO É O CTA NESTE DESTINO: "+destInfo.cta+". Todos os roteiros levam para este mesmo destino. | Público e negócio: "+(form.descricao||"deduza pelos dados")+" | Diferenciais: "+(form.diferenciais||"deduza pelos dados")+" | Ticket médio: "+(form.preco||"deduza pelos dados")+" | Tom de voz: "+tons+". "+caract+proibidas+exemplo+venc+(memoria||"")+extra+dirStr
+    +" NESTA RODADA "+rod+": gere 2 personas e exatamente "+POR_RODADA+" roteiros do método "+met.lb+". Numere os roteiros com id sequencial de "+idIni+" a "+idFim+"."
+    +" Responda só com JSON válido, sem markdown, exatamente neste formato: {\"personas\":[{\"nome\":\"...\",\"tipo\":\"...\",\"emoji\":\"1 emoji\",\"motivacao\":\"...\",\"dor\":\"...\",\"objecao\":\"...\",\"comunicacao\":\"...\"}],\"inteligencia\":{\"insight\":\"...\",\"bigIdea\":\"...\",\"mecanismo\":\"...\",\"diferencial\":\"...\",\"dores\":[\"...\"],\"desejos\":[\"...\"],\"objecoes\":[\"...\"],\"gatilhos\":[\"...\"]},\"roteiros\":[{\"id\":"+idIni+",\"titulo\":\"titulo curto\",\"pilar\":\"nome do pilar\",\"funil\":\"meio\",\"gancho\":\"...\",\"corpo\":\"...\",\"cta\":\"...\"}]}"
+    +" Os campos pilar e funil seguem o que o método indica; funil é exatamente topo, meio ou fundo, em minúsculo. Escreva todos os textos em português do Brasil com acentuação completa. Dentro dos textos, use aspas simples para citações, porque aspas duplas quebram o JSON.";
 }
 function buildAnalise(form){
   var p="Voce e um estrategista de marketing especialista em comportamento do consumidor brasileiro.";
@@ -485,20 +509,34 @@ async function pesquisarMercado(ff){
   }catch(e){return null;}
 }
 
-async function revisarRoteiros(roteiros){
+async function revisarRoteiros(roteiros,destino){
   try{
     if(!Array.isArray(roteiros)||!roteiros.length)return roteiros;
-    var prompt="Voce e um diretor de criacao revisando roteiros de Meta Ads feitos por um redator junior. Para CADA roteiro avalie com rigor: o gancho prende nos 3 primeiros segundos e cita algo ESPECIFICO do negocio? Soa como uma pessoa real falando, sem cara de IA (sem cliches como eleve, descomplique, transforme sua vida, imagine so, a verdade e que, e sem o traco longo entre frases)? O corpo tem 1 argumento ou prova concreta? O CTA conecta com a dor do gancho e e especifico? Reescreva os roteiros fracos para ficarem mais especificos, naturais e persuasivos; mantenha os que ja estao bons. Responda APENAS com JSON valido sem markdown, um objeto {\"roteiros\":[...]} com a MESMA quantidade de roteiros e os mesmos campos id, titulo, pilar, funil, gancho, corpo, cta. NUNCA use aspas duplas dentro dos textos, use aspas simples. ROTEIROS PARA REVISAR: "+JSON.stringify({roteiros:roteiros});
-    var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:10000,model:"claude-sonnet-5",effort:"medium"})});
+    var voz=textoVozDaLoja();
+    var prompt="Você é o REVISOR do MCP Studio, um diretor de criação que relê os roteiros antes de a dona da loja recebê-los. O objetivo é que cada roteiro soe como a própria dona falando, e não como texto de IA ou de anúncio."
+      +" Passe os roteiros por estes 6 testes:"
+      +" 1) Leitura em voz alta: lido em voz alta, soa como uma pessoa conversando? Frases de tamanhos variados, contrações naturais (pra, tá, tô), uma ideia por frase."
+      +" 2) Teste do concorrente: se outra loja pudesse falar a mesma frase, ela está genérica; troque por um detalhe concreto do produto, um número ou uma situação real da cliente que estejam nos roteiros ou nos dados abaixo."
+      +" 3) Teste da dona: ela falaria isso com essas palavras? Use o jeito de falar da VOZ DA LOJA quando vier."
+      +" 4) Marcas de texto de IA: frase no molde 'não é X, é Y', listas de três palavras seguidas, frases todas do mesmo tamanho, abertura que se repete entre os roteiros, palavras de efeito vazias (transformar, elevar, descomplicar, jornada, incrível), travessão. Troque por fala simples e concreta."
+      +" 5) Fórmula repetida: os 3 roteiros precisam ter estruturas diferentes (por exemplo opinião, demonstração, história, lista, situação); no máximo 1 gancho em forma de pergunta; cada um fecha de um jeito diferente, e pedir palavra-chave nos comentários ou no direct aparece em no máximo um. Se dois roteiros seguem o mesmo molde, reescreva um deles com outra estrutura."
+      +" 6) Cara de anúncio: o roteiro precisa soar como a dona contando, mostrando ou opinando, com a venda aparecendo só no final, de leve. Se ele parece propaganda do começo ao fim, reescreva no jeito da VOZ DA LOJA."
+      +" Reescreva o que falhar em algum teste e mantenha o que já está bom, com o mesmo assunto, o mesmo método, um tamanho parecido e o mesmo destino do CTA"+(destino?" ("+destino+")":"")+". Use só fatos que já estão nos roteiros ou nos dados abaixo; não acrescente depoimento, número ou promessa."
+      +(voz?" "+voz:"")
+      +" Responda só com JSON puro, um objeto {\"roteiros\":[...]} com a mesma quantidade de roteiros, na mesma ordem, e os mesmos campos id, titulo, pilar, funil, gancho, corpo, cta. Dentro dos textos use aspas simples para citações. ROTEIROS: "+JSON.stringify({roteiros:roteiros.map(function(r){return {id:r.id,titulo:r.titulo,pilar:r.pilar,funil:r.funil,gancho:r.gancho,corpo:r.corpo,cta:r.cta};})});
+    var ctrl=new AbortController(),tm=setTimeout(function(){ctrl.abort();},70000);
+    var res=await fetch("/api/generate",{method:"POST",signal:ctrl.signal,headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({messages:[{role:"user",content:prompt}],max_tokens:8000,model:"claude-opus-5-5",effort:"medium"})});
+    clearTimeout(tm);
     if(!res.ok)return roteiros;
     var data=await res.json();
     if(data.error)return roteiros;
     var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
     var p;
     try{p=JSON.parse(raw);}
-    catch(e1){var s=raw.indexOf("{"),en=raw.lastIndexOf("}");if(s>-1&&en>-1){try{p=JSON.parse(raw.substring(s,en+1));}catch(e2){return roteiros;}}else return roteiros;}
-    if(p&&Array.isArray(p.roteiros)&&p.roteiros.length)return p.roteiros;
-    return roteiros;
+    catch(e1){var st=raw.indexOf("{"),en=raw.lastIndexOf("}");if(st>-1&&en>-1){try{p=JSON.parse(raw.substring(st,en+1));}catch(e2){return roteiros;}}else return roteiros;}
+    if(!p||!Array.isArray(p.roteiros)||p.roteiros.length!==roteiros.length)return roteiros;
+    // so os textos mudam; id, metodo, pilar e funil ficam os originais
+    return roteiros.map(function(r,i){var n=p.roteiros[i]||{};return Object.assign({},r,{titulo:n.titulo||r.titulo,gancho:n.gancho||r.gancho,corpo:n.corpo||r.corpo,cta:n.cta||r.cta,revisado:true});});
   }catch(e){return roteiros;}
 }
 
@@ -804,7 +842,9 @@ function App(){
           } else throw new Error("Erro ao processar resposta da IA");
         }
       }catch(ex){throw new Error("Erro ao processar resposta da IA: "+ex.message);}
-      setGenStep(2);prepararRoteiros(parsed,hist,metodo);
+      setGenStep(2);
+      if(parsed&&Array.isArray(parsed.roteiros)&&parsed.roteiros.length){var _dst={mensagens:"chamar no WhatsApp ou Direct",seguidores:"seguir o perfil",site:"ir para o site ou link"}[ff.objetivo]||"";parsed.roteiros=await revisarRoteiros(parsed.roteiros,_dst);}
+      prepararRoteiros(parsed,hist,metodo);
       var nr={numero:rodada,metodo:metodo,direcao:campos,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
       var proj;
       var nomeProjeto=((campos&&campos.nome)||ff.produto||ff.url||"Novo projeto").substring(0,40);
@@ -1063,7 +1103,7 @@ function App(){
   function fmtX(n){return String(Math.round((Number(n)||0)*10)/10).replace(".",",")+"x";}
   function textoDoAnuncio(v){return v&&(v.texto||v.titulo)?ce("div",{style:{margin:"0 0 14px",fontSize:13,lineHeight:1.5}},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",letterSpacing:".05em",color:"var(--mu)",marginBottom:4}},"Texto do anúncio"),v.titulo?ce("div",{style:{fontWeight:700}},v.titulo):null,v.texto?ce("div",{style:{whiteSpace:"pre-line",color:"var(--mu2)"}},v.texto):null):null;}
   function falaDoVideo(t){return t?ce("details",{style:{margin:"0 0 14px",fontSize:13,color:"var(--mu2)"}},ce("summary",{style:{cursor:"pointer",color:"var(--ac2)"}},"Ver a fala do vídeo"),ce("div",{style:{marginTop:6,lineHeight:1.5}},t)):null;}
-  function chipsPeriodo(){return [7,30,90].map(function(p){return ce("button",{key:"p"+p,className:"chip"+(periodo===p?" on":""),onClick:function(){setPeriodo(p);}},p+" dias");});}
+  function chipsPeriodo(){return PERIODOS.map(function(p){return ce("button",{key:"p"+p[0],className:"chip"+(periodo===p[0]?" on":""),onClick:function(){setPeriodo(p[0]);}},p[1]);});}
   function avatarLoja(tam){
     var logo=lojaInfo&&lojaInfo.logo_url;
     return ce("div",{className:"hello-av",style:{width:tam,height:tam,fontSize:Math.round(tam/3),overflow:"hidden",flexShrink:0}},logo?ce("img",{src:logo,alt:"Logo da loja",style:{width:"100%",height:"100%",objectFit:"cover"}}):iniciais(nomeDaLoja()));
@@ -1121,7 +1161,6 @@ function App(){
       ce("div",{style:{fontSize:13,color:"var(--mu2)",marginBottom:14,lineHeight:1.5}},"Feitas pelo time de agentes a partir dos seus vídeos, anúncios e comentários"+(id.gerado_em?" · atualizadas "+quando(id.gerado_em):"")+". As que funcionam narradas podem virar roteiro com um clique."),
       ce("div",{style:{marginBottom:14}},botaoMaisIdeias()),
       id.resumo?ce("div",{className:"nota"},ce("b",null,"Por onde começar: "),id.resumo):null,
-      ce("div",{className:"chips rolar"},filtros.map(function(o){return ce("button",{key:o.id,className:"chip"+(ideiaFiltro===o.id?" on":""),onClick:function(){setIdeiaFiltro(o.id);}},o.lb);})),
       vis.length?ce("div",{className:"ideias"},vis.map(function(x,i){return cartaoIdeia(x,i,false);})):ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhuma ideia neste filtro."),
       ce("div",{className:"nota",style:{marginTop:16}},ce("b",null,"Como aplicar: "),"o mesmo tema pode virar um vídeo rápido com transições (até 15 segundos), um narrado (30 a 45 segundos) ou um provador. O ideal é de 3 a 4 vídeos por semana. Se for anunciar uma peça, confira o estoque antes."),
       vis.length>4?ce("div",{style:{marginTop:16}},botaoMaisIdeias()):null));
@@ -1212,7 +1251,7 @@ function App(){
           ordemOrg==="engaj"&&p.indice?ce("span",{className:"vw"},fmtX(p.indice)+" a média"):
           ordemOrg==="tempo"&&p.tempo_medio_s?ce("span",{className:"vw"},String(p.tempo_medio_s).replace(".",",")+" s assistidos"):
           ordemOrg==="gancho"&&p.retencao_3s!=null?ce("span",{className:"vw"},String(p.retencao_3s).replace(".",",")+"% passaram do gancho"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));}))
-        :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum post nos últimos "+periodo+" dias."+(periodo<90?" Tente 90 dias.":"")),
+        :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum post "+textoPeriodo(periodo)+"."+(periodo!==90?" Tente 90 dias.":"")),
       ordemOrg==="engaj"
         ?ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"1x"),"é a média da sua conta. Soma curtidas, comentários, salvamentos e compartilhamentos (que valem dobrado) e compara com quantas pessoas viram cada post.")
         :lista.some(function(p){return p.indice>=1.5;})&&ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"2x"),"quantas vezes o post foi melhor que a média da sua conta")
@@ -1226,9 +1265,11 @@ function App(){
     var lista=(a.anuncios||[]).slice().sort(ord[ordemAds]||ord.resultado);
     var plural=rotRes(tr,2,t.res_nome);
     return ce("div",null,
-      ce("div",{className:"mgrid"},(t.misto?[["Investido",brl(t.gasto)],["Alcance",numBR(t.alcance||0)],["Cliques",numBR(t.cliques||0)]]:[[plural.charAt(0).toUpperCase()+plural.slice(1),numBR(t.resultados||0)],["Investido",brl(t.gasto)],["Por "+rotRes(tr,1,t.res_nome),t.custo_medio?brl(t.custo_medio):"-"]]).map(function(c){return ce("div",{key:c[0],className:"mcell"},ce("div",{className:"mcell-l"},c[0]),ce("div",{className:"mcell-v"},c[1]));})),
-      ce("div",{className:"chips rolar"},[{id:"resultado",lb:"Mais "+plural},{id:"gancho",lb:"Melhor gancho",so:"taxa_gancho"},{id:"retencao",lb:"Mais assistidos até o fim",so:"retencao"},{id:"custo",lb:"Menor custo"},{id:"gasto",lb:"Mais investimento"}].filter(function(o){return !o.so||(a.anuncios||[]).some(function(x){return x[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
-      ce("div",{className:"chips"},chipsPeriodo(),ap.per!==periodo?ce("span",{style:{fontSize:12.5,color:"var(--gold)"}},"Mostrando os últimos "+ap.per+" dias"):null),
+      (function(){var cel=t.misto?[["Investido",brl(t.gasto)],["Alcance",numBR(t.alcance||0)],["Cliques",numBR(t.cliques||0)]]:[[plural.charAt(0).toUpperCase()+plural.slice(1),numBR(t.resultados||0)],["Investido",brl(t.gasto)],["Por "+rotRes(tr,1,t.res_nome),t.custo_medio?brl(t.custo_medio):"-"]];
+        if(t.receita>0)cel.push(["Valor em vendas",brl(t.receita),t.roas?String(t.roas).replace(".",",")+"x o investido":null]);
+        return ce("div",{className:"mgrid",style:cel.length>3?{gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))"}:null},cel.map(function(c){return ce("div",{key:c[0],className:"mcell"},ce("div",{className:"mcell-l"},c[0]),ce("div",{className:"mcell-v"},c[1]),c[2]?ce("div",{className:"mcell-s"},c[2]):null);}));})(),
+      ce("div",{className:"chips rolar"},[{id:"resultado",lb:"Mais "+plural},{id:"gancho",lb:"Melhor gancho",so:"taxa_gancho"},{id:"custo",lb:"Menor custo"},{id:"gasto",lb:"Mais investimento"}].filter(function(o){return !o.so||(a.anuncios||[]).some(function(x){return x[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
+      ce("div",{className:"chips"},chipsPeriodo(),ap.per!==periodo?ce("span",{style:{fontSize:12.5,color:"var(--gold)"}},typeof periodo==="string"?"Os números do mês chegam na próxima atualização. Mostrando os últimos "+ap.per+" dias":"Mostrando os últimos "+ap.per+" dias"):null),
       lista.length
         ?ce("div",null,lista.map(function(x,i){return ce("button",{key:(x.id||x.nome)+i,className:"arow",onClick:function(){setVideoSel({tipo:"ad",item:x,ads:a});}},
           ce("span",{className:"thumb",style:{width:58,height:78,borderRadius:8}},img(x.miniatura)),
@@ -1236,8 +1277,7 @@ function App(){
             ce("span",{style:{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},x.nome),
             ce("span",{style:{fontSize:20,fontWeight:800}},numBR(x.resultados||0)+" "+rotRes(tr,x.resultados,x.res_nome)),
             ordemAds==="gancho"&&x.taxa_gancho!=null?ce("span",{style:{fontSize:12.5,fontWeight:700,color:"var(--ac2)"}},String(x.taxa_gancho).replace(".",",")+"% pararam para ver (gancho de 3 segundos)"):null,
-            ordemAds==="retencao"&&x.retencao!=null?ce("span",{style:{fontSize:12.5,fontWeight:700,color:"var(--ac2)"}},String(x.retencao).replace(".",",")+"% de quem parou assistiu até o fim"):null,
-            ce("span",{style:{fontSize:12.5,color:"var(--mu2)"}},brl(x.gasto)+(x.custo_por_resultado?" · "+brl(x.custo_por_resultado)+" por "+rotRes(tr,1,x.res_nome):"")+(tr==="vendas"&&x.conversas?" · "+numBR(x.conversas)+" conversas":""))),
+            ce("span",{style:{fontSize:12.5,color:"var(--mu2)"}},brl(x.gasto)+(x.custo_por_resultado?" · "+brl(x.custo_por_resultado)+" por "+rotRes(tr,1,x.res_nome):"")+(x.receita>0?" · "+brl(x.receita)+" em vendas":"")+(tr==="vendas"&&x.conversas?" · "+numBR(x.conversas)+" conversas":""))),
           ico("seta",18,"var(--mu2)"));}))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum anúncio com investimento nesse período.")
     );
@@ -1294,6 +1334,7 @@ function App(){
     }
     var a=videoSel.ads||{},tr=a.tipo_resultado,md=a.medias||{};
     var grade=[["Investido",brl(v.gasto)]];
+    if(v.receita>0)grade.push(["Valor em vendas",brl(v.receita)]);
     if(tr!=="vendas"&&v.compras)grade.push(["Compras",numBR(v.compras)]);
     if(tr!=="conversas"&&v.conversas)grade.push(["Conversas",numBR(v.conversas)]);
     grade.push(["Alcance",numBR(v.alcance||0)],["Cliques",numBR(v.cliques||0)],["Por clique",v.cpc?brl(v.cpc):"-"]);

@@ -316,16 +316,32 @@ function montarAnuncios(linhas) {
     };
 }
 
-async function coletarAnuncios(cli, fb, avisos) {
+// meses do calendario: este mes (do dia 1 ate hoje) e o mes anterior inteiro
+function mesesDoCalendario(hoje) {
+    const fim = diaSP(hoje), mes = fim.slice(0, 7), dia1 = new Date(mes + "-01T12:00:00Z");
+    const ultimoAnt = diaSP(new Date(dia1.getTime() - 864e5));
+    return { mes: { ref: mes, inicio: mes + "-01", fim: fim }, mes_ant: { ref: ultimoAnt.slice(0, 7), inicio: ultimoAnt.slice(0, 7) + "-01", fim: ultimoAnt } };
+}
+
+// anterior = mes anterior ja coletado; como ele quase nao muda, so e pedido de novo uma vez por dia
+async function coletarAnuncios(cli, fb, avisos, anterior) {
     const hoje = new Date(), fim = diaSP(hoje);
-    const periodos = { p7: 7, p30: 30, p90: 90 };
+    const faixas = {};
+    [["p7", 7], ["p30", 30], ["p90", 90]].forEach(function (p) { faixas[p[0]] = { inicio: diaSP(new Date(hoje.getTime() - (p[1] - 1) * 864e5)), fim: fim }; });
+    const meses = mesesDoCalendario(hoje);
+    faixas.mes = meses.mes;
+    const reusa = anterior && anterior.ref === meses.mes_ant.ref && anterior.em && hoje.getTime() - new Date(anterior.em).getTime() < 864e5;
+    if (!reusa) faixas.mes_ant = meses.mes_ant;
     const out = { conta: fb.nome, moeda: fb.moeda };
-    const res = await Promise.all(Object.keys(periodos).map(function (k) {
-        const inicio = diaSP(new Date(hoje.getTime() - (periodos[k] - 1) * 864e5));
-        return pedirTabela(cli, fb, inicio, fim, { id: "ads", reference_key: "fb_ads:ads", component: "datatable_v1", dimensions: [{ field: "ad" }], sort: ["-spend"] }, [ADS_COMPLETA, ADS_MEDIA, ADS_SIMPLES], avisos);
+    const chaves = Object.keys(faixas);
+    const res = await Promise.all(chaves.map(function (k) {
+        return pedirTabela(cli, fb, faixas[k].inicio, faixas[k].fim, { id: "ads", reference_key: "fb_ads:ads", component: "datatable_v1", dimensions: [{ field: "ad" }], sort: ["-spend"] }, [ADS_COMPLETA, ADS_MEDIA, ADS_SIMPLES], avisos);
     }));
-    Object.keys(periodos).forEach(function (k, i) { out[k] = montarAnuncios(res[i].linhas); });
-    out.amostra = amostra(res[2]);
+    chaves.forEach(function (k, i) { out[k] = montarAnuncios(res[i].linhas); });
+    out.mes.ref = meses.mes.ref;
+    if (reusa) out.mes_ant = anterior;
+    else { out.mes_ant.ref = meses.mes_ant.ref; out.mes_ant.em = hoje.toISOString(); }
+    out.amostra = amostra(res[chaves.indexOf("p90")]);
     return out;
 }
 
@@ -339,7 +355,7 @@ function chaveTexto(t) {
 function vincularCapas(org, ads) {
     if (!org || !ads) return;
     const posts = (org.posts || []).map(function (p) { return { p: p, k: chaveTexto(p.legenda) }; }).filter(function (x) { return x.k; });
-    ["p7", "p30", "p90"].forEach(function (per) {
+    ["p7", "p30", "p90", "mes", "mes_ant"].forEach(function (per) {
         ((ads[per] && ads[per].anuncios) || []).forEach(function (a) {
             if (a.miniatura) return;
             const k = chaveTexto(a.nome).slice(0, 50);
@@ -363,7 +379,7 @@ function assinaturaDe(met) {
 }
 
 // ---------- coleta completa de uma loja ----------
-async function coletarLoja(userId) {
+async function coletarLoja(userId, antes) {
     const cli = await clienteDoUsuario(userId);
     const ints = await integracoesDoCliente(cli);
     const ativa = function (slug) { return ints.find(function (i) { return i.plataforma === slug && i.status === "active"; }) || ints.find(function (i) { return i.plataforma === slug; }); };
@@ -372,7 +388,7 @@ async function coletarLoja(userId) {
     const hoje = new Date(), fim = diaSP(hoje), inicio90 = diaSP(new Date(hoje.getTime() - 89 * 864e5));
     const [org, ads] = await Promise.all([
         ig ? coletarOrganico(cli, ig, inicio90, fim, avisos).catch(function (e) { avisos.push("Instagram: " + e.message); return null; }) : null,
-        fb ? coletarAnuncios(cli, fb, avisos).catch(function (e) { avisos.push("Anuncios: " + e.message); return null; }) : null
+        fb ? coletarAnuncios(cli, fb, avisos, antes && antes.mes_ant).catch(function (e) { avisos.push("Anuncios: " + e.message); return null; }) : null
     ]);
     vincularCapas(org, ads);
     if (!ig) avisos.push("Nenhum Instagram conectado no Reportei.");
@@ -421,12 +437,14 @@ function resumoDaColeta(met) {
 }
 
 async function atualizarLoja(userId) {
-    const met = await coletarLoja(userId);
     // o que ja veio da Meta (capa e texto dos anuncios, falas, tempo assistido) entra junto, sem consultar a Meta de novo
+    let antes = null;
     try {
-        const r = await banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&select=meta");
-        aplicarMeta(met, r && r[0] && r[0].meta);
-    } catch (e) { console.error("[coleta] meta: " + e.message); }
+        const r = await banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&select=meta,mes_ant:metricas->anuncios->mes_ant");
+        antes = r && r[0];
+    } catch (e) { console.error("[coleta] leitura anterior: " + e.message); }
+    const met = await coletarLoja(userId, antes);
+    try { aplicarMeta(met, antes && antes.meta); } catch (e) { console.error("[coleta] meta: " + e.message); }
     await salvarMetricas(userId, met);
     return resumoDaColeta(met);
 }
