@@ -13,7 +13,7 @@
 const { validarAdmin, banco, criptografar, descriptografar, auditar } = require("./_seguranca.js");
 const GRAPH = "https://graph.facebook.com/v23.0";
 const DIAS = 90;
-const ESCOPOS = "instagram_basic,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,read_insights,ads_read,business_management";
+const ESCOPOS = "instagram_basic,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,ads_read,business_management";
 
 // ---------- apoio ----------
 // token da Meta: so o servidor le (chave de servico) e ele fica criptografado no banco

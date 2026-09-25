@@ -45,7 +45,7 @@ O app fica em **modo de desenvolvimento**. Não publique nem mande para revisão
 2. Ainda em **Login do Facebook para Empresas** → **Configurações** (aba *Configurations*) → **Criar configuração**:
    - Nome: `MCP Studio`
    - Tipo de token: **Token de acesso do usuário**
-   - Permissões: `instagram_basic`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_show_list`, `pages_read_engagement`, `read_insights`, `ads_read`, `business_management`
+   - Permissões: `instagram_basic`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_show_list`, `pages_read_engagement`, `ads_read`, `business_management`
    - Salve e **copie o ID da configuração**.
 3. **Configurações do app** → **Básico**:
    - **Domínios do app:** `mcp-studio-zeta.vercel.app`
@@ -89,7 +89,7 @@ A Meta também pode pedir a **verificação da empresa** (documentos do CNPJ) em
 
 ### 3. Gerar o código
 1. Ainda no usuário do sistema → **Gerar novo token**.
-2. App: **MCP Studio** · Validade: **Nunca** · marque as mesmas permissões da Fase 1 (`instagram_basic`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_show_list`, `pages_read_engagement`, `read_insights`, `ads_read`, `business_management`).
+2. App: **MCP Studio** · Validade: **Nunca** · marque as mesmas permissões da Fase 1 (`instagram_basic`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_show_list`, `pages_read_engagement`, `ads_read`, `business_management`).
 3. **Gerar token** e copie o código (ele aparece uma vez só).
 
 ### 4. Colar no painel
