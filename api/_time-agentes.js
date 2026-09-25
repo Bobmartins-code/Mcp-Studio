@@ -304,7 +304,7 @@ function pedidoIdeias(o) {
         "- Nunca use estatística ou porcentagem que não esteja escrita nos dados desta loja.\n" +
         "- Quando a ideia for boa para virar anúncio, lembre em como_fazer de conferir o estoque da peça antes de anunciar.\n" +
         "- Não repita as ideias já sugeridas nem as já gravadas listadas abaixo.\n" +
-        "- Português do Brasil com acentuação completa, sem travessão, sem jargão de marketing.\n\n" +
+        "- Português do Brasil com acentuação e grafia corretas (pró-labore, não prolabora), mesmo quando os comentários, legendas ou falas trazem erro de digitação. Sem travessão, sem jargão de marketing.\n\n" +
         o.sobreLoja +
         "\n\nPOSTS DA LOJA (do melhor para o pior):\n" + o.posts.slice(0, 15).map(linhaPost).join("\n") +
         (o.ads ? "\n\nANÚNCIOS (do que mais deu resultado para o que menos deu):\n" + o.ads.lista.slice(0, 12).map(function (a, i) { return linhaAnuncio(o.ads.tipo, a, i); }).join("\n") : "") +
