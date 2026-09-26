@@ -7,7 +7,7 @@
 //  - remover: apaga a loja, os dados, os projetos e o login da dona
 // =====================================================================
 
-const { validarAdmin, banco, authAdmin, auditar, ADMIN_ID } = require("./_seguranca.js");
+const { validarAdmin, banco, authAdmin, enviarArquivo, auditar, ADMIN_ID } = require("./_seguranca.js");
 const { connect } = require("./_reportei.js");
 
 function emailValido(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
@@ -71,6 +71,37 @@ module.exports = async function handler(req, res) {
             const g = await gerarLink(u.email, destino(req));
             await auditar(admin.id, "gerou link de acesso da loja", b.user_id);
             return res.status(200).json({ ok: true, link: g.link, email: u.email, ja_entrou: !!u.last_sign_in_at });
+        }
+
+        // perfil da loja pelo admin (vendo a conta da cliente): nome e logo, nada mais
+        if (b.acao === "perfil") {
+            const uid = String(b.user_id || "");
+            if (!/^[0-9a-f-]{36}$/i.test(uid)) return res.status(400).json({ error: "Informe a loja." });
+            const atual = await banco("lojas?user_id=eq." + uid + "&select=nome,logo_url");
+            const linha = atual && atual[0];
+            const campos = {};
+            if (b.nome != null) {
+                const nome = String(b.nome).trim();
+                if (nome.length < 1 || nome.length > 80) return res.status(400).json({ error: "O nome da loja precisa ter de 1 a 80 letras." });
+                campos.nome = nome;
+            }
+            if (b.remover_logo) campos.logo_url = null;
+            else if (b.logo_b64) {
+                const tipos = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+                if (!tipos[b.logo_tipo]) return res.status(400).json({ error: "Use uma imagem PNG, JPG ou WEBP." });
+                const buf = Buffer.from(String(b.logo_b64), "base64");
+                if (!buf.length || buf.length > 2 * 1024 * 1024) return res.status(400).json({ error: "A imagem pode ter até 2 MB." });
+                campos.logo_url = await enviarArquivo("logos", uid + "/logo-" + Date.now() + "." + tipos[b.logo_tipo], buf, b.logo_tipo);
+            }
+            if (!Object.keys(campos).length) return res.status(400).json({ error: "Nada para salvar." });
+            // loja ativada so pelo Reportei ainda nao tem linha: cria com o nome do cadastro do Reportei
+            if (!linha && !campos.nome) {
+                const cc = await banco("connect_clientes?user_id=eq." + uid + "&select=nome");
+                campos.nome = (cc && cc[0] && cc[0].nome) || "Minha loja";
+            }
+            await banco("lojas", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: Object.assign({ user_id: uid, atualizado_em: new Date().toISOString() }, campos) });
+            await auditar(admin.id, "editou o perfil da loja", uid, { nome: campos.nome || null, logo: b.remover_logo ? "removida" : (b.logo_b64 ? "nova" : null) });
+            return res.status(200).json({ ok: true, logo_url: campos.logo_url });
         }
 
         if (b.acao === "remover") {

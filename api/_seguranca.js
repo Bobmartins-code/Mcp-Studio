@@ -46,6 +46,16 @@ async function banco(caminho, opcoes) {
     return txt ? JSON.parse(txt) : null;
 }
 
+// Arquivo no storage com a chave de servico (logo da loja enviada pelo admin)
+async function enviarArquivo(bucket, caminho, buf, tipo) {
+    const k = chaveServico();
+    const headers = { apikey: k, "Content-Type": tipo, "x-upsert": "true", "cache-control": "3600" };
+    if (k.indexOf("sb_secret_") !== 0) headers.Authorization = "Bearer " + k;
+    const r = await fetch(SUPA_URL + "/storage/v1/object/" + bucket + "/" + caminho, { method: "POST", headers: headers, body: buf });
+    if (!r.ok) throw new Error("Storage: " + (await r.text()).slice(0, 200));
+    return SUPA_URL + "/storage/v1/object/public/" + bucket + "/" + caminho;
+}
+
 // Contas de login (auth do Supabase) com a chave de servico: criar, convidar e apagar
 async function authAdmin(caminho, opcoes) {
     const o = opcoes || {}, k = chaveServico();
@@ -116,4 +126,4 @@ async function acessoLiberado(jwt) {
 }
 const SEM_ACESSO = "Seu acesso ainda não foi liberado. Fale com a equipe do MCP Studio.";
 
-module.exports = { SUPA_URL, SUPA_ANON, ADMIN_ID, validarAdmin, acessoLiberado, SEM_ACESSO, banco, authAdmin, criptografar, descriptografar, auditar };
+module.exports = { SUPA_URL, SUPA_ANON, ADMIN_ID, validarAdmin, acessoLiberado, SEM_ACESSO, banco, authAdmin, enviarArquivo, criptografar, descriptografar, auditar };

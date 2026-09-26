@@ -698,7 +698,7 @@ function App(){
   // bloqueia qualquer alteracao enquanto o admin olha a conta de uma cliente
   function somenteLeitura(silencioso){
     if(!verComo)return false;
-    if(!silencioso)showToast("Modo visualizacao: voce esta vendo a conta de "+verComo.email+". Nada pode ser gerado ou alterado aqui.","err");
+    if(!silencioso)showToast("Modo visualização: você está vendo a conta de "+verComo.email+". Aqui só a logo e o nome da loja podem ser alterados.","err");
     return true;
   }
 
@@ -1418,11 +1418,25 @@ function App(){
   }
   function campoConta(k,padrao){return edConta[k]!==undefined?edConta[k]:padrao;}
   function mudaConta(k,v){setEdConta(function(o){var n=Object.assign({},o);n[k]=v;return n;});}
+  function editaPerfilComoAdmin(){return !!(verComo&&souAdmin);}
+  async function perfilPeloAdmin(extra){
+    var ss=await supaClient.auth.getSession();var tk=ss.data&&ss.data.session&&ss.data.session.access_token;
+    var r=await fetch("/api/lojas",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify(Object.assign({acao:"perfil",user_id:verComo.id},extra))});
+    var d=await r.json().catch(function(){return {};});if(!r.ok)throw new Error(d.error||"erro");
+    await carregarLoja(verComo.id,false);
+  }
+  function arquivoEmBase64(arq){return new Promise(function(ok,falha){var fr=new FileReader();fr.onload=function(){ok(String(fr.result).split(",")[1]||"");};fr.onerror=falha;fr.readAsDataURL(arq);});}
   async function enviarLogo(arq){
-    if(somenteLeitura()||!arq)return;
+    if(!arq||(!editaPerfilComoAdmin()&&somenteLeitura()))return;
     if(!/^image\/(png|jpeg|webp)$/.test(arq.type)){showToast("Use uma imagem PNG, JPG ou WEBP.","err");return;}
     if(arq.size>2*1024*1024){showToast("A imagem pode ter até 2 MB.","err");return;}
     setSalvandoConta("logo");
+    if(editaPerfilComoAdmin()){
+      try{await perfilPeloAdmin({logo_b64:await arquivoEmBase64(arq),logo_tipo:arq.type});showToast("Logo da loja atualizada!");}
+      catch(e){showToast(e.message&&e.message!=="erro"?e.message:"Não consegui salvar a logo agora. Tente de novo.","err");}
+      finally{setSalvandoConta("");}
+      return;
+    }
     try{
       var ext=arq.type==="image/png"?"png":arq.type==="image/webp"?"webp":"jpg",caminho=currentUser.id+"/logo-"+Date.now()+"."+ext;
       var up=await supaClient.storage.from("logos").upload(caminho,arq,{upsert:true,contentType:arq.type,cacheControl:"3600"});if(up.error)throw up.error;
@@ -1433,14 +1447,16 @@ function App(){
     finally{setSalvandoConta("");}
   }
   async function removerLogo(){
+    if(editaPerfilComoAdmin()){setSalvandoConta("logo");try{await perfilPeloAdmin({remover_logo:true});showToast("Logo removida.");}catch(e){showToast("Não consegui remover a logo agora.","err");}finally{setSalvandoConta("");}return;}
     if(somenteLeitura())return;setSalvandoConta("logo");
     try{var rp=await supaClient.rpc("atualizar_minha_loja",{p_nome:null,p_logo_url:""});if(rp.error)throw rp.error;await carregarLoja(currentUser.id,false);showToast("Logo removida.");}
     catch(e){showToast("Não consegui remover a logo agora.","err");}finally{setSalvandoConta("");}
   }
   async function salvarNomeLoja(){
-    if(somenteLeitura())return;var v=String(campoConta("loja",(lojaInfo&&lojaInfo.nome)||"")).trim();
+    if(!editaPerfilComoAdmin()&&somenteLeitura())return;var v=String(campoConta("loja",(lojaInfo&&lojaInfo.nome)||"")).trim();
     if(!v){showToast("Escreva o nome da loja.","err");return;}
     setSalvandoConta("loja");
+    if(editaPerfilComoAdmin()){try{await perfilPeloAdmin({nome:v});mudaConta("loja",undefined);showToast("Nome da loja salvo.");}catch(e){showToast(e.message&&e.message!=="erro"?e.message:"Não consegui salvar o nome agora.","err");}finally{setSalvandoConta("");}return;}
     try{var rp=await supaClient.rpc("atualizar_minha_loja",{p_nome:v,p_logo_url:null});if(rp.error)throw rp.error;await carregarLoja(currentUser.id,false);mudaConta("loja",undefined);showToast("Nome da loja salvo.");}
     catch(e){showToast("Não consegui salvar o nome agora.","err");}finally{setSalvandoConta("");}
   }
@@ -1472,11 +1488,12 @@ function App(){
     }finally{setSalvandoConta("");}
   }
   function linhaEdit(rot,k,padrao,tipo,salvar,dica){
+    var travado=!!verComo&&!(k==="loja"&&editaPerfilComoAdmin());
     return ce("div",{className:"conta-ed"},
       ce("label",{htmlFor:"ed-"+k},rot),
       ce("div",{className:"conta-ed-l"},
-        ce("input",{id:"ed-"+k,type:tipo||"text",value:campoConta(k,padrao),placeholder:dica||"",autoComplete:tipo==="password"?"new-password":"off",disabled:!!verComo,onChange:function(e){mudaConta(k,e.target.value);}}),
-        salvar?ce("button",{className:"chip on",style:{height:40},disabled:!!salvandoConta||!!verComo,onClick:salvar},salvandoConta===k?"Salvando...":"Salvar"):null));
+        ce("input",{id:"ed-"+k,type:tipo||"text",value:campoConta(k,padrao),placeholder:dica||"",autoComplete:tipo==="password"?"new-password":"off",disabled:travado,onChange:function(e){mudaConta(k,e.target.value);}}),
+        salvar?ce("button",{className:"chip on",style:{height:40},disabled:!!salvandoConta||travado,onClick:salvar},salvandoConta===k?"Salvando...":"Salvar"):null));
   }
   function renderConta(){
     var dl=dadosLoja(contaMeta),nomeLoja=nomeDaLoja(),temIg=!!(dl&&(dl.username||(dl.posts||[]).length)),temAds=!!(dl&&(dl.ads||dl.contaAds));
@@ -1488,11 +1505,12 @@ function App(){
         ce("div",{className:"card2-r"},ce("span",null,"Anúncios"),temAds?ce("span",{className:"pill-s pill-ok"},dl.contaAds||"Conectado"):ce("span",{className:"pill-s pill-mu"},"Não conectado")),
         ce("div",{style:{fontSize:12.5,color:"var(--mu2)",padding:"0 16px 14px",lineHeight:1.5}},"Quem cuida das conexões é a equipe do MCP Studio. Os números são atualizados a cada 5 minutos"+(dl&&dl.atualizado?" (última vez "+quando(dl.atualizado)+")":"")+".")),
       ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Perfil da loja"),
+        editaPerfilComoAdmin()?ce("div",{style:{fontSize:12.5,color:"var(--ok)",padding:"0 16px 6px",lineHeight:1.5}},"Você está vendo a conta desta loja: aqui dá para trocar a logo e o nome. O resto fica só para leitura."):null,
         ce("div",{className:"conta-ed"},ce("label",null,"Logo"),
           ce("div",{className:"conta-ed-l",style:{alignItems:"center"}},avatarLoja(52),
-            ce("label",{className:"chip on",style:{height:40,display:"inline-flex",alignItems:"center",cursor:verComo?"not-allowed":"pointer"}},salvandoConta==="logo"?"Enviando...":(lojaInfo&&lojaInfo.logo_url?"Trocar logo":"Enviar logo"),
-              ce("input",{type:"file",accept:"image/png,image/jpeg,image/webp",style:{display:"none"},disabled:!!verComo||!!salvandoConta,onChange:function(e){enviarLogo(e.target.files&&e.target.files[0]);e.target.value="";}})),
-            lojaInfo&&lojaInfo.logo_url?ce("button",{className:"chip",style:{height:40},disabled:!!salvandoConta||!!verComo,onClick:removerLogo},"Remover"):null),
+            ce("label",{className:"chip on",style:{height:40,display:"inline-flex",alignItems:"center",cursor:verComo&&!editaPerfilComoAdmin()?"not-allowed":"pointer"}},salvandoConta==="logo"?"Enviando...":(lojaInfo&&lojaInfo.logo_url?"Trocar logo":"Enviar logo"),
+              ce("input",{type:"file",accept:"image/png,image/jpeg,image/webp",style:{display:"none"},disabled:(!!verComo&&!editaPerfilComoAdmin())||!!salvandoConta,onChange:function(e){enviarLogo(e.target.files&&e.target.files[0]);e.target.value="";}})),
+            lojaInfo&&lojaInfo.logo_url?ce("button",{className:"chip",style:{height:40},disabled:!!salvandoConta||(!!verComo&&!editaPerfilComoAdmin()),onClick:removerLogo},"Remover"):null),
           ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:6}},"PNG, JPG ou WEBP, até 2 MB. Fica melhor quadrada.")),
         linhaEdit("Nome da loja","loja",(lojaInfo&&lojaInfo.nome)||"","text",salvarNomeLoja)),
       ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Seus dados de acesso"),
