@@ -1,3 +1,4 @@
+const { acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
 module.exports = async function handler(req, res) {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const apiKey = process.env.OPENAI_API_KEY;
@@ -16,6 +17,9 @@ module.exports = async function handler(req, res) {
     } catch (e) {
         return res.status(401).json({ error: "Falha ao validar sessao" });
     }
+    // acesso fechado: so quem o admin cadastrou usa a IA
+    try { if (!(await acessoLiberado(token))) return res.status(403).json({ error: SEM_ACESSO }); }
+    catch (e) { return res.status(500).json({ error: "Não consegui confirmar o seu acesso. Tente de novo." }); }
     const prompt = req.body && req.body.prompt;
     if (!prompt) return res.status(400).json({ error: "Prompt obrigatorio" });
     const allowedSizes = { "1024x1024": 1, "1024x1536": 1, "1536x1024": 1 };

@@ -1,3 +1,4 @@
+const { acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
 // Agente MCP: o cerebro do agente (quem ele e, como escreve e os metodos) fica em api/_agente-mcp.js
 const { SISTEMA: AGENTE } = require("./_agente-mcp.js");
 const FORMATO = "FORMATO DA RESPOSTA: quando o pedido for JSON, responda só com o JSON puro, sem markdown. Dentro dos textos, use aspas simples para citações, porque aspas duplas quebram o JSON e a cliente perde o resultado.";
@@ -23,6 +24,9 @@ module.exports = async function handler(req, res) {
     } catch (e) {
         return res.status(401).json({ error: "Falha ao validar sessao" });
     }
+    // acesso fechado: so quem o admin cadastrou usa a IA
+    try { if (!(await acessoLiberado(token))) return res.status(403).json({ error: SEM_ACESSO }); }
+    catch (e) { return res.status(500).json({ error: "Não consegui confirmar o seu acesso. Tente de novo." }); }
     const messages = req.body && req.body.messages;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: "Messages obrigatorio" });

@@ -1,3 +1,4 @@
+const { acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
 module.exports = async function handler(req, res) {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const apiKey = process.env.OPENAI_API_KEY;
@@ -16,6 +17,9 @@ module.exports = async function handler(req, res) {
     } catch (e) {
         return res.status(401).json({ error: "Falha ao validar sessao" });
     }
+    // acesso fechado: so quem o admin cadastrou usa a IA
+    try { if (!(await acessoLiberado(token))) return res.status(403).json({ error: SEM_ACESSO }); }
+    catch (e) { return res.status(500).json({ error: "Não consegui confirmar o seu acesso. Tente de novo." }); }
     const fileB64 = req.body && req.body.fileB64;
     if (!fileB64) return res.status(400).json({ error: "Arquivo obrigatorio" });
     const mediaType = (req.body && req.body.mediaType) || "video/mp4";

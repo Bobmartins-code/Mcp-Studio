@@ -1,3 +1,4 @@
+const { acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
 // a transcricao em si fica em api/_transcricao.js (o time de agentes usa a mesma)
 const { transcreverReel, linkValido } = require("./_transcricao.js");
 
@@ -19,6 +20,9 @@ module.exports = async function handler(req, res) {
     } catch (e) {
         return res.status(401).json({ error: "Falha ao validar sessao" });
     }
+    // acesso fechado: so quem o admin cadastrou usa a IA
+    try { if (!(await acessoLiberado(token))) return res.status(403).json({ error: SEM_ACESSO }); }
+    catch (e) { return res.status(500).json({ error: "Não consegui confirmar o seu acesso. Tente de novo." }); }
 
     const url = req.body && req.body.url;
     if (!linkValido(url)) {

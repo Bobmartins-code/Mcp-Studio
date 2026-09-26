@@ -170,7 +170,10 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .conta-ed input:focus{border-color:var(--boh)}
 .ideias{display:grid;gap:10px}
 .ideias.tres{grid-template-columns:repeat(3,minmax(0,1fr))}
-.ideia{background:var(--sur2);border:1px solid var(--bo);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.ideia{background:var(--sur2);border:1px solid var(--bo);border-radius:14px;display:flex;flex-direction:column;min-width:0}
+.ideia-t{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;padding:12px 14px;background:none;border:none;color:var(--tx);font-family:inherit;font-weight:700;font-size:15px;line-height:1.35;text-align:left;cursor:pointer}
+.ideia-seta{display:flex;transition:transform .2s;flex-shrink:0}.ideia.aberta .ideia-seta{transform:rotate(90deg)}
+.ideia-c{display:flex;flex-direction:column;gap:10px;padding:0 14px 14px}
 .ideia.marcada{opacity:.55}
 .ideia-nova{display:inline-block;background:var(--ac);color:#0A0A0F;font-size:10.5px;font-weight:800;border-radius:20px;padding:1px 8px;margin-right:8px;vertical-align:2px}
 @media(max-width:900px){.ideias.tres{grid-template-columns:1fr}}
@@ -188,8 +191,6 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .seg button.on{color:var(--tx);border-bottom-color:var(--tx);font-weight:700}
 .igrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px}
 @media(max-width:1100px){.igrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.ifiltro{display:flex;align-items:center;gap:10px;margin-bottom:10px;min-width:0}.ifiltro-t{font-size:12px;color:var(--mu2);white-space:nowrap;min-width:78px}
-@media(max-width:768px){.ifiltro{flex-direction:column;align-items:stretch;gap:6px}.ifiltro .chips{max-width:100%}}
 .vermais{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px}
 .itile{position:relative;aspect-ratio:3/4;background:var(--sur2);border:none;padding:0;cursor:pointer;overflow:hidden;display:block;width:100%}
 .itile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -225,7 +226,8 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .card2-r{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--bo);font-size:15px}
 .card2-r:last-child{border-bottom:none}
 .refs{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
-.refs.grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));overflow-x:visible;overflow-y:auto;max-height:430px;padding:2px}
+.refs.grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));overflow:visible;padding:2px}
+@media(max-width:768px){.refs.grade{grid-template-columns:repeat(3,minmax(0,1fr))}.fwrap .sec{background:none;border:none;border-bottom:1px solid var(--bo);border-radius:0;padding:4px 0 20px;margin-bottom:18px}}
 .refs.grade .ref{width:auto}
 .ref{width:104px;flex-shrink:0;background:none;border:none;padding:0;cursor:pointer;text-align:left;color:var(--tx);font-family:inherit}
 .ref .thumb{width:104px;height:132px;margin-bottom:6px}
@@ -587,8 +589,9 @@ function App(){
   var sVt=useState("anuncios"),videosTab=sVt[0],setVideosTab=sVt[1];
   var sRf=useState(null),referencia=sRf[0],setReferenciaSt=sRf[1];
   var sRfF=useState("todos"),refFiltro=sRfF[0],setRefFiltro=sRfF[1];
+  var sIa=useState(null),ideiaAberta=sIa[0],setIdeiaAberta=sIa[1];
+  var sRl=useState(6),refLim=sRl[0],setRefLim=sRl[1];
   var sIf=useState("todas"),ideiaFiltro=sIf[0],setIdeiaFiltro=sIf[1];
-  var sIo=useState("todos"),ideiaObj=sIo[0],setIdeiaObj=sIo[1];
   var sGi=useState(false),gerandoIdeias=sGi[0],setGerandoIdeias=sGi[1];
   var sEd=useState({}),edConta=sEd[0],setEdConta=sEd[1];
   var sSv=useState(""),salvandoConta=sSv[0],setSalvandoConta=sSv[1];
@@ -1145,22 +1148,27 @@ function App(){
     var itens=refFiltro==="organico"?itPosts:refFiltro==="anuncio"?itAds:todos;
     var filtros=[{id:"todos",lb:"Todos"}].concat(itPosts.length?[{id:"organico",lb:"Orgânicos ("+itPosts.length+")"}]:[],itAds.length?[{id:"anuncio",lb:"Anúncios ("+itAds.length+")"}]:[]);
     return ce("div",{className:"sec"},ce("div",{className:"sec-t"},"Partir de um vídeo seu (opcional)"),ce("div",{className:"obj-q"},"Escolha até 3 vídeos. O agente junta o que cada um tem de bom e cria roteiros novos. Os que deram mais resultado aparecem primeiro."),
-      filtros.length>2&&ce("div",{className:"chips",style:{marginBottom:10}},filtros.map(function(o){return ce("button",{key:o.id,className:"chip"+(refFiltro===o.id?" on":""),onClick:function(){setRefFiltro(o.id);}},o.lb);})),
-      ce("div",{className:"refs grade"},itens.map(function(it,i){
+      filtros.length>2&&ce("div",{className:"chips",style:{marginBottom:10}},filtros.map(function(o){return ce("button",{key:o.id,className:"chip"+(refFiltro===o.id?" on":""),onClick:function(){setRefFiltro(o.id);setRefLim(6);}},o.lb);})),
+      ce("div",{className:"refs grade"},itens.slice(0,refLim).map(function(it,i){
         var chave=it.tipo+":"+(it.x.id||it.x.nome||it.x.link||it.x.legenda),on=!!(referencia&&referencia.some(function(r){return r.chave===chave;}));
         return ce("button",{key:chave+i,className:"ref"+(on?" on":""),"aria-pressed":on,onClick:function(){usarComoReferencia(it.tipo,it.x,true,tr);}},
           ce("span",{className:"thumb",style:{display:"block"}},img(it.x.miniatura)),
           ce("span",{style:{display:"block",fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},it.nome),
           ce("span",{style:{display:"block",fontSize:11.5,color:it.tipo==="organico"?"var(--ac2)":"var(--mu2)",fontWeight:700}},it.info));
-      })));
+      })),
+      itens.length>6?ce("div",{className:"vermais"},refLim<itens.length?ce("button",{className:"btn-sec2",onClick:function(){setRefLim(refLim+12);}},"Ver mais vídeos"):ce("button",{className:"btn-sec2",onClick:function(){setRefLim(6);}},"Mostrar menos")):null);
   }
   // ---------- IDEIAS DE CONTEUDO (Agente de Ideias) ----------
   function cartaoIdeia(ideia,i,compacto){
-    return ce("div",{key:ideia.titulo+i,className:"ideia"},
-      ce("div",{style:{fontWeight:700,fontSize:15,lineHeight:1.35}},ideia.nova?ce("span",{className:"ideia-nova"},"Nova"):null,ideia.titulo),
-      ce("div",{style:{fontSize:13,lineHeight:1.5,color:"#C9C7C0"}},ideia.como_fazer||ideia.como_gravar),
-      !compacto&&ideia.por_que?ce("div",{style:{fontSize:12,lineHeight:1.5,color:"var(--mu2)"}},ideia.por_que):null,
-      ideiaNarrada(ideia)?ce("div",{style:{marginTop:4}},ce("button",{className:"chip on",style:{height:32,fontSize:12.5},onClick:function(){ideiaParaRoteiro(ideia);}},"Criar roteiro a partir desta ideia")):null);
+    var chave=(compacto?"h:":"i:")+ideia.titulo,aberta=ideiaAberta===chave;
+    return ce("div",{key:ideia.titulo+i,className:"ideia"+(aberta?" aberta":"")},
+      ce("button",{className:"ideia-t","aria-expanded":aberta,onClick:function(){setIdeiaAberta(aberta?null:chave);}},
+        ce("span",{style:{flex:1,minWidth:0}},ideia.nova?ce("span",{className:"ideia-nova"},"Nova"):null,ideia.titulo),
+        ce("span",{className:"ideia-seta","aria-hidden":"true"},ico("seta",16,"var(--mu2)"))),
+      aberta?ce("div",{className:"ideia-c"},
+        ce("div",{style:{fontSize:13.5,lineHeight:1.55,color:"#C9C7C0"}},ideia.como_fazer||ideia.como_gravar),
+        ideia.por_que?ce("div",{style:{fontSize:12.5,lineHeight:1.5,color:"var(--mu2)"}},ideia.por_que):null,
+        ideiaNarrada(ideia)?ce("div",null,ce("button",{className:"chip on",style:{height:40,fontSize:13},onClick:function(){ideiaParaRoteiro(ideia);}},"Criar roteiro a partir desta ideia")):null):null);
   }
   function botaoMaisIdeias(){
     return ce("button",{className:"btn-pri",style:{width:"auto",minHeight:44,opacity:gerandoIdeias?.7:1},disabled:gerandoIdeias,onClick:pedirMaisIdeias},gerandoIdeias?"Gerando ideias novas... (leva cerca de 1 minuto)":"Gerar mais ideias");
@@ -1168,22 +1176,14 @@ function App(){
   function renderIdeias(){
     var dl=dadosLoja(contaMeta),id=(dl&&dl.dossie&&dl.dossie.ideias)||null,lista=(id&&id.lista)||[];
     if(!lista.length)return ce("div",{className:"content"},ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"\uD83D\uDCA1"),ce("div",{className:"emp-h"},"Suas ideias estão a caminho"),ce("div",{className:"emp-p"},"Assim que o Instagram e os anúncios forem conectados, o time de agentes estuda a sua conta e sugere cerca de 15 ideias de conteúdo. Elas se renovam sozinhas quando entram vídeos novos.")));
-    var comoGravar=[{id:"todas",lb:"Todas"},{id:"rápido com transições",lb:"Sem falar, só com transições"},{id:"narrado",lb:"Falando para a câmera"},{id:"provador",lb:"Provando as peças"}];
-    var paraQue=[{id:"todos",lb:"Todos"},{id:"topo",lb:"Ganhar seguidoras"},{id:"meio",lb:"Fazer desejar a peça"},{id:"fundo",lb:"Vender agora"}];
-    function passaComo(x,f){return f==="todas"||formatosIdeia(x).indexOf(f)>-1;}
-    function passaPara(x,f){return f==="todos"||x.funil===f;}
-    var vis=lista.filter(function(x){return passaComo(x,ideiaFiltro)&&passaPara(x,ideiaObj);});
-    function grupo(titulo,ops,atual,setar,conta){return ce("div",{className:"ifiltro"},ce("span",{className:"ifiltro-t"},titulo),ce("div",{className:"chips rolar",style:{margin:0}},ops.map(function(o){var n=lista.filter(function(x){return conta(x,o.id);}).length;if(!n)return null;return ce("button",{key:o.id,className:"chip"+(atual===o.id?" on":""),onClick:function(){setar(o.id);}},o.lb+" ("+n+")");})));}
+    function passa(x,f){var fm=formatosIdeia(x);return f==="todas"||(f==="curto"?fm.some(function(v){return v!=="narrado";}):fm.indexOf("narrado")>-1);}
+    var ops=[{id:"todas",lb:"Todas"},{id:"curto",lb:"Vídeos curtos"},{id:"narrado",lb:"Vídeos narrados"}];
+    var filtro=ops.some(function(o){return o.id===ideiaFiltro;})?ideiaFiltro:"todas";
+    var vis=lista.filter(function(x){return passa(x,filtro);});
     return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:760}},
-      ce("div",{className:"pg-h",style:{marginBottom:6}},"Ideias de conteúdo"),
-      ce("div",{style:{fontSize:13,color:"var(--mu2)",marginBottom:14,lineHeight:1.5}},"Feitas pelo time de agentes a partir dos seus vídeos, anúncios e comentários"+(id.gerado_em?" · atualizadas "+quando(id.gerado_em):"")+". As que funcionam narradas podem virar roteiro com um clique."),
-      ce("div",{style:{marginBottom:14}},botaoMaisIdeias()),
-      id.resumo?ce("div",{className:"nota"},ce("b",null,"Por onde começar: "),id.resumo):null,
-      grupo("Como gravar",comoGravar,ideiaFiltro,setIdeiaFiltro,function(x,f){return passaComo(x,f)&&passaPara(x,ideiaObj);}),
-      grupo("Para quê",paraQue,ideiaObj,setIdeiaObj,function(x,f){return passaPara(x,f)&&passaComo(x,ideiaFiltro);}),
-      vis.length?ce("div",{className:"ideias"},vis.map(function(x,i){return cartaoIdeia(x,i,false);})):ce("div",{className:"emp-p",style:{padding:"24px 0"}},ce("span",null,"Nenhuma ideia com essa combinação. ",ce("button",{className:"link-mini",onClick:function(){setIdeiaFiltro("todas");setIdeiaObj("todos");}},"Ver todas"))),
-      ce("div",{className:"nota",style:{marginTop:16}},ce("b",null,"Como aplicar: "),"o mesmo tema pode virar um vídeo rápido com transições (até 15 segundos), um narrado (30 a 45 segundos) ou um provador. O ideal é de 3 a 4 vídeos por semana. Se for anunciar uma peça, confira o estoque antes."),
-      vis.length>4?ce("div",{style:{marginTop:16}},botaoMaisIdeias()):null));
+      ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:14}},ce("div",{className:"pg-h",style:{margin:0}},"Ideias de conteúdo"),botaoMaisIdeias()),
+      ce("div",{className:"chips rolar"},ops.map(function(o){var n=lista.filter(function(x){return passa(x,o.id);}).length;if(!n)return null;return ce("button",{key:o.id,className:"chip"+(filtro===o.id?" on":""),onClick:function(){setIdeiaFiltro(o.id);}},o.lb+" ("+n+")");})),
+      vis.length?ce("div",{className:"ideias"},vis.map(function(x,i){return cartaoIdeia(x,i,false);})):ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhuma ideia neste filtro.")));
   }
   // ---------- INICIO ----------
   function renderHome(){
@@ -1198,12 +1198,10 @@ function App(){
     var dos=(dl&&dl.dossie)||{};
     var ideiasTop=((dos.ideias&&dos.ideias.lista)||[]).slice(0,3);
     var gravar=ideiasTop.length?ce("div",{className:"card2 gravar"},
-      ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}},ce("div",{className:"sec-h",style:{margin:0}},"O que gravar agora"),ce("button",{className:"link-mini",onClick:function(){irPara("ideias");}},"Ver as "+dos.ideias.lista.length+" ideias \u2192")),
-      dos.ideias.resumo?ce("div",{style:{fontSize:14,lineHeight:1.55,color:"#C9C7C0",marginBottom:12}},dos.ideias.resumo):null,
-      ce("div",{className:"ideias tres"},ideiasTop.map(function(x,i){return cartaoIdeia(x,i,true);})),
-      ce("div",{style:{display:"flex",gap:10,marginTop:12,flexWrap:"wrap"}},ce("button",{className:"chip",onClick:function(){irPara("ideias");}},"Ver todas as ideias"),ce("button",{className:"chip",onClick:function(){abrirVideo(null,"descobertas");}},"Ver o que o time descobriu"))
+      ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:10}},ce("div",{className:"sec-h",style:{margin:0}},"Sugestões de conteúdo"),ce("button",{className:"link-mini",onClick:function(){irPara("ideias");}},"Ver as "+dos.ideias.lista.length+" \u2192")),
+      ce("div",{className:"ideias"},ideiasTop.map(function(x,i){return cartaoIdeia(x,i,true);}))
     ):ce("div",{className:"card2 gravar"},
-      ce("div",{className:"sec-h",style:{margin:"0 0 6px"}},"O que gravar agora"),
+      ce("div",{className:"sec-h",style:{margin:"0 0 6px"}},"Sugestões de conteúdo"),
       ce("div",{style:{fontSize:14,lineHeight:1.55,color:"#C9C7C0"}},dos.resumo_loja||(temDados?"O time de agentes está estudando os seus vídeos. Enquanto isso, você já pode criar roteiros.":"Crie o seu primeiro roteiro: conte o produto e o objetivo, e o MCP escreve os roteiros para você.")),
       ce("div",{style:{display:"flex",gap:10,marginTop:12,flexWrap:"wrap",alignItems:"center"}},
         ce("button",{className:"btn-pri",style:{width:"auto",minHeight:44},onClick:function(){irPara("briefing");}},"Criar roteiro"),
@@ -1230,8 +1228,8 @@ function App(){
       temDados
         ?null
         :ce("div",{className:"nota",style:{marginBottom:18}},ce("b",null,"Seus números aparecem aqui "),"assim que o Instagram e os anúncios da loja forem conectados. A equipe do MCP Studio cuida disso para você."),
-      gravar,
-      melhores
+      melhores?ce("div",{style:{marginBottom:22}},melhores):null,
+      gravar
     ));
   }
 
@@ -1573,29 +1571,26 @@ function App(){
             ce("div",{className:"obj-g met"},METODOS.map(function(m){return ce("div",{key:m.id,className:"obj-o"+(metodoSel===m.id?" on":""),onClick:function(){setMetodoSel(m.id);}},ce("div",{className:"obj-ic"},m.ic),ce("div",null,ce("div",{className:"obj-lbl"},m.amigo),ce("div",{style:{fontSize:10.5,color:"var(--mu2)",marginBottom:3}},m.sub),ce("div",{className:"obj-ds"},m.ds)));}))
           ),
           ce("div",{className:"sec"},
-            ce("div",{className:"sec-t"},"02 - Produto ou serviço"+(referencia?" (opcional com vídeo de referência)":"")),
-            ce("div",{style:{margin:"0 0 14px"}},ce("label",{style:{display:"inline-flex",alignItems:"center",gap:8,cursor:lendoVideo?"wait":"pointer",border:"1px dashed var(--boh)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"var(--ac2)",background:"var(--sur2)"}},ce("input",{type:"file",accept:"video/*,audio/*",style:{display:"none"},disabled:lendoVideo,onChange:function(e){if(e.target.files&&e.target.files[0]){transcreverArquivo(e.target.files[0]);e.target.value="";}}}),lendoVideo?"Transcrevendo...":"Tem um video ou audio curto? Carregue e a IA transcreve")),
-            ce("div",{style:{marginBottom:12}},
-              ce("div",{style:{fontSize:12,fontWeight:500,color:"var(--mu2)",marginBottom:8}},"Selecione uma ou mais formas de descrever seu produto:"),
-              ce("div",{className:"itabs"},[{id:"texto",ic:"Descrever"},{id:"url",ic:"Colar URL"},{id:"imagem",ic:"Enviar Fotos"}].map(function(m){return ce("button",{key:m.id,className:"itab"+(inputModes[m.id]?" on":""),onClick:function(){togMode(m.id);}},( inputModes[m.id]?"v ":"")+m.ic);}))
-            ),
-            inputModes.texto&&ce("div",{className:"fi"},ce("label",null,"Descricao do produto"),ce("textarea",{placeholder:"Ex: Curso online de bolos decorados, 40 aulas, suporte no WhatsApp. Ideal para quem quer trabalhar em casa.",value:form.produto,onChange:function(e){setForm(function(f){return Object.assign({},f,{produto:e.target.value});});}})),
-            inputModes.url&&ce("div",{className:"fi"},ce("label",null,"URL do produto ou video/foto do Instagram"),ce("input",{placeholder:"https://seusite.com.br ou https://instagram.com/p/...",value:form.url,onChange:function(e){setForm(function(f){return Object.assign({},f,{url:e.target.value});});}}),(form.url&&(form.url.indexOf("instagram.com")>-1||form.url.indexOf("instagr.am")>-1))&&ce("div",{style:{fontSize:11,color:"var(--ok)",marginTop:4}},"v Instagram detectado -- a IA vai analisar produto, publico, tom e argumentos do conteudo")),
+            ce("div",{className:"sec-t"},"02 - Qual peça ou produto?"),
+            ce("div",{style:{margin:"0 0 14px"}},ce("label",{style:{display:"inline-flex",alignItems:"center",gap:8,cursor:lendoVideo?"wait":"pointer",border:"1px dashed var(--boh)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"var(--ac2)",background:"var(--sur2)"}},ce("input",{type:"file",accept:"video/*,audio/*",style:{display:"none"},disabled:lendoVideo,onChange:function(e){if(e.target.files&&e.target.files[0]){transcreverArquivo(e.target.files[0]);e.target.value="";}}}),lendoVideo?"Transcrevendo...":"Tem um vídeo ou áudio curto? Envie e a IA transcreve")),
+            ce("div",{className:"fi"},ce("label",null,"Sobre a peça"+(referencia?" (opcional)":"")),ce("textarea",{placeholder:"Ex.: calça pantalona de alfaiataria, R$ 129,90, tecido que não amassa, do 36 ao 46, cores preta e bege.",value:form.produto,onChange:function(e){setForm(function(f){return Object.assign({},f,{produto:e.target.value});});}})),
+            ce("div",{className:"chips",style:{marginBottom:12}},[{id:"url",ic:"Colar um link"},{id:"imagem",ic:"Enviar fotos"}].map(function(m){return ce("button",{key:m.id,className:"chip"+(inputModes[m.id]?" on":""),onClick:function(){togMode(m.id);}},(inputModes[m.id]?"\u2713 ":"+ ")+m.ic);})),
+            inputModes.url&&ce("div",{className:"fi"},ce("label",null,"Link da peça no site ou de um post do Instagram"),ce("input",{placeholder:"https://seusite.com.br ou https://instagram.com/p/...",value:form.url,onChange:function(e){setForm(function(f){return Object.assign({},f,{url:e.target.value});});}}),(form.url&&(form.url.indexOf("instagram.com")>-1||form.url.indexOf("instagr.am")>-1))&&ce("div",{style:{fontSize:11,color:"var(--ok)",marginTop:4}},"\u2713 Post do Instagram: a IA vai analisar a peça, o público, o tom e os argumentos")),
             inputModes.imagem&&ce("div",null,
               ce("div",{className:"iup"+(drag?" drag":""),onClick:function(){fileRef.current&&fileRef.current.click();},onDragOver:function(e){e.preventDefault();setDrag(true);},onDragLeave:function(){setDrag(false);},onDrop:function(e){e.preventDefault();setDrag(false);handleImages(e.dataTransfer.files);}},
                 ce("input",{ref:fileRef,type:"file",accept:"image/*",multiple:true,style:{display:"none"},onChange:function(e){handleImages(e.target.files);}}),
-                ce("div",{className:"iup-icon"},"📷"),ce("div",{className:"iup-txt"},ce("span",null,"Clique ou arraste")," as fotos aqui"),ce("div",{style:{fontSize:11,color:"var(--mu)",marginTop:6}},"Ate 4 imagens")
+                ce("div",{className:"iup-icon"},"📷"),ce("div",{className:"iup-txt"},ce("span",null,"Clique ou arraste")," as fotos aqui"),ce("div",{style:{fontSize:11,color:"var(--mu)",marginTop:6}},"Até 4 fotos")
               ),
               imagePreviews.length>0&&ce("div",{className:"iprevs"},imagePreviews.map(function(src,i){return ce("div",{key:i,className:"ithumb"},ce("img",{src:src,alt:""}),ce("button",{className:"ithumb-del",onClick:function(e){e.stopPropagation();removeImage(i);}},"x"));}))
             )
           ),
           ce("div",{className:"sec"},
-            ce("div",{className:"sec-t"},"03 - Para onde voce quer levar as pessoas?"),
+            ce("div",{className:"sec-t"},"03 - Para onde você quer levar as pessoas?"),
             ce("div",{className:"obj-q"},"Escolha o destino desejado - cada um gera um estilo diferente de roteiro e CTA."),
             ce("div",{className:"obj-g"},OBJS.map(function(o){return ce("div",{key:o.id,className:"obj-o"+(form.objetivo===o.id?" on":""),onClick:function(){setForm(function(f){return Object.assign({},f,{objetivo:o.id});}); }},ce("div",{className:"obj-ic"},o.ic),ce("div",null,ce("div",{className:"obj-lbl"},o.lb),ce("div",{className:"obj-ds"},o.ds)));}))
           ),
           ce("button",{className:"gbtn",onClick:iniciarBriefing,disabled:!form.objetivo||(!referencia&&((!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)))},"Gerar "+POR_RODADA+" roteiros: "+metodoInfo(metodoSel).amigo),
-          (function(){var f=[];if(!form.objetivo)f.push("escolher o destino (passo 03)");if(referencia){}else if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)f.push("escolher como descrever o produto (passo 02)");else{if(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)f.push("escrever a descricao do produto");if(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)f.push("colar a URL");if(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)f.push("enviar ao menos uma foto");}return f.length?ce("div",{style:{marginTop:10,fontSize:12.5,color:"var(--ac2)",textAlign:"center"}},"Falta: "+f.join(" e ")):null;})()
+          (function(){var f=[];if(!form.objetivo)f.push("escolher o destino (passo 03)");if(referencia){}else if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)f.push("contar sobre a peça (passo 02)");else{if(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)f.push("contar sobre a peça");if(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)f.push("colar a URL");if(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)f.push("enviar ao menos uma foto");}return f.length?ce("div",{style:{marginTop:10,fontSize:12.5,color:"var(--ac2)",textAlign:"center"}},"Falta: "+f.join(" e ")):null;})()
         )
       ),
       view==="results"&&activeProject&&function(){

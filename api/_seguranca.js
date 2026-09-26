@@ -91,4 +91,29 @@ async function auditar(adminId, acao, alvo, detalhe) {
     try { await banco("auditoria", { method: "POST", body: { admin_id: adminId, acao: acao, alvo: alvo || null, detalhe: detalhe || null } }); } catch (e) { console.error("[auditoria] " + e.message); }
 }
 
-module.exports = { SUPA_URL, SUPA_ANON, ADMIN_ID, validarAdmin, banco, authAdmin, criptografar, descriptografar, auditar };
+// Acesso fechado: so usa a IA quem o admin cadastrou (loja criada no painel ou ativada no Reportei Connect).
+// Quem criou login sozinho, sem loja, fica de fora. A resposta fica guardada 5 minutos por token.
+const liberados = new Map();
+async function acessoLiberado(jwt) {
+    if (!jwt) return false;
+    const guardado = liberados.get(jwt);
+    if (guardado && guardado.ate > Date.now()) return guardado.ok;
+    const r = await fetch(SUPA_URL + "/auth/v1/user", { headers: { apikey: SUPA_ANON, Authorization: "Bearer " + jwt } });
+    if (!r.ok) return false;
+    const u = await r.json();
+    let ok = !!(u && u.id === ADMIN_ID);
+    if (!ok && u && u.id) {
+        const id = encodeURIComponent(u.id);
+        const [lj, cc] = await Promise.all([
+            banco("lojas?user_id=eq." + id + "&select=user_id&limit=1"),
+            banco("connect_clientes?user_id=eq." + id + "&select=user_id&limit=1")
+        ]);
+        ok = !!((lj && lj.length) || (cc && cc.length));
+    }
+    if (liberados.size > 500) liberados.clear();
+    liberados.set(jwt, { ok: ok, ate: Date.now() + 5 * 60000 });
+    return ok;
+}
+const SEM_ACESSO = "Seu acesso ainda não foi liberado. Fale com a equipe do MCP Studio.";
+
+module.exports = { SUPA_URL, SUPA_ANON, ADMIN_ID, validarAdmin, acessoLiberado, SEM_ACESSO, banco, authAdmin, criptografar, descriptografar, auditar };
