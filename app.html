@@ -349,7 +349,8 @@ function nichoDoProjeto(p){if(!p)return "";if(p.form&&p.form.nicho)return p.form
 // Padroes aprendidos com varias lojas (anonimos, so padroes) para o nicho e metodo
 // Dossie da conta (feito pelo time de agentes no servidor, so com os dados desta loja) e video de referencia escolhido pela cliente
 var CONTA_AGENTE={texto:"",nicho:"",por_metodo:null,voz:null,ganchos:null},REFERENCIA_ATUAL="";
-function contaDoDossie(d){d=d||{};return {texto:d.texto||"",nicho:d.nicho||"",por_metodo:d.por_metodo||null,voz:d.voz||null,ganchos:d.ganchos||null};}
+// o tempo medio assistido fica na raiz do dossie; entra junto com os ganchos para o roteirista
+function contaDoDossie(d){d=d||{};var g=d.ganchos||(d.tempo_medio_conta?{}:null);if(g&&d.tempo_medio_conta)g=Object.assign({},g,{tempo_medio_conta:d.tempo_medio_conta});return {texto:d.texto||"",nicho:d.nicho||"",por_metodo:d.por_metodo||null,voz:d.voz||null,ganchos:g};}
 // voz da loja (falas reais e comentarios) e ganchos com numeros desta conta, para o roteirista e o revisor
 function textoVozDaLoja(){
   var v=CONTA_AGENTE.voz,partes=[];if(!v)return "";
