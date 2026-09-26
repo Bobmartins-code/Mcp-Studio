@@ -188,6 +188,8 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .seg button.on{color:var(--tx);border-bottom-color:var(--tx);font-weight:700}
 .igrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px}
 @media(max-width:1100px){.igrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.ifiltro{display:flex;align-items:center;gap:10px;margin-bottom:10px;min-width:0}.ifiltro-t{font-size:12px;color:var(--mu2);white-space:nowrap;min-width:78px}
+@media(max-width:768px){.ifiltro{flex-direction:column;align-items:stretch;gap:6px}.ifiltro .chips{max-width:100%}}
 .vermais{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px}
 .itile{position:relative;aspect-ratio:3/4;background:var(--sur2);border:none;padding:0;cursor:pointer;overflow:hidden;display:block;width:100%}
 .itile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -585,6 +587,7 @@ function App(){
   var sRf=useState(null),referencia=sRf[0],setReferenciaSt=sRf[1];
   var sRfF=useState("todos"),refFiltro=sRfF[0],setRefFiltro=sRfF[1];
   var sIf=useState("todas"),ideiaFiltro=sIf[0],setIdeiaFiltro=sIf[1];
+  var sIo=useState("todos"),ideiaObj=sIo[0],setIdeiaObj=sIo[1];
   var sGi=useState(false),gerandoIdeias=sGi[0],setGerandoIdeias=sGi[1];
   var sEd=useState({}),edConta=sEd[0],setEdConta=sEd[1];
   var sSv=useState(""),salvandoConta=sSv[0],setSalvandoConta=sSv[1];
@@ -1164,14 +1167,20 @@ function App(){
   function renderIdeias(){
     var dl=dadosLoja(contaMeta),id=(dl&&dl.dossie&&dl.dossie.ideias)||null,lista=(id&&id.lista)||[];
     if(!lista.length)return ce("div",{className:"content"},ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"\uD83D\uDCA1"),ce("div",{className:"emp-h"},"Suas ideias estão a caminho"),ce("div",{className:"emp-p"},"Assim que o Instagram e os anúncios forem conectados, o time de agentes estuda a sua conta e sugere cerca de 15 ideias de conteúdo. Elas se renovam sozinhas quando entram vídeos novos.")));
-    var filtros=[{id:"todas",lb:"Todas"},{id:"rápido com transições",lb:"Rápidos com transições"},{id:"narrado",lb:"Narrados"},{id:"provador",lb:"Provador"},{id:"topo",lb:"Atrair gente nova"},{id:"meio",lb:"Fazer desejar"},{id:"fundo",lb:"Fazer comprar"}];
-    var vis=lista.filter(function(x){return ideiaFiltro==="todas"||x.funil===ideiaFiltro||formatosIdeia(x).indexOf(ideiaFiltro)>-1;});
+    var comoGravar=[{id:"todas",lb:"Todas"},{id:"rápido com transições",lb:"Sem falar, só com transições"},{id:"narrado",lb:"Falando para a câmera"},{id:"provador",lb:"Provando as peças"}];
+    var paraQue=[{id:"todos",lb:"Todos"},{id:"topo",lb:"Ganhar seguidoras"},{id:"meio",lb:"Fazer desejar a peça"},{id:"fundo",lb:"Vender agora"}];
+    function passaComo(x,f){return f==="todas"||formatosIdeia(x).indexOf(f)>-1;}
+    function passaPara(x,f){return f==="todos"||x.funil===f;}
+    var vis=lista.filter(function(x){return passaComo(x,ideiaFiltro)&&passaPara(x,ideiaObj);});
+    function grupo(titulo,ops,atual,setar,conta){return ce("div",{className:"ifiltro"},ce("span",{className:"ifiltro-t"},titulo),ce("div",{className:"chips rolar",style:{margin:0}},ops.map(function(o){var n=lista.filter(function(x){return conta(x,o.id);}).length;if(!n)return null;return ce("button",{key:o.id,className:"chip"+(atual===o.id?" on":""),onClick:function(){setar(o.id);}},o.lb+" ("+n+")");})));}
     return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:760}},
       ce("div",{className:"pg-h",style:{marginBottom:6}},"Ideias de conteúdo"),
       ce("div",{style:{fontSize:13,color:"var(--mu2)",marginBottom:14,lineHeight:1.5}},"Feitas pelo time de agentes a partir dos seus vídeos, anúncios e comentários"+(id.gerado_em?" · atualizadas "+quando(id.gerado_em):"")+". As que funcionam narradas podem virar roteiro com um clique."),
       ce("div",{style:{marginBottom:14}},botaoMaisIdeias()),
       id.resumo?ce("div",{className:"nota"},ce("b",null,"Por onde começar: "),id.resumo):null,
-      vis.length?ce("div",{className:"ideias"},vis.map(function(x,i){return cartaoIdeia(x,i,false);})):ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhuma ideia neste filtro."),
+      grupo("Como gravar",comoGravar,ideiaFiltro,setIdeiaFiltro,function(x,f){return passaComo(x,f)&&passaPara(x,ideiaObj);}),
+      grupo("Para quê",paraQue,ideiaObj,setIdeiaObj,function(x,f){return passaPara(x,f)&&passaComo(x,ideiaFiltro);}),
+      vis.length?ce("div",{className:"ideias"},vis.map(function(x,i){return cartaoIdeia(x,i,false);})):ce("div",{className:"emp-p",style:{padding:"24px 0"}},ce("span",null,"Nenhuma ideia com essa combinação. ",ce("button",{className:"link-mini",onClick:function(){setIdeiaFiltro("todas");setIdeiaObj("todos");}},"Ver todas"))),
       ce("div",{className:"nota",style:{marginTop:16}},ce("b",null,"Como aplicar: "),"o mesmo tema pode virar um vídeo rápido com transições (até 15 segundos), um narrado (30 a 45 segundos) ou um provador. O ideal é de 3 a 4 vídeos por semana. Se for anunciar uma peça, confira o estoque antes."),
       vis.length>4?ce("div",{style:{marginTop:16}},botaoMaisIdeias()):null));
   }
