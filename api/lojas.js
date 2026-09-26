@@ -99,7 +99,10 @@ module.exports = async function handler(req, res) {
                 const cc = await banco("connect_clientes?user_id=eq." + uid + "&select=nome");
                 campos.nome = (cc && cc[0] && cc[0].nome) || "Minha loja";
             }
-            await banco("lojas", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: Object.assign({ user_id: uid, atualizado_em: new Date().toISOString() }, campos) });
+            // loja que ja tem linha: atualiza so o que mudou (um insert sem o nome seria recusado pelo banco)
+            const dados = Object.assign({ atualizado_em: new Date().toISOString() }, campos);
+            if (linha) await banco("lojas?user_id=eq." + uid, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: dados });
+            else await banco("lojas", { method: "POST", headers: { Prefer: "return=minimal" }, body: Object.assign({ user_id: uid }, dados) });
             await auditar(admin.id, "editou o perfil da loja", uid, { nome: campos.nome || null, logo: b.remover_logo ? "removida" : (b.logo_b64 ? "nova" : null) });
             return res.status(200).json({ ok: true, logo_url: campos.logo_url });
         }

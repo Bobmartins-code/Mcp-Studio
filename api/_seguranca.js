@@ -30,6 +30,12 @@ async function validarAdmin(jwt) {
     return u;
 }
 
+// Texto cortado no meio de um emoji (metade dele sobra) ou com caractere nulo: o banco recusa o JSON inteiro.
+// Tira essas sobras de todo texto antes de gravar.
+function textoSeguro(k, v) {
+    return typeof v === "string" ? v.replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?:^|[^\ud800-\udbff])[\udc00-\udfff]/g, function (m) { return m.length > 1 ? m[0] : ""; }).replace(/\u0000/g, "") : v;
+}
+
 // Banco com a chave de servico (so no servidor)
 function chaveServico() {
     const k = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,7 +46,7 @@ async function banco(caminho, opcoes) {
     const o = opcoes || {}, k = chaveServico();
     const headers = Object.assign({ apikey: k, "Content-Type": "application/json" }, o.headers || {});
     if (k.indexOf("sb_secret_") !== 0) headers.Authorization = "Bearer " + k; // chave antiga (JWT) vai tambem no Authorization
-    const r = await fetch(SUPA_URL + "/rest/v1/" + caminho, { method: o.method || "GET", headers: headers, body: o.body ? JSON.stringify(o.body) : undefined });
+    const r = await fetch(SUPA_URL + "/rest/v1/" + caminho, { method: o.method || "GET", headers: headers, body: o.body ? JSON.stringify(o.body, textoSeguro) : undefined });
     const txt = await r.text();
     if (!r.ok) throw new Error("Banco: " + txt.slice(0, 200));
     return txt ? JSON.parse(txt) : null;
