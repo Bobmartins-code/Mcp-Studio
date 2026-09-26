@@ -1259,6 +1259,7 @@ function App(){
     var chaveOrg="org:"+ordemOrg+":"+periodo,mostrar=lista.slice(0,limiteDe(chaveOrg));
     return ce("div",null,
       ordemOrg==="gancho"?ce("div",{className:"legenda",style:{paddingTop:0}},"Quantas pessoas não pularam o vídeo nos 3 primeiros segundos. Mostra a força do gancho, a abertura do vídeo."):null,
+      ordemOrg==="engaj"?ce("div",{className:"legenda",style:{paddingTop:0}},"Curtidas, comentários, salvamentos e compartilhamentos (que valem dobrado, porque levam o vídeo a quem ainda não segue a loja), divididos por quantas pessoas viram o post e comparados com a média da sua conta. 1x é a média; 2x é o dobro."):null,
       ce("div",{className:"chips rolar"},[{id:"vistos",lb:"Mais vistos"},{id:"engaj",lb:"Mais engajamento"},{id:"tempo",lb:"Mais tempo assistido",so:"tempo_medio_s"},{id:"gancho",lb:"Melhor gancho",so:"retencao_3s"},{id:"compart",lb:"Mais compartilhados"},{id:"recentes",lb:"Mais recentes"}].filter(function(o){return !o.so||todos.some(function(p){return p[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemOrg===o.id?" on":""),onClick:function(){setOrdemOrg(o.id);}},o.lb);})),
       comData&&ce("div",{className:"chips"},chipsPeriodo(),ce("span",{style:{marginLeft:"auto",fontSize:12.5,color:"var(--mu2)"}},lista.length+(lista.length===1?" post":" posts"))),
       lista.length
@@ -1272,7 +1273,7 @@ function App(){
           ordemOrg==="gancho"&&p.retencao_3s!=null?ce("span",{className:"vw"},String(p.retencao_3s).replace(".",",")+"% passaram do gancho"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));})),verMais(chaveOrg,lista.length))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum post "+textoPeriodo(periodo)+"."+(periodo!==90?" Tente 90 dias.":"")),
       ordemOrg==="engaj"
-        ?ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"1x"),"é a média da sua conta. Soma curtidas, comentários, salvamentos e compartilhamentos (que valem dobrado) e compara com quantas pessoas viram cada post.")
+        ?null
         :lista.some(function(p){return p.indice>=1.5;})&&ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"2x"),"quantas vezes o post foi melhor que a média da sua conta")
     );
   }
