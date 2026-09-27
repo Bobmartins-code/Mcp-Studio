@@ -96,7 +96,7 @@ tr:hover td{background:var(--sur2)}
 .btn-dots{width:36px;height:36px;border-radius:9px;border:1px solid var(--boh);background:none;color:#C9C7C0;font-size:18px;line-height:1;cursor:pointer}
 .busca{height:44px;width:260px;max-width:100%;background:var(--sur);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--tx);font-size:14px;padding:0 12px;outline:none;font-family:'DM Sans',sans-serif}
 .busca:focus{border-color:rgba(255,77,0,.5)}
-.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}
 .tile{background:var(--sur);border:1px solid var(--bo);border-radius:14px;padding:16px 18px}
 .tile-l{font-size:13px;color:var(--mu2)}.tile-v{font-family:'Syne',sans-serif;font-weight:700;font-size:28px;margin-top:6px}
 .ch{display:inline-block;font-size:12px;font-weight:600;border-radius:20px;padding:4px 10px;white-space:nowrap}
@@ -612,6 +612,8 @@ async function loadData(){
   try{
     var ru=await supaClient.rpc("get_all_users");
     allUsers=ru.data||[];
+    try{var ra=await supaClient.from("acessos").select("user_id,em");var ac={};((ra&&ra.data)||[]).forEach(function(a){ac[a.user_id]=a.em;});
+      allUsers.forEach(function(u){var a=ac[u.id];if(a&&(!u.last_sign_in_at||new Date(a)>new Date(u.last_sign_in_at)))u.last_sign_in_at=a;});}catch(e){}
     var rp=await supaClient.rpc("get_all_projetos");
     allProjetos=rp.data||[];
     emailMap={};
@@ -753,13 +755,14 @@ async function apiLojas(body){
 var lojas={},numeros={},statusLoja={},lojasErro=false;
 function nomeLoja(uid){var l=lojas[uid];if(l&&l.nome)return l.nome;return emailMap[uid]||"Loja";}
 async function carregarLojas(){
-  try{var r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em");if(r.error)throw r.error;lojas={};(r.data||[]).forEach(function(l){lojas[l.user_id]=l;});lojasErro=false;}
+  try{var r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em,produtos_dona,produtos_admin,publico_admin");if(r.error)r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em");if(r.error)throw r.error;lojas={};(r.data||[]).forEach(function(l){lojas[l.user_id]=l;});lojasErro=false;}
   catch(e){lojasErro=true;}
   try{
     var c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,metricas_em,status,atualizado_em,conta:metricas->conta,avisos:metricas->avisos,posts:metricas->organico->total_posts,ads90:metricas->anuncios->p90->totais,dossie_em:dossie->>gerado_em,dossie_versao:dossie->>versao,meta_em:meta->>em,meta_erro:meta->>erro");
     if(c.error)c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,status,atualizado_em");
     numeros={};((c&&c.data)||[]).forEach(function(x){numeros[x.user_id]=x;});
   }catch(e){}
+  await carregarCustos();
   renderLojas();preencherFiltroLojas();
 }
 function lojasOrdenadas(){
@@ -767,6 +770,21 @@ function lojasOrdenadas(){
   return allUsers.filter(function(u){if(!busca)return true;return (u.email||"").toLowerCase().indexOf(busca)>-1||nomeLoja(u.id).toLowerCase().indexOf(busca)>-1;})
     .sort(function(a,b){var la=!!lojas[a.id],lb=!!lojas[b.id];if(la!==lb)return la?-1:1;return nomeLoja(a.id).localeCompare(nomeLoja(b.id),"pt-BR");});
 }
+// gasto de IA dos ultimos 30 dias, por loja (tabela uso_ia, gravada pelo servidor)
+var custos={},custoTotal=0;
+async function carregarCustos(){
+  custos={};custoTotal=0;
+  try{
+    var desde=new Date(Date.now()-30*864e5).toISOString(),de=0;
+    for(var pg=0;pg<20;pg++){
+      var r=await supaClient.from("uso_ia").select("user_id,custo_usd,lote").gte("criado_em",desde).range(de,de+999);
+      if(r.error)break;var rows=r.data||[];
+      rows.forEach(function(x){var k=x.user_id||"-";custos[k]=(custos[k]||0)+Number(x.custo_usd||0);custoTotal+=Number(x.custo_usd||0);});
+      if(rows.length<1000)break;de+=1000;
+    }
+  }catch(e){}
+}
+function fmtUsd(v){return "US$ "+(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
 function temConexao(n){var ct=(n&&n.conta)||{};return !!(ct.username||ct.anuncios||(n&&(n.ig_username||n.ad_account_nome)));}
 function renderLojas(){
   var el=document.getElementById("lojas-tabela");if(!el)return;
@@ -774,7 +792,7 @@ function renderLojas(){
   var acessa=0,aguardando=0,falta=0;
   allUsers.forEach(function(u){if(u.last_sign_in_at)acessa++;else aguardando++;if(!temConexao(numeros[u.id]))falta++;});
   document.getElementById("nav-lojas").textContent=allUsers.length||"";
-  document.getElementById("lojas-tiles").innerHTML=[["Lojas",allUsers.length,""],["Dona já acessa",acessa,"var(--ok)"],["Aguardando 1º acesso",aguardando,"var(--gold)"],["Falta conectar",falta,"var(--ac2)"]].map(function(t){return '<div class="tile"><div class="tile-l">'+t[0]+'</div><div class="tile-v"'+(t[2]?' style="color:'+t[2]+'"':'')+'>'+t[1]+'</div></div>';}).join("");
+  document.getElementById("lojas-tiles").innerHTML=[["Lojas",allUsers.length,""],["Dona já acessa",acessa,"var(--ok)"],["Aguardando 1º acesso",aguardando,"var(--gold)"],["Falta conectar",falta,"var(--ac2)"],["IA nos últimos 30 dias",fmtUsd(custoTotal),""]].map(function(t){return '<div class="tile"><div class="tile-l">'+t[0]+'</div><div class="tile-v"'+(t[2]?' style="color:'+t[2]+'"':'')+'>'+t[1]+'</div></div>';}).join("");
   var lista=lojasOrdenadas();
   if(!lista.length){el.innerHTML='<div class="empty">Nenhuma loja encontrada.</div>';return;}
   var html='<table><thead><tr><th>Loja</th><th>Instagram</th><th>Anúncios</th><th>Acesso da dona</th><th>Números</th><th></th></tr></thead><tbody>';
@@ -787,6 +805,7 @@ function renderLojas(){
     var t90=n.ads90||null;
     var num=n.metricas_em?fmtCurto(n.metricas_em)+'<div class="mini">'+(n.posts!=null?n.posts+" posts":"")+(t90&&t90.gasto!=null?(n.posts!=null?" · ":"")+"R$ "+Math.round(t90.gasto).toLocaleString("pt-BR")+" em 90d":"")+'</div>':'<span class="mini" style="margin:0">Ainda sem números</span>';
     num+=linhaAnalise(n);
+    if(custos[u.id])num+='<div class="mini">IA em 30 dias: '+fmtUsd(custos[u.id])+'</div>';
     if((n.avisos||[]).length)num+='<div class="mini" style="color:var(--gold);max-width:260px;white-space:normal" title="'+escHtml(n.avisos.join(" | "))+'">Aviso: '+escHtml(String(n.avisos[0]).slice(0,120))+(n.avisos.length>1?' (+'+(n.avisos.length-1)+')':'')+'</div>';
     html+='<tr><td><div style="display:flex;gap:12px;align-items:center"><div class="av">'+escHtml(iniciais(nomeLoja(u.id)))+'</div><div style="min-width:0"><div style="font-weight:600;font-size:14.5px">'+escHtml(nomeLoja(u.id))+(u.id===ADMIN_ID?' <span class="ch ch-mu" style="font-size:10px">você</span>':'')+'</div><div class="mini">'+escHtml(l&&l.nicho?l.nicho+" · "+u.email:u.email)+'</div>'+(!l?'<div class="mini"><button class="lk" onclick="abrirDrawerLoja(\''+u.id+'\')">Completar dados da loja</button></div>':'')+'</div></div></td>'
       +'<td>'+ig+'</td><td>'+ads+'</td><td>'+acesso+'</td><td style="font-size:13px">'+num+'<div class="mini" id="ls-'+u.id+'" style="color:var(--ac2);max-width:260px;white-space:normal">'+escHtml(statusLoja[u.id]||"")+'</div></td>'
@@ -798,7 +817,7 @@ function renderLojas(){
 function linhaAnalise(n){
   if(!n||!n.metricas_em)return "";
   var st=n.status||"",t;
-  if(st==="Analisando"&&diasAtras(n.atualizado_em)*1440<10)t='<span style="color:var(--ac2)">Time de agentes analisando agora...</span>';
+  if(st==="Analisando"&&diasAtras(n.atualizado_em)*1440<60)t='<span style="color:var(--ac2)">Time de agentes analisando agora...</span>';
   else if(/^Erro/.test(st))t='<span style="color:var(--gold)" title="'+escHtml(st)+'">Análise com erro · tenta de novo sozinha</span>';
   else if(n.dossie_em&&Number(n.dossie_versao)>=2)t='Analisada '+fmtCurto(n.dossie_em);
   else t='Análise na fila';
@@ -890,6 +909,11 @@ function abrirDrawerLoja(uid){
     +'<label class="campo">Nicho<select id="lj-nicho"><option value="">Escolha</option>'+NICHOS.map(function(n){return '<option'+(l.nicho===n?' selected':'')+'>'+escHtml(n)+'</option>';}).join("")+'</select></label>'
     +'<label class="campo" style="grid-column:1/-1">Site ou link da loja<input id="lj-site" value="'+escHtml(l.site||"")+'" placeholder="https://"/></label>'
     +'</div></section>'
+    +(uid?'<section><div class="passo"><span>+</span>Contexto para os agentes</div>'
+      +(l.produtos_dona?'<div class="dica" style="margin-bottom:8px"><b>A dona contou no app:</b> '+escHtml(l.produtos_dona)+'</div>':'')
+      +'<label class="campo">Produtos e ofertas do momento (visão da consultoria)<textarea id="lj-produtos" rows="4" maxlength="2000" placeholder="Ex.: blusa R$ 69,90; alfaiataria a partir de R$ 109,90 (pantalona e reta do P ao G3, balloon do P ao G)">'+escHtml(l.produtos_admin||"")+'</textarea></label>'
+      +'<label class="campo" style="margin-top:8px">Ajustes sobre o público<textarea id="lj-publico" rows="4" maxlength="2000" placeholder="Ex.: mulheres de 25 a 54 anos, Piracicaba e região; compram por oportunidade; medo de o preço baixo ser qualidade ruim">'+escHtml(l.publico_admin||"")+'</textarea></label>'
+      +'<div class="dica" style="margin-top:6px">Os agentes usam isso nas próximas ideias. Se a dona contar algo diferente no app, vale a versão dela. O público é refeito na próxima análise.</div></section>':'')
     +'<section><div class="passo"><span>2</span>Acesso da dona</div>'
     +'<label class="campo">E-mail da dona da loja<input id="lj-email" type="email" value="'+escHtml(email)+'"'+(uid?' readonly':'')+' placeholder="dona@loja.com"/></label>'
     +'<div class="dica" style="margin-top:8px">Quando ela entrar com esse e-mail, cai direto na loja já pronta: vídeos, anúncios e roteiros. Se ela já usa o app, a loja é ligada à conta dela.</div>'
@@ -909,7 +933,8 @@ async function salvarLoja(){
   btn.disabled=true;erro.textContent="";
   try{
     if(drawerUid){
-      var up=await supaClient.from("lojas").upsert({user_id:drawerUid,nome:nome,nicho:nicho||null,site:site||null,atualizado_em:new Date().toISOString()},{onConflict:"user_id"});
+      var extra={};if(document.getElementById("lj-produtos")){extra.produtos_admin=val("lj-produtos")||null;extra.publico_admin=val("lj-publico")||null;}
+      var up=await supaClient.from("lojas").upsert(Object.assign({user_id:drawerUid,nome:nome,nicho:nicho||null,site:site||null,atualizado_em:new Date().toISOString()},extra),{onConflict:"user_id"});
       if(up.error)throw up.error;
       fecharDrawerLoja();avisar("Loja salva.");await carregarLojas();return;
     }

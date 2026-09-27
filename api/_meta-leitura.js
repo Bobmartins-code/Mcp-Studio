@@ -5,6 +5,7 @@
 //    - Reels: fala do video (transcrita), tempo medio assistido
 //    - melhores posts: comentarios reais das seguidoras
 //    - anuncios: capa, texto e titulo do criativo e a fala do video
+//    - publico: idade, genero e cidades de quem segue (1 vez por semana)
 //  Regras para a Meta nao estranhar:
 //    - so leitura: so consulta (GET), nunca publica, responde ou altera nada
 //    - poucas consultas: pede so o que e novo e guarda em contas_meta.meta
@@ -24,6 +25,7 @@ const CAPAS_MS = DIA_MS;               // as capas da Meta vencem: renova 1 vez 
 const ANTIGOS_MS = 5 * DIA_MS;
 const MAX_ANUNCIOS_RODADA = 25;
 const COMENTARIOS_MS = 3 * DIA_MS;
+const DEMOGRAFIA_MS = 7 * DIA_MS;
 const REELS_RECENTE_MS = 14 * DIA_MS;  // tempo assistido ainda muda: atualiza 1 vez por dia ate 14 dias
 const NOVA_TENTATIVA_MS = 3 * DIA_MS;  // video que nao deu para transcrever: tenta de novo depois
 const MAX_FALAS_POSTS = 3, MAX_FALAS_ANUNCIOS = 2, ESPERA_FALAS_MS = 60000;
@@ -132,7 +134,7 @@ async function transcrever(url) {
 // met = contas_meta.metricas (numeros do Reportei); anterior = contas_meta.meta (o que ja veio da Meta)
 // Devolve o cache atualizado. Se a Meta nao estiver conectada ou estiver pausada, devolve o anterior.
 async function enriquecerLoja(met, anterior) {
-    const cache = { em: (anterior && anterior.em) || null, erro: (anterior && anterior.erro) || null, sem_pulo: !!(anterior && anterior.sem_pulo), posts: Object.assign({}, anterior && anterior.posts), anuncios: Object.assign({}, anterior && anterior.anuncios) };
+    const cache = { em: (anterior && anterior.em) || null, erro: (anterior && anterior.erro) || null, sem_pulo: !!(anterior && anterior.sem_pulo), posts: Object.assign({}, anterior && anterior.posts), anuncios: Object.assign({}, anterior && anterior.anuncios), ig_id: (anterior && anterior.ig_id) || "", demografia: (anterior && anterior.demografia) || null };
     const con = await conexao();
     if (!con || con.pausada) return { cache: cache, pendentes: [] };
     const token = con.token;
@@ -252,6 +254,25 @@ async function enriquecerLoja(met, anterior) {
                 Object.assign(post(p.id), { comentarios: lista, com_em: agora });
             } catch (e) { falhou("comentarios", e, "ig"); }
         }
+
+        // 4) publico: idade, genero e cidades de quem segue (1 vez por semana; a Meta so entrega com 100 seguidores ou mais)
+        if (!sem.ig && posts.length && velho(cache.demografia && cache.demografia.em, DEMOGRAFIA_MS)) {
+            try {
+                if (!cache.ig_id) cache.ig_id = ((await g("/" + posts[0].id, { fields: "owner" }, token)).owner || {}).id || "";
+                if (cache.ig_id) {
+                    const dem = { em: agora };
+                    for (const b of ["age", "gender", "city"]) {
+                        try {
+                            const d = await g("/" + cache.ig_id + "/insights", { metric: "follower_demographics", period: "lifetime", metric_type: "total_value", breakdown: b }, token);
+                            const res = (((d.data || [])[0] || {}).total_value || {}).breakdowns;
+                            dem[b] = ((res && res[0] && res[0].results) || []).map(function (x) { return { chave: (x.dimension_values || []).join(" "), valor: num(x.value) }; })
+                                .sort(function (a, c) { return c.valor - a.valor; }).slice(0, b === "city" ? 8 : 12);
+                        } catch (e) { if (e instanceof MetaPausada || semPermissao(e)) throw e; dem[b] = []; }
+                    }
+                    cache.demografia = dem;
+                }
+            } catch (e) { falhou("publico", e, "ig"); }
+        }
     } catch (e) {
         if (!(e instanceof MetaPausada)) throw e;
     }
@@ -334,6 +355,19 @@ function aplicarMeta(met, cache) {
     return met;
 }
 
+// quem segue a loja, em porcentagem, para os agentes (vem da Meta, 1 vez por semana)
+function textoDemografia(cache) {
+    const d = cache && cache.demografia;
+    if (!d) return "";
+    function pct(lista, nome) {
+        const tot = (lista || []).reduce(function (s, x) { return s + x.valor; }, 0);
+        if (!tot) return "";
+        return nome + ": " + lista.map(function (x) { return (x.chave === "F" ? "mulheres" : x.chave === "M" ? "homens" : x.chave === "U" ? "não informado" : String(x.chave).replace(/, [^,]*\(state\)$/i, "")) + " " + Math.round(x.valor / tot * 100) + "%"; }).join(", ");
+    }
+    const idades = (d.age || []).slice().sort(function (a, b) { return String(a.chave).localeCompare(String(b.chave)); });
+    return [pct(idades, "Idade"), pct(d.gender, "Gênero"), pct(d.city, "Cidades (das principais)")].filter(Boolean).join(" | ");
+}
+
 // comentarios reais guardados, dos melhores posts para os outros
 function comentariosDaLoja(met, cache) {
     if (!cache || !cache.posts) return [];
@@ -343,4 +377,4 @@ function comentariosDaLoja(met, cache) {
     return out.slice(0, 60);
 }
 
-module.exports = { g, conexao, limparEstado, enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, transcrever, MetaPausada, _interno: { usoDe, ehLimite } };
+module.exports = { g, conexao, limparEstado, enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia, transcrever, MetaPausada, _interno: { usoDe, ehLimite } };

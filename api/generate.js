@@ -1,4 +1,5 @@
 const { acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
+const { registrarUso } = require("./_uso-ia.js");
 // Agente MCP: o cerebro do agente (quem ele e, como escreve e os metodos) fica em api/_agente-mcp.js
 const { SISTEMA: AGENTE } = require("./_agente-mcp.js");
 const FORMATO = "FORMATO DA RESPOSTA: quando o pedido for JSON, responda só com o JSON puro, sem markdown. Dentro dos textos, use aspas simples para citações, porque aspas duplas quebram o JSON e a cliente perde o resultado.";
@@ -25,7 +26,8 @@ module.exports = async function handler(req, res) {
         return res.status(401).json({ error: "Falha ao validar sessao" });
     }
     // acesso fechado: so quem o admin cadastrou usa a IA
-    try { if (!(await acessoLiberado(token))) return res.status(403).json({ error: SEM_ACESSO }); }
+    let quem;
+    try { quem = await acessoLiberado(token); if (!quem) return res.status(403).json({ error: SEM_ACESSO }); }
     catch (e) { return res.status(500).json({ error: "Não consegui confirmar o seu acesso. Tente de novo." }); }
     const messages = req.body && req.body.messages;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -56,6 +58,7 @@ module.exports = async function handler(req, res) {
         .map(function (t) { return { type: t.type, name: FERRAMENTAS[t.type], max_uses: 3 }; });
     const usarFerramentas = tools.length > 0;
     const wantStream = !!(req.body && req.body.stream) && !usarFerramentas;
+    const funcao = "app: " + String((req.body && req.body.funcao) || "geral").replace(/[^a-z0-9 _-]/gi, "").slice(0, 30);
 
     // CAMINHO STREAMING: envia o texto da IA chegando ao vivo (sensacao de chat)
     if (wantStream) {
@@ -89,7 +92,7 @@ module.exports = async function handler(req, res) {
         res.setHeader("X-Accel-Buffering", "no");
         if (res.flushHeaders) res.flushHeaders();
         const decoder = new TextDecoder();
-        let buffer = "";
+        let buffer = "", uso = null;
         try {
             for await (const part of r.body) {
                 buffer += decoder.decode(part, { stream: true });
@@ -104,6 +107,10 @@ module.exports = async function handler(req, res) {
                             const ev = JSON.parse(payload);
                             if (ev.type === "content_block_delta" && ev.delta && typeof ev.delta.text === "string") {
                                 res.write(semTravessao(ev.delta.text));
+                            } else if (ev.type === "message_start" && ev.message && ev.message.usage) {
+                                uso = Object.assign({}, ev.message.usage);
+                            } else if (ev.type === "message_delta" && ev.usage && uso) {
+                                Object.assign(uso, ev.usage);
                             }
                         } catch (_) {}
                     }
@@ -111,6 +118,7 @@ module.exports = async function handler(req, res) {
             }
         } catch (e) { /* stream interrompido — cliente trata o que recebeu */ }
         clearTimeout(timeout);
+        await registrarUso(quem, funcao, model, uso, false);
         return res.end();
     }
 
@@ -134,6 +142,7 @@ module.exports = async function handler(req, res) {
         });
         clearTimeout(timeout);
         const d = await r.json();
+        await registrarUso(quem, funcao, model, d && d.usage, false);
         if (d && Array.isArray(d.content)) d.content.forEach(function (b) { if (b && typeof b.text === "string") b.text = semTravessao(b.text); });
         return res.status(r.ok ? 200 : r.status).json(d);
     } catch(e) {

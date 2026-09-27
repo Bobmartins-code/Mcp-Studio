@@ -1,42 +1,59 @@
 // =====================================================================
-//  ATUALIZACAO DOS NUMEROS, A CADA 5 MINUTOS
-//  Chamado pelo agendador do banco (pg_cron do Supabase, a cada 5 minutos)
-//  e, de reserva, pelo Vercel Cron uma vez por dia. Para cada loja ativada
-//  no Reportei Connect: puxa posts e anuncios e grava em contas_meta.metricas
-//  + uma foto do dia em metricas_diarias. So quem tem o CRON_SECRET chama.
-//  Depois, se sobrar tempo, roda o time de agentes (api/_time-agentes.js)
-//  nas lojas que precisam: nunca analisadas, com post ou anuncio novo, ou
-//  com a ultima analise de mais de 24 horas.
+//  RODADA AUTOMATICA (a cada 5 minutos)
+//  Chamada pelo agendador do banco (pg_cron do Supabase, a cada 5 minutos)
+//  e, de reserva, pelo Vercel Cron uma vez por dia. So quem tem o CRON_SECRET chama.
+//
+//  1. Numeros (Reportei): cada loja a cada 30 minutos; a cada 5 minutos
+//     enquanto a dona estiver usando o app.
+//  2. Analises em andamento (contas_meta.dossie_job): confere o lote da
+//     Anthropic ou roda a proxima etapa na hora.
+//  3. Madrugada (3h as 7h): as lojas ativas (acesso nos ultimos 14 dias)
+//     entram no lote diario, pela metade do preco.
+//  4. Na hora: primeira analise, versao nova do time, loja que voltou depois
+//     de parada (a dona abriu o app) ou loja ativa que ficou sem o lote.
 // =====================================================================
 
 const { banco } = require("./_seguranca.js");
 const { atualizarLoja } = require("./_coleta.js");
-const { analisarLoja, precisaAnalisar } = require("./_time-agentes.js");
+const { iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote } = require("./_time-agentes.js");
 
-const LIMITE_MS = 270000; // para antes do tempo maximo da funcao
-const JUNTAS = 3;         // lojas atualizadas ao mesmo tempo
-const INTERVALO_MS = 4 * 60000; // loja atualizada ha menos que isso fica para a proxima rodada
-const INICIO_ANALISE_MS = 100000; // o time leva 1 a 2 minutos: so comeca uma analise ate este ponto da rodada
+const LIMITE_MS = 270000;               // para antes do tempo maximo da funcao
+const JUNTAS = 3;                       // lojas atualizadas ao mesmo tempo
+const NUMEROS_MS = 30 * 60000;          // numeros de cada loja a cada 30 minutos
+const NUMEROS_USANDO_MS = 4 * 60000;    // ... e a cada rodada enquanto a dona usa o app
+const USANDO_MS = 15 * 60000;           // abriu o app nos ultimos 15 minutos = usando
+const ETAPA_ATE_MS = 150000;            // so comeca uma etapa na hora se ainda faltar tempo para ela terminar
+const LOTE_ATE_MS = 200000;             // preparar o lote (consulta a Meta) leva ate 1 minuto por loja
+
+function horaSP(d) { return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }).format(d)) % 24; }
 
 module.exports = async function handler(req, res) {
     const segredo = process.env.CRON_SECRET;
     const auth = req.headers && (req.headers.authorization || req.headers.Authorization);
     if (!segredo || auth !== "Bearer " + segredo) return res.status(401).json({ error: "Nao autorizado" });
     const inicio = Date.now();
+    const passou = function () { return Date.now() - inicio; };
     try {
-        // quem ficou mais tempo sem atualizar vai primeiro
-        const [clientes, contas] = await Promise.all([
-            banco("connect_clientes?select=user_id"),
-            banco("contas_meta?select=user_id,metricas_em")
+        const [clientes, contas, acessosRows] = await Promise.all([
+            banco("connect_clientes?select=user_id,criado_em"),
+            banco("contas_meta?select=user_id,metricas_em"),
+            banco("acessos?select=user_id,em").catch(function () { return []; })
         ]);
-        const quando = {};
+        const acesso = {}, entrou = {}, quando = {};
+        (acessosRows || []).forEach(function (a) { acesso[a.user_id] = a.em; });
+        (clientes || []).forEach(function (c) { entrou[c.user_id] = c.criado_em; });
         (contas || []).forEach(function (c) { quando[c.user_id] = c.metricas_em ? new Date(c.metricas_em).getTime() : 0; });
-        const fila = (clientes || []).map(function (c) { return c.user_id; }).filter(function (uid) { return inicio - (quando[uid] || 0) >= INTERVALO_MS; }).sort(function (a, b) { return (quando[a] || 0) - (quando[b] || 0); });
+        function usando(uid) { return acesso[uid] && inicio - new Date(acesso[uid]).getTime() < USANDO_MS; }
+
+        // 1) numeros: quem ficou mais tempo sem atualizar vai primeiro
+        const fila = (clientes || []).map(function (c) { return c.user_id; })
+            .filter(function (uid) { const idade = inicio - (quando[uid] || 0); return idade >= NUMEROS_MS || (usando(uid) && idade >= NUMEROS_USANDO_MS); })
+            .sort(function (a, b) { return (quando[a] || 0) - (quando[b] || 0); });
         const feitos = [], falhas = [], puladas = [];
         let i = 0;
         async function trabalhador() {
             while (i < fila.length) {
-                if (Date.now() - inicio > LIMITE_MS) { puladas.push(fila[i++]); continue; }
+                if (passou() > LIMITE_MS) { puladas.push(fila[i++]); continue; }
                 const uid = fila[i++];
                 try { const r = await atualizarLoja(uid); feitos.push({ user_id: uid, posts: r.posts, anuncios: r.anuncios }); }
                 catch (e) { falhas.push({ user_id: uid, erro: (e && e.message) || "erro" }); console.error("[atualizar] " + uid + ": " + (e && e.message)); }
@@ -44,20 +61,46 @@ module.exports = async function handler(req, res) {
         }
         await Promise.all(Array.from({ length: Math.min(JUNTAS, fila.length) }, trabalhador));
 
-        // time de agentes: uma loja por vez, a que esta ha mais tempo sem analise primeiro
-        const analisadas = [], falhasAnalise = [];
-        const estado = await banco("contas_meta?select=user_id,status,atualizado_em,assinatura:metricas->>assinatura,dossie_versao:dossie->>versao,dossie_em:dossie->>gerado_em,dossie_assinatura:dossie->>assinatura");
+        // estado das analises
+        const estado = await banco("contas_meta?select=user_id,status,atualizado_em,assinatura:metricas->>assinatura,dossie_versao:dossie->>versao,dossie_em:dossie->>gerado_em,job_modo:dossie_job->>modo");
         const ativas = {};
         (clientes || []).forEach(function (c) { ativas[c.user_id] = 1; });
-        const agora = Date.now();
-        const paraAnalisar = (estado || []).filter(function (c) { return ativas[c.user_id] && precisaAnalisar(c, agora); })
-            .sort(function (a, b) { return (a.dossie_em ? new Date(a.dossie_em).getTime() : 0) - (b.dossie_em ? new Date(b.dossie_em).getTime() : 0); });
-        for (const c of paraAnalisar) {
-            if (Date.now() - inicio > INICIO_ANALISE_MS) break;
-            try { await analisarLoja(c.user_id, "automatica"); analisadas.push(c.user_id); }
-            catch (e) { falhasAnalise.push({ user_id: c.user_id, erro: (e && e.message) || "erro" }); console.error("[atualizar] analise " + c.user_id + ": " + (e && e.message)); }
+        const lojas = (estado || []).filter(function (c) { return ativas[c.user_id]; }).map(function (c) { return Object.assign({}, c, { tem_job: !!c.job_modo }); });
+        const analises = [], falhasAnalise = [];
+        async function tentar(uid, oque, fn) {
+            try { const r = await fn(); analises.push({ user_id: uid, oque: oque, status: r && r.status }); }
+            catch (e) { falhasAnalise.push({ user_id: uid, oque: oque, erro: (e && e.message) || "erro" }); console.error("[atualizar] " + oque + " " + uid + ": " + (e && e.message)); }
         }
-        return res.status(200).json({ ok: true, atualizadas: feitos.length, falhas: falhas, puladas: puladas.length, analisadas: analisadas.length, falhas_analise: falhasAnalise, na_fila_analise: paraAnalisar.length - analisadas.length - falhasAnalise.length, ms: Date.now() - inicio });
+        const temTempo = function () { return passou() < ETAPA_ATE_MS; };
+
+        // 2) analises em andamento: lote primeiro (so confere, e rapido); na hora, se houver tempo
+        for (const c of lojas.filter(function (c) { return c.job_modo; }).sort(function (a, b) { return (a.job_modo === "lote" ? 0 : 1) - (b.job_modo === "lote" ? 0 : 1); })) {
+            if (c.job_modo === "agora" && !temTempo()) break;
+            if (passou() > LIMITE_MS - 30000) break;
+            await tentar(c.user_id, "continuar", function () { return continuarAnalise(c.user_id, temTempo); });
+        }
+
+        // 3) madrugada: lojas ativas entram no lote diario
+        const h = horaSP(new Date());
+        if (h >= 3 && h < 7) {
+            for (const c of lojas.filter(function (c) { return entraNoLote(c, inicio, acesso[c.user_id], entrou[c.user_id]); })) {
+                if (passou() > LOTE_ATE_MS) break;
+                await tentar(c.user_id, "lote", function () { return iniciarAnalise(c.user_id, "lote", "diaria"); });
+            }
+        }
+
+        // 4) na hora: quem esta usando o app primeiro, depois a mais antiga (uma por rodada)
+        const agora = lojas.filter(function (c) { return precisaAnalisarAgora(c, inicio, acesso[c.user_id], entrou[c.user_id]); })
+            .sort(function (a, b) { return (usando(b.user_id) ? 1 : 0) - (usando(a.user_id) ? 1 : 0) || (a.dossie_em ? new Date(a.dossie_em).getTime() : 0) - (b.dossie_em ? new Date(b.dossie_em).getTime() : 0); });
+        if (agora.length && passou() < 60000) {
+            const c = agora[0];
+            await tentar(c.user_id, "agora", async function () {
+                await iniciarAnalise(c.user_id, "agora", c.dossie_em ? (usando(c.user_id) ? "voltou" : "sem_lote") : "primeira");
+                return temTempo() ? continuarAnalise(c.user_id, temTempo) : { status: "etapa_feita" };
+            });
+        }
+
+        return res.status(200).json({ ok: true, atualizadas: feitos.length, falhas: falhas, puladas: puladas.length, analises: analises, falhas_analise: falhasAnalise, na_fila_agora: Math.max(0, agora.length - 1), ms: passou() });
     } catch (e) {
         console.error("[atualizar] " + (e && e.message));
         return res.status(500).json({ error: (e && e.message) || "Erro na atualizacao" });

@@ -25,7 +25,7 @@
       "maxDuration": 60
     },
     "api/ideias.js": {
-      "maxDuration": 120
+      "maxDuration": 300
     }
   },
   "crons": [

@@ -108,6 +108,7 @@ async function auditar(adminId, acao, alvo, detalhe) {
 }
 
 // Acesso fechado: so usa a IA quem o admin cadastrou (loja criada no painel ou ativada no Reportei Connect).
+// Devolve o id de quem chamou (liberado) ou false.
 // Quem criou login sozinho, sem loja, fica de fora. A resposta fica guardada 5 minutos por token.
 const liberados = new Map();
 async function acessoLiberado(jwt) {
@@ -127,8 +128,8 @@ async function acessoLiberado(jwt) {
         ok = !!((lj && lj.length) || (cc && cc.length));
     }
     if (liberados.size > 500) liberados.clear();
-    liberados.set(jwt, { ok: ok, ate: Date.now() + 5 * 60000 });
-    return ok;
+    liberados.set(jwt, { ok: ok ? u.id : false, ate: Date.now() + 5 * 60000 });
+    return ok ? u.id : false;
 }
 const SEM_ACESSO = "Seu acesso ainda não foi liberado. Fale com a equipe do MCP Studio.";
 
