@@ -778,7 +778,8 @@ function situacao(c, agora, acessoEm, ativaDesde) {
 function precisaAnalisarAgora(c, agora, acessoEm, ativaDesde) {
     if (!c || !c.assinatura || c.tem_job) return false;
     const desde = c.atualizado_em ? agora - new Date(c.atualizado_em).getTime() : Infinity;
-    if (/^Erro/.test(c.status || "") && desde < 2 * HORA_MS) return false;   // deu erro: espera antes de tentar de novo
+    // deu erro: espera antes de tentar de novo (sem credito na Anthropic, tenta logo: nada e cobrado e volta assim que recarregar)
+    if (/^Erro/.test(c.status || "") && desde < (/credit balance/i.test(c.status || "") ? 10 * 60000 : 2 * HORA_MS)) return false;
     if (String(c.dossie_versao) !== String(VERSAO) || !c.dossie_em) return true;
     const s = situacao(c, agora, acessoEm, ativaDesde);
     if (s.acessouAgora && s.idade >= DIA_MS) return true;                    // voltou depois de parada: atualiza enquanto ela usa
