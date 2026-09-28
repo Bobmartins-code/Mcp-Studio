@@ -6,7 +6,7 @@
 // =====================================================================
 
 const { banco, acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
-const { limparNomes, atualizarReferencias } = require("./_referencias.js");
+const { limparNomes, atualizarReferencias, REF_MS } = require("./_referencias.js");
 const { registrarFalha } = require("./_uso-ia.js");
 
 module.exports = async function handler(req, res) {
@@ -19,6 +19,13 @@ module.exports = async function handler(req, res) {
     const nomes = limparNomes((req.body || {}).perfis);
     try {
         const id = encodeURIComponent(uid);
+        // mesma lista lida ha pouco: devolve o que ja tem (a cota da Meta e de todas as lojas)
+        const atual = await banco("contas_meta?user_id=eq." + id + "&select=referencias").catch(function () { return []; });
+        const ref0 = atual && atual[0] && atual[0].referencias;
+        const lojaAtual = await banco("lojas?user_id=eq." + id + "&select=referencias").catch(function () { return []; });
+        const lista0 = (lojaAtual && lojaAtual[0] && lojaAtual[0].referencias) || [];
+        if (ref0 && ref0.em && lista0.join(",") === nomes.join(",") && Date.now() - new Date(ref0.em).getTime() < REF_MS) return res.status(200).json({ ok: true, perfis: nomes, referencias: ref0 });
+        if (ref0 && ref0.em && Date.now() - new Date(ref0.em).getTime() < 60000) return res.status(429).json({ error: "Espere um minutinho antes de trocar as referências de novo." });
         // guarda a lista na loja (cria a linha se ainda nao existir)
         const feito = await banco("lojas?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=representation" }, body: { referencias: nomes } });
         if (!feito || !feito.length) {

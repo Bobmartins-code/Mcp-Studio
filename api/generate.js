@@ -1,4 +1,5 @@
-const { acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
+const { acessoLiberado, SEM_ACESSO, banco } = require("./_seguranca.js");
+const LIMITE_DIA = 80; // pedidos por dia por loja nesta rota
 const { registrarUso, registrarFalha } = require("./_uso-ia.js");
 // Agente MCP: o cerebro do agente (quem ele e, como escreve e os metodos) fica em api/_agente-mcp.js
 const { SISTEMA: AGENTE } = require("./_agente-mcp.js");
@@ -33,32 +34,30 @@ module.exports = async function handler(req, res) {
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: "Messages obrigatorio" });
     }
-    // Modelo escolhido pelo cliente (com allowlist). Roteiros: Opus 5.5; demais tarefas: Sonnet 5.
-    // Os antigos continuam aceitos para quem estiver com a pagina velha aberta.
-    const ALLOWED_MODELS = {
-        "claude-opus-5-5": 1,
-        "claude-sonnet-5": 1,
-        "claude-haiku-4-5-20251001": 1,
-        "claude-sonnet-4-6": 1,
-        "claude-opus-4-8": 1
-    };
-    const model = (req.body && ALLOWED_MODELS[req.body.model]) ? req.body.model : "claude-sonnet-5";
-    // Nivel de raciocinio (effort): quanto o modelo pensa antes de escrever
-    const EFFORT_MODELS = { "claude-opus-5-5": 1, "claude-sonnet-5": 1, "claude-opus-4-8": 1 };
-    const ALLOWED_EFFORT = { low: 1, medium: 1, high: 1 };
-    const effort = (req.body && ALLOWED_EFFORT[req.body.effort] && EFFORT_MODELS[model]) ? req.body.effort : null;
-    const extra = effort ? { output_config: { effort: effort } } : {};
-    // Respeita max_tokens do cliente com teto de seguranca (o raciocinio tambem conta nesse limite)
+    // Os roteiros, o chat e as ideias rodam nas rotas proprias (com limites). Esta rota so atende
+    // as tarefas pequenas do app (ler um link, variacoes de gancho): modelo Sonnet, texto limitado e teto diario.
+    const funcao = "app: " + String((req.body && req.body.funcao) || "geral").replace(/[^a-z0-9 _-]/gi, "").slice(0, 30);
+    let tamanho = 0;
+    try { tamanho = JSON.stringify(messages).length; } catch (e) { tamanho = Infinity; }
+    if (messages.length > 6 || tamanho > 60000) return res.status(413).json({ error: "O pedido ficou grande demais. Encurte o texto e tente de novo." });
+    try {
+        const inicioDia = new Date(new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }) + "T00:00:00-03:00").toISOString();
+        const usos = await banco("uso_ia?user_id=eq." + encodeURIComponent(quem) + "&funcao=like.app*&criado_em=gte." + encodeURIComponent(inicioDia) + "&select=id");
+        if ((usos || []).length >= LIMITE_DIA) return res.status(429).json({ error: "Você usou bastante a IA hoje. Amanhã tem mais!" });
+    } catch (e) { /* sem conseguir contar, segue: o teto e uma protecao extra */ }
+    const model = "claude-sonnet-5";
+    const ALLOWED_EFFORT = { low: 1, medium: 1 };
+    const effort = (req.body && ALLOWED_EFFORT[req.body.effort]) ? req.body.effort : "low";
+    const extra = { output_config: { effort: effort } };
     const reqMax = req.body && Number(req.body.max_tokens);
-    const maxTokens = (reqMax && reqMax > 0) ? Math.min(reqMax, 16000) : 6000;
-    // Ferramentas nativas: so ler uma URL ou pesquisar na web, com uso limitado (nada vindo do navegador passa direto)
-    const FERRAMENTAS = { web_fetch_20260209: "web_fetch", web_search_20260209: "web_search" };
-    const pedidas = (req.body && Array.isArray(req.body.tools)) ? req.body.tools : [];
-    const tools = pedidas.filter(function (t) { return t && FERRAMENTAS[t.type]; }).slice(0, 2)
-        .map(function (t) { return { type: t.type, name: FERRAMENTAS[t.type], max_uses: 3 }; });
+    const maxTokens = (reqMax && reqMax > 0) ? Math.min(reqMax, 6000) : 4000;
+    // Ferramenta nativa: so ler uma URL, e so no "ler link" (nada vindo do navegador passa direto)
+    const FERRAMENTAS = { web_fetch_20260209: "web_fetch" };
+    const pedidas = (req.body && Array.isArray(req.body.tools) && funcao === "app: ler link") ? req.body.tools : [];
+    const tools = pedidas.filter(function (t) { return t && FERRAMENTAS[t.type]; }).slice(0, 1)
+        .map(function (t) { return { type: t.type, name: FERRAMENTAS[t.type], max_uses: 2 }; });
     const usarFerramentas = tools.length > 0;
     const wantStream = !!(req.body && req.body.stream) && !usarFerramentas;
-    const funcao = "app: " + String((req.body && req.body.funcao) || "geral").replace(/[^a-z0-9 _-]/gi, "").slice(0, 30);
 
     // CAMINHO STREAMING: envia o texto da IA chegando ao vivo (sensacao de chat)
     if (wantStream) {
@@ -81,13 +80,13 @@ module.exports = async function handler(req, res) {
         } catch (e) {
             clearTimeout(timeout);
             registrarFalha(quem, funcao, e.message);
-            return res.status(500).json({ error: e.message });
+            return res.status(500).json({ error: "Não consegui falar com a IA agora. Tente de novo." });
         }
         if (!r.ok || !r.body) {
             clearTimeout(timeout);
             let errTxt = ""; try { errTxt = await r.text(); } catch (_) {}
             registrarFalha(quem, funcao, "IA respondeu " + r.status + ": " + errTxt.slice(0, 200));
-            return res.status(r.status || 500).json({ error: "Erro na IA", detail: errTxt.slice(0, 400) });
+            return res.status(r.status === 429 || r.status === 529 ? r.status : 502).json({ error: r.status === 429 || r.status === 529 ? "A IA está com muita procura agora. Espere 30 segundos e tente de novo." : "A IA não conseguiu responder agora. Tente de novo." });
         }
         res.setHeader("Content-Type", "text/plain; charset=utf-8");
         res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -147,14 +146,15 @@ module.exports = async function handler(req, res) {
         await registrarUso(quem, funcao, model, d && d.usage, false);
         if (!r.ok) registrarFalha(quem, funcao, "IA respondeu " + r.status + ": " + String((d && d.error && d.error.message) || "").slice(0, 200));
         if (d && Array.isArray(d.content)) d.content.forEach(function (b) { if (b && typeof b.text === "string") b.text = semTravessao(b.text); });
-        return res.status(r.ok ? 200 : r.status).json(d);
+        if (!r.ok) return res.status(r.status === 429 || r.status === 529 ? r.status : 502).json({ error: r.status === 429 || r.status === 529 ? "A IA está com muita procura agora. Espere 30 segundos e tente de novo." : "A IA não conseguiu responder agora. Tente de novo." });
+        return res.status(200).json(d);
     } catch(e) {
         if (e.name === "AbortError") {
             registrarFalha(quem, funcao, "a IA demorou demais");
             return res.status(504).json({ error: "A IA demorou demais. Tente novamente." });
         }
         registrarFalha(quem, funcao, e.message);
-        return res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: "Não consegui falar com a IA agora. Tente de novo." });
     }
 };
 

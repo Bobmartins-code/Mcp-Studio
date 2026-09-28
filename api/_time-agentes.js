@@ -242,16 +242,20 @@ async function lerStream(r, aoComecar) {
         }
     }
     if (erro) throw new Error(erro);
+    if (!stop) throw new Error("a resposta foi interrompida no meio");
     return { content: [{ type: "text", text: texto }], stop_reason: stop, usage: usage };
 }
 
-// p = { chave, nome, pedido, esquema, max }; aoComecar: chamada quando a IA comeca a responder
+// p = { chave, nome, pedido, esquema, max, prazo? }; aoComecar: chamada quando a IA comeca a responder
+// prazo: hora limite (ms) para nao passar do tempo maximo da funcao; sem tempo, nao comeca outra tentativa
 async function perguntar(userId, p, aoComecar) {
     const corpo = Object.assign(corpoDe(p), { stream: true });
     for (let t = 0; t < 3; t++) {
         let r, d;
+        const resta = p.prazo ? p.prazo - Date.now() : 170000;
+        if (resta < 15000) throw new Error(p.nome + ": sem tempo para terminar nesta rodada");
         try {
-            r = await fetch(API + "/messages", { method: "POST", headers: cabecalhos(), body: JSON.stringify(corpo), signal: AbortSignal.timeout(170000) });
+            r = await fetch(API + "/messages", { method: "POST", headers: cabecalhos(), body: JSON.stringify(corpo), signal: AbortSignal.timeout(Math.min(170000, resta)) });
         } catch (e) {
             if (t < 2) { await espera(1500 * (t + 1)); continue; }
             throw new Error(p.nome + ": " + (e.name === "TimeoutError" || e.name === "AbortError" ? "a IA demorou demais" : "falha de rede"));
@@ -300,7 +304,7 @@ function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t
 function brl(n) { return "R$ " + arred(n, 2).toFixed(2).replace(".", ","); }
 function dataCurta(iso) { return iso ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }).format(new Date(iso)) : ""; }
 
-function postsDaLoja(met) {
+function postsDaLoja(met, todos) {
     const posts = (met && met.organico && met.organico.posts) || [];
     const desde30 = Date.now() - 30 * 864e5;
     const peso = function (p) { return (p.indice || 0) * (p.recente ? 1.3 : 1); };
@@ -308,7 +312,21 @@ function postsDaLoja(met) {
         .map(function (p) { return Object.assign({}, p, { recente: !!(p.data && new Date(p.data).getTime() >= desde30) }); })
         .sort(function (a, b) { return peso(b) - peso(a); });
     // conta pequena: manda tudo; conta grande: os 15 melhores e os 5 piores
-    return ord.length <= 20 ? ord : ord.slice(0, 15).concat(ord.slice(-5));
+    return todos || ord.length <= 20 ? ord : ord.slice(0, 15).concat(ord.slice(-5));
+}
+function ordemDe(ctx) { return { posts: (ctx.posts || []).map(function (p) { return p.id; }), ads: ((ctx.ads && ctx.ads.lista) || []).map(function (a) { return a.id; }) }; }
+function aplicarOrdem(ctx, ordem) {
+    if (!ordem) return;
+    const porId = {};
+    postsDaLoja(ctx.met, true).forEach(function (p) { porId[p.id] = p; });
+    const posts = (ordem.posts || []).map(function (id) { return porId[id]; }).filter(Boolean);
+    if (posts.length) ctx.posts = posts;
+    if (ctx.ads && (ordem.ads || []).length) {
+        const porA = {};
+        (ctx.ads.lista || []).forEach(function (a) { porA[a.id] = a; });
+        const lista = ordem.ads.map(function (id) { return porA[id]; }).filter(Boolean);
+        if (lista.length) ctx.ads = Object.assign({}, ctx.ads, { lista: lista });
+    }
 }
 function linhaPost(p, i) {
     return "P" + (i + 1) + ") " + (p.tipo || "Post") + " de " + String(p.data || "").slice(0, 10) + (p.recente ? " (últimos 30 dias)" : "") +
@@ -905,7 +923,7 @@ async function salvarDossie(ctx, p, motivo, mapa, mapaMem) {
         meta: ctx.cacheMeta ? { em: ctx.cacheMeta.em, erro: ctx.cacheMeta.erro, comentarios: ctx.comentarios.length } : null
     };
     const memoria = memoriaNova(ctx, p, mapaMem, ideias.lista);
-    await banco("contas_meta?user_id=eq." + encodeURIComponent(ctx.userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie: dossie, dossie_job: null, memoria: memoria, status: "Analisada", atualizado_em: dossie.gerado_em } });
+    await banco("contas_meta?user_id=eq." + encodeURIComponent(ctx.userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie: dossie, dossie_job: null, memoria: memoria, status: "Analisada", atualizado_em: dossie.gerado_em, falhas_analise: 0 } });
     return dossie;
 }
 
@@ -913,21 +931,30 @@ async function salvarDossie(ctx, p, motivo, mapa, mapaMem) {
 function marcar(userId, status) {
     return banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { status: status, atualizado_em: new Date().toISOString() } });
 }
+// erro na analise: guarda o motivo e conta as falhas seguidas (falta de credito nao conta: e da conta toda)
+async function marcarErro(userId, msg) {
+    const id = encodeURIComponent(userId), credito = /credit balance/i.test(String(msg || ""));
+    const atual = await banco("contas_meta?user_id=eq." + id + "&select=falhas_analise").catch(function () { return []; });
+    const n = ((atual && atual[0] && atual[0].falhas_analise) || 0) + (credito ? 0 : 1);
+    return banco("contas_meta?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { status: "Erro na analise: " + corta(msg, 160), atualizado_em: new Date().toISOString(), falhas_analise: n } });
+}
 function salvarJob(userId, job) {
     return banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie_job: job } });
 }
 async function pedidosDaEtapa(ctx, job) {
-    if (job.etapa === 1) { const ped = await pedidosEtapa1(ctx); if (ctx.mapaMem) job.mapaMem = ctx.mapaMem; return ped; }
-    if (job.etapa === 2) { job.mapa = mapaDeCodigos(ctx); return pedidosEtapa2(ctx, job.parciais); }
+    if (job.etapa === 1) { const ped = await pedidosEtapa1(ctx); if (ctx.mapaMem && !job.parciais.mem) job.mapaMem = ctx.mapaMem; return ped; }
+    if (job.etapa === 2) { if (!job.mapa) job.mapa = mapaDeCodigos(ctx); return pedidosEtapa2(ctx, job.parciais); }
     return candidatas(job.parciais).length ? [pedidoCurador(ctx, job.parciais)] : [];
 }
 // roda na hora os pedidos que faltam (modo "agora", ou o que falhou no lote)
-async function rodarAgora(ctx, pedidos, parciais) {
+async function rodarAgora(ctx, pedidos, parciais, prazo) {
+    let falha = null;
+    // cada resposta que chega fica guardada; sem diretor ou sem os relatorios nao da para seguir (falha no fim),
+    // mas o que ja voltou nao e pago de novo na proxima tentativa
     function um(p, aoComecar) {
-        return perguntar(ctx.userId, p, aoComecar).then(function (x) { return [p.chave, x]; }).catch(function (e) {
-            // sem diretor ou sem os relatorios nao da para seguir; ideia de um especialista (ou a memoria) pode faltar
-            if (/^esp_|^cur|^mem/.test(p.chave)) { console.error("[time] " + p.nome + ": " + (e && e.message)); return [p.chave, null]; }
-            throw e;
+        return perguntar(ctx.userId, prazo ? Object.assign({}, p, { prazo: prazo }) : p, aoComecar).then(function (x) { if (x) parciais[p.chave] = x; }).catch(function (e) {
+            console.error("[time] " + p.nome + ": " + (e && e.message));
+            if (!/^esp_|^cur|^mem/.test(p.chave) && !falha) falha = e;
         });
     }
     // os especialistas dividem o mesmo pacote de dados: o primeiro vai sozinho e grava o cache;
@@ -942,18 +969,27 @@ async function rodarAgora(ctx, pedidos, parciais) {
         tarefas.push(primeiro);
         tarefas.push(Promise.race([comecou, espera(20000)]).then(function () { return Promise.all(juntos.slice(1).map(function (p) { return um(p); })); }));
     }
-    const r = [];
-    (await Promise.all(tarefas)).forEach(function (x) { if (Array.isArray(x[0])) x.forEach(function (y) { r.push(y); }); else r.push(x); });
-    r.forEach(function (x) { if (x[1]) parciais[x[0]] = x[1]; });
+    await Promise.all(tarefas);
+    if (falha) throw falha;
 }
 
 // Comeca uma analise. modo "lote" (madrugada) ou "agora".
 async function iniciarAnalise(userId, modo, motivo) {
-    const ctx = await preparar(await carregar(userId), true);
     const job = { modo: modo, etapa: 1, motivo: motivo || modo, criado_em: new Date().toISOString(), parciais: {} };
-    if (modo === "agora") await marcar(userId, "Analisando");
-    return avancarEtapa(ctx, job);
+    const reserva = await banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&dossie_job=is.null&select=user_id", { method: "PATCH", headers: { Prefer: "return=representation" }, body: { dossie_job: Object.assign({}, job, { rodando_ate: new Date(Date.now() + RODANDO_MS).toISOString() }) } });
+    if (!reserva || !reserva.length) return { status: "ocupada" };
+    try {
+        const ctx = await preparar(await carregar(userId), true);
+        job.ordem = ordemDe(ctx);
+        if (modo === "agora") await marcar(userId, "Analisando");
+        return await avancarEtapa(ctx, job);
+    } catch (e) {
+        await salvarJob(userId, null).catch(function () {});
+        await marcarErro(userId, e && e.message).catch(function () {});
+        throw e;
+    }
 }
+async function prepararDoJob(ctx, job) { if (!ctx.posts) { await preparar(ctx, false); aplicarOrdem(ctx, job.ordem); } }
 // Faz a etapa atual andar: no lote, cria ou confere o lote; na hora, roda a etapa.
 async function avancarEtapa(ctx, job) {
     const userId = ctx.userId;
@@ -970,19 +1006,22 @@ async function avancarEtapa(ctx, job) {
                 }
             }
         }
+        // o lote ja foi lido: guarda antes de seguir (se a rodada cair, o uso nao e contado de novo)
+        delete job.lote;
+        await salvarJob(userId, job);
         // o que nao voltou do lote roda na hora (preco normal), para a analise nao parar
         const faltam = (job.pedidos || []).filter(function (c) { return !job.parciais[c]; });
         if (faltam.length) {
-            if (!ctx.posts) await preparar(ctx, false);
+            await prepararDoJob(ctx, job);
             const pedidos = (await pedidosDaEtapa(ctx, job)).filter(function (p) { return faltam.indexOf(p.chave) > -1; });
-            await rodarAgora(ctx, pedidos, job.parciais);
+            await rodarAgora(ctx, pedidos, job.parciais, Date.now() + 140000);
         }
         job.etapa++; delete job.lote; delete job.pedidos;
     }
-    // prepara a proxima etapa (ou a primeira)
-    if (!ctx.posts) await preparar(ctx, false);
+    // prepara a proxima etapa (ou a primeira); so o que ainda nao tem resposta
+    await prepararDoJob(ctx, job);
     if (job.etapa > 3) { await salvarDossie(ctx, job.parciais, job.motivo, job.mapa, job.mapaMem); return { status: "pronta" }; }
-    const pedidos = await pedidosDaEtapa(ctx, job);
+    const pedidos = (await pedidosDaEtapa(ctx, job)).filter(function (p) { return !job.parciais[p.chave]; });
     if (!pedidos.length) { job.etapa++; return avancarEtapa(ctx, job); }
     if (job.modo === "lote") {
         job.lote = await criarLote(pedidos);
@@ -991,10 +1030,13 @@ async function avancarEtapa(ctx, job) {
         await salvarJob(userId, job);
         return { status: "lote_criado", etapa: job.etapa };
     }
+    // a mesma etapa nao e tentada mais de 3 vezes (se a funcao cair no meio, o erro nem chega a ser contado)
+    job.tentativas = (job.tentativas || 0) + 1;
+    if (job.tentativas > 3) { await salvarJob(userId, null); await marcarErro(userId, "a etapa " + job.etapa + " não terminou a tempo em 3 tentativas"); return { status: "desistiu" }; }
     job.rodando_ate = new Date(Date.now() + RODANDO_MS).toISOString();
     await salvarJob(userId, job);
-    await rodarAgora(ctx, pedidos, job.parciais);
-    job.etapa++; delete job.rodando_ate;
+    await rodarAgora(ctx, pedidos, job.parciais, Date.now() + 140000);
+    job.etapa++; delete job.rodando_ate; job.tentativas = 0;
     await salvarJob(userId, job);
     return { status: "etapa_feita", etapa: job.etapa - 1 };
 }
@@ -1020,7 +1062,7 @@ async function continuarAnalise(userId, temTempo) {
     } catch (e) {
         job.erros = (job.erros || 0) + 1; delete job.rodando_ate;
         // 3 falhas seguidas: desiste desta analise e volta a mostrar a anterior
-        if (job.erros >= 3) { await salvarJob(userId, null); await marcar(userId, "Erro na analise: " + corta(e && e.message, 160)); }
+        if (job.erros >= 3) { await salvarJob(userId, null); await marcarErro(userId, e && e.message); }
         else await salvarJob(userId, job);
         throw e;
     }
@@ -1040,7 +1082,7 @@ async function analisarLoja(userId, motivo) {
             comentarios: (d.meta && d.meta.comentarios) || 0, meta_erro: d.meta ? d.meta.erro : null
         };
     } catch (e) {
-        await marcar(userId, "Erro na analise: " + corta(e && e.message, 160)).catch(function () {});
+        await marcarErro(userId, e && e.message).catch(function () {});
         await salvarJob(userId, null).catch(function () {});
         throw e;
     }
@@ -1064,9 +1106,9 @@ async function gerarMaisIdeias(userId) {
     if (novas.length < 3) {
         await preparar(ctx, false);
         const p = { org: dossie.organico && dossie.organico.relatorio, ads: dossie.anuncios && dossie.anuncios.relatorio, pub: dossie.publico };
-        await rodarAgora(ctx, pedidosEspecialistas(ctx, p, titulosAnteriores(ctx)), p);
+        await rodarAgora(ctx, pedidosEspecialistas(ctx, p, titulosAnteriores(ctx)), p, Date.now() + 240000);
         if (!candidatas(p).length) throw new ErroIdeias(502, "Não consegui gerar ideias agora. Tente de novo em alguns minutos.");
-        await rodarAgora(ctx, [pedidoCurador(ctx, p)], p);
+        await rodarAgora(ctx, [pedidoCurador(ctx, p)], p, Date.now() + 90000);
         const feitas = montarIdeias(p, mapaDeCodigos(ctx));
         novas = feitas.lista; reserva = feitas.reserva;
     }
@@ -1075,7 +1117,22 @@ async function gerarMaisIdeias(userId) {
         lista: novas.map(function (i) { return Object.assign({}, i, { nova: true }); }).concat((ant.lista || []).map(function (i) { const c = Object.assign({}, i); delete c.nova; return c; })).slice(0, 60),
         reserva: reserva, levas_dia: hoje, levas: levas + 1
     });
-    await banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie: Object.assign({}, dossie, { ideias: ideias }), memoria: comSugeridas(ctx.memoria, novas) } });
+    // rele antes de gravar: se uma analise nova terminou enquanto as ideias eram escritas, junta com ela
+    const agora = await banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&select=dossie,memoria").catch(function () { return []; });
+    let base = dossie, memBase = ctx.memoria;
+    if (agora && agora[0]) {
+        memBase = agora[0].memoria || memBase;
+        const fresco = agora[0].dossie || {};
+        if (fresco.gerado_em && fresco.gerado_em !== dossie.gerado_em) {
+            base = fresco;
+            const fi = fresco.ideias || {};
+            ideias.lista = novas.map(function (i) { return Object.assign({}, i, { nova: true }); }).concat(fi.lista || []).slice(0, 60);
+            ideias.reserva = fi.reserva || [];
+            ideias.quadros = fi.quadros || ideias.quadros;
+            ideias.resumo = fi.resumo || ideias.resumo;
+        }
+    }
+    await banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie: Object.assign({}, base, { ideias: ideias }), memoria: comSugeridas(memBase, novas) } });
     return { ok: true, novas: novas.length, total: ideias.lista.length, restam_hoje: MAX_LEVAS_DIA - levas - 1 };
 }
 
@@ -1086,7 +1143,15 @@ async function gerarMaisIdeias(userId) {
 const NOVIDADE_MS = 44 * HORA_MS;        // com novidade: no maximo a cada 2 noites
 const SEM_NOVIDADE_MS = 68 * HORA_MS;    // sem novidade: pelo menos a cada 3 noites
 function depois(a, b) { return !!(a && b && new Date(a).getTime() > new Date(b).getTime()); }
-function temNovidade(c) { return depois(c.ultimo_post, c.dossie_em) || !!(c.assinatura && c.dossie_assinatura && c.assinatura !== c.dossie_assinatura); }
+function temNovidade(c) { return depois(c.ultimo_post, c.dossie_em); }
+// depois de erro: sem credito tenta em 10 min (nada e cobrado); senao espera 2 h, 8 h e depois 24 h
+function aindaEsperandoErro(c, agora) {
+    if (!/^Erro/.test(c.status || "")) return false;
+    const desde = c.atualizado_em ? agora - new Date(c.atualizado_em).getTime() : Infinity;
+    if (/credit balance/i.test(c.status || "")) return desde < 10 * 60000;
+    const n = Number(c.falhas_analise) || 1;
+    return desde < (n <= 1 ? 2 : n === 2 ? 8 : 24) * HORA_MS;
+}
 function produtosNovos(c) { return depois(c.produtos_em, c.dossie_em); }
 function situacao(c, agora, acessoEm, ativaDesde) {
     const acesso = acessoEm ? new Date(acessoEm).getTime() : 0, entrou = ativaDesde ? new Date(ativaDesde).getTime() : 0;
@@ -1097,9 +1162,7 @@ function situacao(c, agora, acessoEm, ativaDesde) {
 // precisa de analise NA HORA? (primeira analise, versao nova, loja que voltou depois de parada, ou o lote nao rodou)
 function precisaAnalisarAgora(c, agora, acessoEm, ativaDesde) {
     if (!c || !c.assinatura || c.tem_job) return false;
-    const desde = c.atualizado_em ? agora - new Date(c.atualizado_em).getTime() : Infinity;
-    // deu erro: espera antes de tentar de novo (sem credito na Anthropic, tenta logo: nada e cobrado e volta assim que recarregar)
-    if (/^Erro/.test(c.status || "") && desde < (/credit balance/i.test(c.status || "") ? 10 * 60000 : 2 * HORA_MS)) return false;
+    if (aindaEsperandoErro(c, agora)) return false;
     if (String(c.dossie_versao) !== String(VERSAO) || !c.dossie_em) return true;
     const s = situacao(c, agora, acessoEm, ativaDesde);
     if (s.acessouAgora && s.idade >= SEM_NOVIDADE_MS + 4 * HORA_MS) return true;  // voltou depois de parada: atualiza enquanto ela usa
@@ -1108,7 +1171,7 @@ function precisaAnalisarAgora(c, agora, acessoEm, ativaDesde) {
 // entra no lote da madrugada? loja ativa e: produtos novos (desde ontem), novidade (a cada 2 noites) ou 3 noites sem analise
 function entraNoLote(c, agora, acessoEm, ativaDesde) {
     if (!c || !c.assinatura || c.tem_job || /^Analisando/.test(c.status || "")) return false;
-    if (String(c.dossie_versao) !== String(VERSAO)) return false;
+    if (String(c.dossie_versao) !== String(VERSAO) || aindaEsperandoErro(c, agora)) return false;
     const s = situacao(c, agora, acessoEm, ativaDesde);
     if (!s.ativa) return false;
     return s.idade >= SEM_NOVIDADE_MS || (s.idade >= NOVIDADE_MS && temNovidade(c)) || (s.idade >= 20 * HORA_MS && produtosNovos(c));

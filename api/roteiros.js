@@ -26,7 +26,7 @@ const { conversa: T } = require("./_time-agentes.js");
 const { registrarFalha } = require("./_uso-ia.js");
 
 const ROTEIRISTA = "claude-opus-5-5", AJUDANTE = "claude-sonnet-5";
-const POR_RODADA = 3, MAX_RODADAS = 5, MAX_DIA = 40;
+const POR_RODADA = 3, MAX_RODADAS = 5, MAX_PEDIDOS_DIA = 40;   // pedidos por dia por loja (gerar, refazer e ajustar somados)
 const METODOS = {
     fftopo: { nome: "Full Funnel Topo (Consciência)", pilar: "Topo - Consciencia", funil: "topo" },
     ffmeio: { nome: "Full Funnel Meio (Conceito Criativo)", pilar: "Meio - Conceito Criativo", funil: "meio" },
@@ -165,17 +165,19 @@ function pedidoRevisor(r, achados, vozLoja, destino, formato) {
         (formato === "curto" ? " É um vídeo curto sem fala: as falas das cenas ficam vazias." : "") +
         (vozLoja ? "\n" + vozLoja : "") + "\n\nROTEIRO: " + JSON.stringify(r);
 }
-async function fazerDirecao(uid, contexto, dados, metodo, imagens) {
+async function fazerDirecao(uid, contexto, dados, metodo, imagens, prazo) {
     const texto = "Antes de escrever os roteiros de Reels, monte a DIREÇÃO do conteúdo para o método " + METODOS[metodo].nome + ". Frases curtas e simples, específicas deste negócio.\n\n" + contexto + (dados ? "\n\n" + corta(dados, 6000) : "");
     const pedido = (imagens || []).length ? imagens.concat([{ type: "text", text: "As imagens acima são do produto. " + texto }]) : texto;
-    return T.perguntar(uid, { nome: "Direcao do roteiro", esquema: ESQ_DIRECAO, pedido: pedido, max: 3000, modelo: AJUDANTE, effort: "low", sistema: AGENTE });
+    return T.perguntar(uid, { nome: "Direcao do roteiro", esquema: ESQ_DIRECAO, pedido: pedido, max: 3000, modelo: AJUDANTE, effort: "low", sistema: AGENTE, prazo: prazo });
 }
-async function umRoteiro(uid, sistema, conteudo, aoComecar) {
-    return T.perguntar(uid, { nome: "Roteiro", esquema: ESQ_ROTEIRO, pedido: conteudo, max: 12000, modelo: ROTEIRISTA, effort: "high", sistema: sistema }, aoComecar);
+async function umRoteiro(uid, sistema, conteudo, aoComecar, prazo) {
+    return T.perguntar(uid, { nome: "Roteiro", esquema: ESQ_ROTEIRO, pedido: conteudo, max: 12000, modelo: ROTEIRISTA, effort: "high", sistema: sistema, prazo: prazo }, aoComecar);
 }
-async function revisar(uid, r, achados, vozLoja, destino, formato) {
+async function revisar(uid, r, achados, vozLoja, destino, formato, prazo) {
+    // sem tempo para revisar com calma, o roteiro sai como esta (a conferencia ja limpou o travessao)
+    if (prazo && prazo - Date.now() < 45000) return r;
     try {
-        const n = await T.perguntar(uid, { nome: "Revisor", esquema: ESQ_ROTEIRO, pedido: pedidoRevisor(r, achados, vozLoja, destino, formato), max: 8000, modelo: ROTEIRISTA, effort: "medium", sistema: AGENTE });
+        const n = await T.perguntar(uid, { nome: "Revisor", esquema: ESQ_ROTEIRO, pedido: pedidoRevisor(r, achados, vozLoja, destino, formato), max: 8000, modelo: ROTEIRISTA, effort: "medium", sistema: AGENTE, prazo: prazo });
         return Object.assign({}, r, n, { revisado: true });
     } catch (e) { console.error("[roteiros] revisor: " + (e && e.message)); return r; }
 }
@@ -193,12 +195,20 @@ function gravador(pid, uid) {
     let fila = Promise.resolve();
     const rota = "projetos?id=eq." + encodeURIComponent(pid) + "&user_id=eq." + encodeURIComponent(uid);
     return function (mudar) {
-        fila = fila.then(async function () {
-            const r = await banco(rota + "&select=rodadas");
-            const rods = mudar(((r && r[0] && r[0].rodadas) || []).slice());
-            if (rods) await banco(rota, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { rodadas: rods } });
-        }).catch(function (e) { console.error("[roteiros] gravar: " + (e && e.message)); });
-        return fila;
+        const vez = fila.then(async function () {
+            for (let t = 0; t < 2; t++) {
+                try {
+                    const r = await banco(rota + "&select=rodadas");
+                    const rods = mudar(((r && r[0] && r[0].rodadas) || []).slice());
+                    if (!rods) return false;
+                    await banco(rota, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { rodadas: rods } });
+                    return true;
+                } catch (e) { console.error("[roteiros] gravar: " + (e && e.message)); if (t === 0) await T.espera(1000); }
+            }
+            return false;
+        });
+        fila = vez.catch(function () { return false; });
+        return vez;
     };
 }
 function mexeNaRodada(rid, fn) { return function (rods) { const i = rods.findIndex(function (x) { return x && x.rid === rid; }); if (i < 0) return null; rods[i] = fn(Object.assign({}, rods[i])); return rods; }; }
@@ -220,7 +230,7 @@ async function gerarRodada(uid, proj, pedido, carregado) {
     // 1. direcao (sem a dona preencher nada)
     let direcao = pedido.direcao || null;
     if (!direcao) {
-        try { direcao = await fazerDirecao(uid, contexto, dados, metodo, pedido.imagens); } catch (e) { console.error("[roteiros] direcao: " + (e && e.message)); }
+        try { direcao = await fazerDirecao(uid, contexto, dados, metodo, pedido.imagens, pedido.prazo); } catch (e) { console.error("[roteiros] direcao: " + (e && e.message)); }
         if (direcao) {
             await grava(mexeNaRodada(rid, function (r) { r.direcao = direcao; return r; }));
             if (pedido.renomear && direcao.nome) await banco("projetos?id=eq." + encodeURIComponent(proj.id) + "&user_id=eq." + encodeURIComponent(uid), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { nome: corta(direcao.nome, 40), form: Object.assign({}, proj.form || {}, { nicho: direcao.nicho }) } }).catch(function () {});
@@ -231,7 +241,7 @@ async function gerarRodada(uid, proj, pedido, carregado) {
     const dirTxt = direcao ? "DIREÇÃO DO CONTEÚDO (siga em todos os roteiros; a chamada é a base do fechamento): objetivo: " + direcao.objetivo + " | público: " + direcao.publico + " | mensagem principal: " + direcao.mensagem + " | chamada: " + direcao.chamada : "";
     const base = "MÉTODO DESTA RODADA: " + METODOS[metodo].nome + " (código " + metodo + "). Siga esse método da sua base de métodos.\n" + tamanho(dossie, formato) + "\n\n" + contexto + "\n\n" + dirTxt + (dados ? "\n\nDADOS DESTA LOJA:\n" + dados : "");
     const fonteNumeros = base;
-    const jaUsados = todosDoProjeto(rods0).map(function (s) { return s.gancho; }).filter(Boolean);
+    const jaUsados = todosDoProjeto(rods0).map(function (s) { return corta(s.gancho, 160); }).filter(Boolean);
     const ini = (numero - 1) * 2;
     const estruturas = Array.from({ length: quantos }, function (_, i) { return ESTRUTURAS[(ini + i) % ESTRUTURAS.length]; });
     const vozLoja = ((dossie.voz || {}).falas || []).length ? "VOZ DA LOJA: " + dossie.voz.falas.map(function (t, i) { return "[" + (i + 1) + "] " + corta(t, 900); }).join(" ") : "";
@@ -240,20 +250,20 @@ async function gerarRodada(uid, proj, pedido, carregado) {
     async function fazer(i, aoComecar) {
         let r;
         for (let tentativa = 0; tentativa < 2 && !r; tentativa++) {
-            try { r = await umRoteiro(uid, sistema, pedidoRoteiro(base, i + 1, quantos, estruturas[i], i === 0, jaUsados, FECHAMENTOS[i % FECHAMENTOS.length]), tentativa === 0 ? aoComecar : null); }
+            try { r = await umRoteiro(uid, sistema, pedidoRoteiro(base, i + 1, quantos, estruturas[i], i === 0, jaUsados, FECHAMENTOS[i % FECHAMENTOS.length]), tentativa === 0 ? aoComecar : null, pedido.prazo); }
             catch (e) { console.error("[roteiros] roteiro " + (i + 1) + ": " + (e && e.message)); if (tentativa === 0 && aoComecar) aoComecar(); }
         }
         if (!r) { falhas++; registrarFalha(uid, "roteiro", "um roteiro da rodada não saiu"); return; }
         r = limpar(r, formato);
-        r = limpar(await revisar(uid, r, conferir(r, fonteNumeros), vozLoja, destino, formato), formato);
+        r = limpar(await revisar(uid, r, conferir(r, fonteNumeros), vozLoja, destino, formato, pedido.prazo), formato);
         const sobrou = conferir(r, fonteNumeros);
         const roteiro = Object.assign({ id: maxAntes + i + 1, metodo: metodo, formato: formato, pilar: METODOS[metodo].pilar, funil: METODOS[metodo].funil, estrutura: estruturas[i].split(":")[0], ordem: i }, r, sobrou.length ? { avisos: sobrou } : {});
-        feitos++;
-        await grava(mexeNaRodada(rid, function (rd) {
+        const salvo = await grava(mexeNaRodada(rid, function (rd) {
             const lista = ((rd.resultado && rd.resultado.roteiros) || []).concat([roteiro]).sort(function (a, b) { return (a.ordem || 0) - (b.ordem || 0); });
             rd.resultado = Object.assign({}, rd.resultado, { roteiros: lista });
             return rd;
         }));
+        if (salvo) feitos++; else { falhas++; registrarFalha(uid, "roteiro", "o roteiro ficou pronto mas não foi salvo no projeto"); }
     }
     // o primeiro vai sozinho e grava o cache; os outros saem quando ele comeca a responder
     let libera; const comecou = new Promise(function (ok) { libera = ok; });
@@ -282,10 +292,10 @@ async function refazerRoteiro(uid, proj, pedido, carregado) {
     const base = "MÉTODO: " + METODOS[metodo].nome + " (código " + metodo + ").\n" + tamanho(dossie, formato) + "\n\nNEGÓCIO E PEDIDO DA DONA:\n" + corta(pedido.contexto, 12000) + "\nDESTINO: " + destino + "." +
         (dir ? "\n\nDIREÇÃO DO CONTEÚDO: objetivo: " + dir.objetivo + " | público: " + dir.publico + " | mensagem: " + dir.mensagem + " | chamada: " + dir.chamada : "") + (dados ? "\n\nDADOS DESTA LOJA:\n" + dados : "");
     const outra = ESTRUTURAS.find(function (e) { return e.split(":")[0] !== alvo.estrutura; }) || ESTRUTURAS[0];
-    const conteudo = [{ type: "text", text: base }, { type: "text", text: "SUA TAREFA: escreva UM roteiro novo para substituir este, que a dona não quis: " + aspas(alvo.gancho) + ". Use a estrutura " + outra + " e um começo bem diferente." }];
-    let r = limpar(await umRoteiro(uid, AGENTE + "\n\n" + regrasDoFormato(formato), conteudo), formato);
+    const conteudo = [{ type: "text", text: base }, { type: "text", text: "SUA TAREFA: escreva UM roteiro novo para substituir este, que a dona não quis: " + aspas(corta(alvo.gancho, 300)) + ". Use a estrutura " + outra + " e um começo bem diferente." }];
+    let r = limpar(await umRoteiro(uid, AGENTE + "\n\n" + regrasDoFormato(formato), conteudo, null, pedido.prazo), formato);
     const vozLoja = ((dossie.voz || {}).falas || []).length ? "VOZ DA LOJA: " + dossie.voz.falas.map(function (t, i) { return "[" + (i + 1) + "] " + corta(t, 900); }).join(" ") : "";
-    r = limpar(await revisar(uid, r, conferir(r, base), vozLoja, destino, formato), formato);
+    r = limpar(await revisar(uid, r, conferir(r, base), vozLoja, destino, formato, pedido.prazo), formato);
     const novo = Object.assign({}, alvo, r, { estrutura: outra.split(":")[0], editado: true, liked: false, vendeu: false, copiado: 0, gravado: false, gravado_em: null, avisos: undefined });
     await gravador(proj.id, uid)(function (rs) {
         return rs.map(function (rd) { return Object.assign({}, rd, { resultado: Object.assign({}, rd.resultado, { roteiros: ((rd.resultado && rd.resultado.roteiros) || []).map(function (s) { return String(s.id) === String(alvo.id) ? novo : s; }) }) }); });
@@ -302,10 +312,10 @@ async function ajustarRoteiro(uid, proj, pedido, carregado) {
     const formato = alvo.formato || "narrado", dossie = carregado.dossie || {};
     const destino = DESTINOS[(proj.form && proj.form.objetivo) || proj.objetivo] || DESTINOS.site;
     const vozLoja = ((dossie.voz || {}).falas || []).length ? "VOZ DA LOJA: " + dossie.voz.falas.map(function (t, i) { return "[" + (i + 1) + "] " + corta(t, 900); }).join(" ") : "";
-    const atual = { titulo: alvo.titulo, gancho: alvo.gancho, aberturas_extras: alvo.aberturas_extras || [], corpo: alvo.corpo, cta: alvo.cta, cenas: alvo.cenas || [], texto_capa: alvo.texto_capa || "", legenda: alvo.legenda || "", hashtags: alvo.hashtags || [], duracao_s: alvo.duracao_s || 30 };
+    const atual = { titulo: corta(alvo.titulo, 120), gancho: corta(alvo.gancho, 300), aberturas_extras: (alvo.aberturas_extras || []).slice(0, 2).map(function (x) { return corta(x, 200); }), corpo: corta(alvo.corpo, 2500), cta: corta(alvo.cta, 500), cenas: (alvo.cenas || []).slice(0, 12).map(function (c) { return { fala: corta(c.fala, 400), na_tela: corta(c.na_tela, 300), texto_tela: corta(c.texto_tela, 80) }; }), texto_capa: corta(alvo.texto_capa, 80), legenda: corta(alvo.legenda, 800), hashtags: (alvo.hashtags || []).slice(0, 5), duracao_s: alvo.duracao_s || 30 };
     const texto = "A dona pediu este ajuste no roteiro: " + JSON.stringify(instrucao) + ".\nReescreva o roteiro aplicando o pedido. O pedido dela vale mais que as regras gerais, desde que não invente preço, produto, depoimento ou número. Mantenha o resto do que está bom, o mesmo destino (" + destino + ") e ajuste as cenas, as aberturas extras, a capa e a legenda junto com o texto. Frases simples, sem inglês além de Reels, stories, direct, close e POV." +
         (formato === "curto" ? " É um vídeo curto sem fala: as falas das cenas ficam vazias." : "") + (vozLoja ? "\n" + vozLoja : "") + "\n\nROTEIRO ATUAL: " + JSON.stringify(atual);
-    let r = limpar(await T.perguntar(uid, { nome: "Ajuste de roteiro", esquema: ESQ_ROTEIRO, pedido: texto, max: 8000, modelo: ROTEIRISTA, effort: "medium", sistema: AGENTE + "\n\n" + regrasDoFormato(formato) }), formato);
+    let r = limpar(await T.perguntar(uid, { nome: "Ajuste de roteiro", esquema: ESQ_ROTEIRO, pedido: texto, max: 8000, modelo: ROTEIRISTA, effort: "medium", sistema: AGENTE + "\n\n" + regrasDoFormato(formato), prazo: pedido.prazo }), formato);
     const novo = Object.assign({}, alvo, r, { editado: true, avisos: undefined });
     await gravador(proj.id, uid)(function (rs) {
         return rs.map(function (rd) { return Object.assign({}, rd, { resultado: Object.assign({}, rd.resultado, { roteiros: ((rd.resultado && rd.resultado.roteiros) || []).map(function (s) { return String(s.id) === String(alvo.id) ? novo : s; }) }) }); });
@@ -320,7 +330,7 @@ module.exports = async function handler(req, res) {
     let uid;
     try { uid = await acessoLiberado(jwt); } catch (e) { return res.status(500).json({ error: "Não consegui confirmar o seu acesso. Tente de novo." }); }
     if (!uid) return res.status(jwt ? 403 : 401).json({ error: jwt ? SEM_ACESSO : "Entre na sua conta de novo." });
-    const b = req.body || {};
+    const b = req.body || {}, inicio = Date.now();
     if (!/^[0-9a-f-]{36}$/i.test(String(b.projeto_id || ""))) return res.status(400).json({ error: "Projeto não informado." });
     const imagens = (Array.isArray(b.imagens) ? b.imagens : []).slice(0, 4).filter(function (im) { return im && /^image\/(jpeg|png|webp|gif)$/.test(im.media_type) && typeof im.data === "string" && im.data.length < 2800000; })
         .map(function (im) { return { type: "image", source: { type: "base64", media_type: im.media_type, data: im.data } }; });
@@ -334,14 +344,20 @@ module.exports = async function handler(req, res) {
         const proj = projs && projs[0];
         if (!proj) return res.status(404).json({ error: "Não achei esse projeto." });
         const carregado = { dossie: (contas && contas[0] && contas[0].dossie) || {}, memoria: (contas && contas[0] && contas[0].memoria) || {}, loja: (lojas && lojas[0]) || {} };
-        const pedido = { metodo: b.metodo, formato: b.formato, contexto: String(b.contexto || "").slice(0, 12000), direcao: b.direcao && b.direcao.objetivo ? b.direcao : null, imagens: imagens, renomear: !!b.renomear, roteiro_id: b.roteiro_id, quantos: b.quantos };
-        if (b.acao === "refazer") return res.status(200).json(await refazerRoteiro(uid, proj, pedido, carregado));
-        if (b.acao === "ajustar") return res.status(200).json(await ajustarRoteiro(uid, proj, Object.assign(pedido, { instrucao: b.instrucao }), carregado));
-        if ((proj.rodadas || []).length >= MAX_RODADAS) return res.status(409).json({ error: "Este projeto já tem " + MAX_RODADAS + " rodadas. Crie um projeto novo para gerar mais." });
-        if ((proj.rodadas || []).some(function (r) { return r.gerando && Date.now() - new Date(r.iniciado_em).getTime() < 5 * 60000; })) return res.status(409).json({ error: "O time ainda está escrevendo os roteiros deste projeto. Espere terminar." });
+        // a direcao sempre e feita aqui (nada vindo do navegador entra sem corte no pedido a IA)
+        const pedido = { metodo: b.metodo, formato: b.formato, contexto: String(b.contexto || "").slice(0, 12000), direcao: null, imagens: imagens, renomear: !!b.renomear, roteiro_id: b.roteiro_id, quantos: b.quantos, prazo: inicio + 270000 };
+        const acao = b.acao === "refazer" || b.acao === "ajustar" ? b.acao : "gerar";
+        if (acao === "gerar") {
+            if ((proj.rodadas || []).length >= MAX_RODADAS) return res.status(409).json({ error: "Este projeto já tem " + MAX_RODADAS + " rodadas. Crie um projeto novo para gerar mais." });
+            if ((proj.rodadas || []).some(function (r) { return r.gerando && Date.now() - new Date(r.iniciado_em).getTime() < 5 * 60000; })) return res.status(409).json({ error: "O time ainda está escrevendo os roteiros deste projeto. Espere terminar." });
+        }
+        // cada pedido fica reservado ANTES de chamar a IA (varios ao mesmo tempo nao furam o limite)
         const hoje = new Date(diaSP(new Date()) + "T00:00:00-03:00").toISOString();
-        const usos = await banco("uso_ia?user_id=eq." + id + "&funcao=eq.Roteiro&criado_em=gte." + encodeURIComponent(hoje) + "&select=id").catch(function () { return []; });
-        if ((usos || []).length >= MAX_DIA * POR_RODADA) return res.status(429).json({ error: "Você já gerou muitos roteiros hoje. Amanhã o time volta a escrever!" });
+        const usos = await banco("uso_ia?user_id=eq." + id + "&funcao=eq." + encodeURIComponent("Pedido de roteiro") + "&criado_em=gte." + encodeURIComponent(hoje) + "&select=id").catch(function () { return []; });
+        if ((usos || []).length >= MAX_PEDIDOS_DIA) return res.status(429).json({ error: "Você já pediu muitos roteiros hoje. Amanhã o time volta a escrever!" });
+        await banco("uso_ia", { method: "POST", headers: { Prefer: "return=minimal" }, body: { user_id: uid, funcao: "Pedido de roteiro", modelo: acao, entrada: 0, saida: 0, custo_usd: 0 } }).catch(function () {});
+        if (acao === "refazer") return res.status(200).json(await refazerRoteiro(uid, proj, pedido, carregado));
+        if (acao === "ajustar") return res.status(200).json(await ajustarRoteiro(uid, proj, Object.assign(pedido, { instrucao: b.instrucao }), carregado));
         return res.status(200).json(await gerarRodada(uid, proj, pedido, carregado));
     } catch (e) {
         if (e && e.status) return res.status(e.status).json({ error: e.message });

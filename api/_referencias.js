@@ -59,6 +59,7 @@ async function atualizarReferencias(userId, nomes) {
             }
         }
     }
+    if (out.erro || (out.perfis.length && out.perfis.every(function (p) { return p.erro; }))) out.em = new Date(Date.now() - REF_MS + 6 * 3600 * 1000).toISOString();
     await banco("contas_meta?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { referencias: out } }).catch(function () {});
     return out;
 }

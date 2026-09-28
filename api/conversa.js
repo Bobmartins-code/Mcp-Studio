@@ -130,8 +130,12 @@ module.exports = async function handler(req, res) {
     try {
         const feitos = await pedidosHoje(uid);
         if (feitos >= MAX_DIA) return res.status(429).json({ error: "Você já fez " + MAX_DIA + " pedidos hoje. Amanhã o time volta a responder!" });
-        const out = area === "roteiros" ? await conversarRoteiros(uid, pedido, b.historico, b.projeto_id) : await conversarIdeias(uid, pedido, b.historico);
-        await banco("conversas", { method: "POST", headers: { Prefer: "return=minimal" }, body: { user_id: uid, area: area, projeto_id: area === "roteiros" ? String(b.projeto_id) : null, pedido: pedido, resposta: { texto: out.resposta, ideias: (out.ideias || []).map(function (i) { return i.titulo; }), roteiros: (out.roteiros || []).map(function (s) { return s.titulo; }) } } }).catch(function (e) { console.error("[conversa] gravar: " + (e && e.message)); });
+        const reserva = await banco("conversas", { method: "POST", headers: { Prefer: "return=representation" }, body: { user_id: uid, area: area, projeto_id: area === "roteiros" ? String(b.projeto_id).slice(0, 40) : null, pedido: pedido, resposta: null } });
+        const rid = reserva && reserva[0] && reserva[0].id;
+        let out;
+        try { out = area === "roteiros" ? await conversarRoteiros(uid, pedido, b.historico, b.projeto_id) : await conversarIdeias(uid, pedido, b.historico); }
+        catch (e) { if (rid) await banco("conversas?id=eq." + rid, { method: "DELETE", headers: { Prefer: "return=minimal" } }).catch(function () {}); throw e; }
+        if (rid) await banco("conversas?id=eq." + rid, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { resposta: { texto: out.resposta, ideias: (out.ideias || []).map(function (i) { return i.titulo; }), roteiros: (out.roteiros || []).map(function (s) { return s.titulo; }) } } }).catch(function (e) { console.error("[conversa] gravar: " + (e && e.message)); });
         return res.status(200).json(Object.assign({ ok: true, restam_hoje: MAX_DIA - feitos - 1 }, out));
     } catch (e) {
         if (e && e.status) return res.status(e.status).json({ error: e.message });

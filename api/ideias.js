@@ -5,26 +5,20 @@
 //  analise nem consulta a Meta). Limite de 3 levas por dia por loja.
 // =====================================================================
 
-const { SUPA_URL, SUPA_ANON } = require("./_seguranca.js");
+const { acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
 const { gerarMaisIdeias, ErroIdeias } = require("./_time-agentes.js");
 const { registrarFalha } = require("./_uso-ia.js");
 
-// quem esta pedindo (o token do login da propria dona)
-async function usuarioDoToken(jwt) {
-    if (!jwt) return null;
-    const r = await fetch(SUPA_URL + "/auth/v1/user", { headers: { apikey: SUPA_ANON, Authorization: "Bearer " + jwt } });
-    if (!r.ok) return null;
-    const u = await r.json();
-    return u && u.id ? u : null;
-}
 
 module.exports = async function handler(req, res) {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const auth = req.headers && (req.headers.authorization || req.headers.Authorization);
     const jwt = (auth && auth.indexOf("Bearer ") === 0) ? auth.slice(7) : "";
-    let u;
-    try { u = await usuarioDoToken(jwt); } catch (e) { u = null; }
-    if (!u) return res.status(401).json({ error: "Entre na sua conta de novo." });
+    // so quem o admin cadastrou (acesso fechado, como nas outras rotas de IA)
+    let uid;
+    try { uid = await acessoLiberado(jwt); } catch (e) { return res.status(500).json({ error: "Não consegui confirmar o seu acesso. Tente de novo." }); }
+    if (!uid) return res.status(jwt ? 403 : 401).json({ error: jwt ? SEM_ACESSO : "Entre na sua conta de novo." });
+    const u = { id: uid };
     try {
         return res.status(200).json(await gerarMaisIdeias(u.id));
     } catch (e) {

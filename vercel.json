@@ -43,7 +43,7 @@
   "crons": [
     {
       "path": "/api/atualizar",
-      "schedule": "0 9 * * *"
+      "schedule": "0 15 * * *"
     }
   ],
   "headers": [

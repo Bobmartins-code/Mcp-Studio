@@ -64,7 +64,7 @@ module.exports = async function handler(req, res) {
 
         // estado das analises
         const [estado, lojasRows] = await Promise.all([
-            banco("contas_meta?select=user_id,status,atualizado_em,assinatura:metricas->>assinatura,ultimo_post:metricas->organico->posts->0->>data,dossie_versao:dossie->>versao,dossie_em:dossie->>gerado_em,dossie_assinatura:dossie->>assinatura,job_modo:dossie_job->>modo"),
+            banco("contas_meta?select=user_id,status,atualizado_em,assinatura:metricas->>assinatura,ultimo_post:metricas->organico->posts->0->>data,dossie_versao:dossie->>versao,dossie_em:dossie->>gerado_em,dossie_assinatura:dossie->>assinatura,job_modo:dossie_job->>modo,falhas_analise"),
             banco("lojas?select=user_id,produtos_dona_em").catch(function () { return []; })
         ]);
         const produtosEm = {};
