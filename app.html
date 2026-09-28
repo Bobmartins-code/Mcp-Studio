@@ -302,6 +302,18 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .toast.err{border-color:rgba(255,107,90,.5)}
 .toast-bt{margin-left:6px;flex-shrink:0;min-height:36px;padding:0 12px;border-radius:8px;border:none;background:#D43D00;color:#fff;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer}
 .cenas{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:10px}.cena{font-size:13.5px;line-height:1.5}.cena-f{font-weight:600;margin-bottom:3px}.cena-t{color:#C9C7C0;font-size:13px}
+.dia{background:var(--sur);border:1px solid var(--bo);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.dia.alvo{border-color:var(--ac);background:rgba(255,77,0,.06)}
+.dia-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.dia-i{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--bo);font-size:14px;line-height:1.4}
+.dia-i:first-of-type{border-top:none}
+.arrasta{cursor:grab}
+.selo{display:inline-block;font-size:10.5px;font-weight:800;border-radius:20px;padding:1px 8px;margin-right:6px;vertical-align:2px}
+.selo.camp{background:rgba(245,200,66,.16);color:var(--gold)}.selo.guard{background:rgba(155,142,255,.16);color:#C3BBFF}
+.refs-ig{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:8px}
+.refs-ig a{position:relative;display:block;aspect-ratio:4/5;border-radius:8px;overflow:hidden;background:var(--sur2);color:#fff;text-decoration:none;font-size:11.5px;font-weight:700}
+.refs-ig img{width:100%;height:100%;object-fit:cover}
+.refs-ig span{position:absolute;left:5px;bottom:4px;text-shadow:0 1px 3px rgba(0,0,0,.8)}
 .esqueleto{background:linear-gradient(90deg,var(--sur) 0%,var(--sur2) 50%,var(--sur) 100%);background-size:200% 100%;animation:esq 1.2s linear infinite;border-radius:14px}
 @keyframes esq{0%{background-position:100% 0}100%{background-position:-100% 0}}
 </style>
@@ -556,6 +568,13 @@ function App(){
   var sIn=useState(null),pedidoInstalar=sIn[0],setPedidoInstalar=sIn[1];
   var produtoRef=useRef(null),vendaRef=useRef(null),ajusteRef=useRef(null),chatRef=useRef(""),esperandoRef=useRef(null);
   var sFt=useState("narrado"),formatoRot=sFt[0],setFormatoRot=sFt[1];
+  var sSem=useState([]),semana=sSem[0],setSemana=sSem[1];
+  var sAg=useState(null),agendando=sAg[0],setAgendando=sAg[1];
+  var sDg=useState(null),alvoDia=sDg[0],setAlvoDia=sDg[1];
+  var sRt=useState(null),refTxt=sRt[0],setRefTxt=sRt[1];
+  var sRs=useState(false),salvandoRef=sRs[0],setSalvandoRef=sRs[1];
+  var sVd=useState(null),vereditoIA=sVd[0],setVereditoIA=sVd[1];
+  var sCq=useState(""),concTxt=sCq[0],setConcTxt=sCq[1];
   var sCz=useState(0),chatZera=sCz[0],setChatZera=sCz[1];
   var s11=useState(null),varLoading=s11[0],setVarLoading=s11[1];
   var s12=useState({}),varResults=s12[0],setVarResults=s12[1];
@@ -635,6 +654,7 @@ function App(){
   // "Gostei" da dona: o Agente de Memoria usa para entender o gosto dela
   useEffect(function(){
     var uid=verComo?verComo.id:currentUser.id;setConversas({});
+    carregarSemana(uid);
     supaClient.from("gostei").select("tipo,chave").eq("user_id",uid).limit(1000).then(function(r){var m={};((r&&r.data)||[]).forEach(function(x){m[x.tipo+":"+x.chave]=1;});setGostos(m);},function(){});
   },[verComo?verComo.id:""]);
   useEffect(function(){
@@ -671,7 +691,7 @@ function App(){
       if(m&&m[1]!==currentUser.id)entrarComoCliente(m[1],lista,pj&&pj[1]);
     });
   },[]);
-  var CAMPOS_CONTA="ig_username,ad_account_nome,dossie,atualizado_em,metricas,metricas_em,status,memoria";
+  var CAMPOS_CONTA="ig_username,ad_account_nome,dossie,atualizado_em,metricas,metricas_em,status,memoria,referencias";
   async function entrarComoCliente(uid,lista,projetoId){
     if(!uid){sairDoModoCliente();return;}
     var u=(lista||listaClientes).find(function(x){return x.id===uid;});
@@ -699,7 +719,8 @@ function App(){
   // dados da loja (nome) e boas-vindas no primeiro acesso da dona
   async function carregarLoja(uid,primeiraVez){
     try{
-      var r=await supaClient.from("lojas").select("nome,nicho,site,logo_url,produtos_dona,produtos_dona_em").eq("user_id",uid).maybeSingle();
+      var r=await supaClient.from("lojas").select("nome,nicho,site,logo_url,produtos_dona,produtos_dona_em,referencias").eq("user_id",uid).maybeSingle();
+      if(r&&r.error)r=await supaClient.from("lojas").select("nome,nicho,site,logo_url,produtos_dona,produtos_dona_em").eq("user_id",uid).maybeSingle();
       if(r&&r.error)r=await supaClient.from("lojas").select("nome,nicho,site").eq("user_id",uid).maybeSingle();
       var lj=(r&&!r.error&&r.data)||null;setLojaInfo(lj);
       if(primeiraVez&&lj&&!souAdmin){var k="mcp_bv_"+uid;try{if(!localStorage.getItem(k))setBoasVindas(true);}catch(e){}}
@@ -1256,6 +1277,189 @@ function App(){
       ce("div",{style:{fontSize:11.5,color:"var(--mu)",borderTop:"1px solid var(--bo)",paddingTop:8,marginTop:6,lineHeight:1.5}},ce("b",null,"De onde vem: "),"o time compara as ideias sugeridas com os posts que você publicou e o resultado de cada um, olha as capas e o que você marcou como Gostei. Cada loja aprende só com os próprios dados."));
   }
   function esqueleto(n,alt){return ce("div",{className:"content"},ce("div",{className:"pg",role:"status","aria-label":"Carregando"},ce("div",{className:"esqueleto",style:{height:34,width:"45%",marginBottom:18}}),Array.from({length:n||3}).map(function(_,i){return ce("div",{key:i,className:"esqueleto",style:{height:alt||76,marginBottom:10}});})));}
+  // ---------- MINHA SEMANA: ideias colocadas nos dias, com os quadros fixos do time ----------
+  var DIAS_SEMANA=["domingo","segunda","terca","quarta","quinta","sexta","sabado"],NOME_DIA={domingo:"Domingo",segunda:"Segunda",terca:"Terça",quarta:"Quarta",quinta:"Quinta",sexta:"Sexta",sabado:"Sábado"};
+  function diaISO(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+  function proximosDias(n){var h=new Date();h.setHours(12,0,0,0);return Array.from({length:n||7}).map(function(_,i){var d=new Date(h.getTime()+i*864e5);return {iso:diaISO(d),chave:DIAS_SEMANA[d.getDay()],rot:(i===0?"Hoje":i===1?"Amanhã":NOME_DIA[DIAS_SEMANA[d.getDay()]])+" · "+String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")};});}
+  async function carregarSemana(uid){try{var r=await supaClient.from("semana").select("id,dia,titulo,ideia,feito").eq("user_id",uid).gte("dia",diaISO(new Date(Date.now()-864e5))).order("dia",{ascending:true}).limit(200);setSemana((r&&!r.error&&r.data)||[]);}catch(e){}}
+  async function colocarNaSemana(ideia,dia){
+    if(somenteLeitura())return;
+    var r=await supaClient.from("semana").insert({dia:dia,titulo:String(ideia.titulo||"").slice(0,300),ideia:ideia}).select("id,dia,titulo,ideia,feito").single();
+    if(r.error){showToast("Não consegui colocar na semana. Tente de novo.","err");return;}
+    setSemana(function(s){return s.concat([r.data]).sort(function(a,b){return String(a.dia).localeCompare(String(b.dia));});});
+    setAgendando(null);showToast("Colocada na semana!");
+  }
+  async function mudarNaSemana(linha,mudar){
+    if(somenteLeitura())return;
+    var antes=semana;setSemana(function(s){return s.map(function(x){return x.id===linha.id?Object.assign({},x,mudar):x;});});
+    var r=await supaClient.from("semana").update(mudar).eq("id",linha.id);
+    if(r.error){setSemana(antes);showToast("Não consegui salvar. Tente de novo.","err");}
+  }
+  async function tirarDaSemana(linha){
+    if(somenteLeitura())return;
+    var antes=semana;setSemana(function(s){return s.filter(function(x){return x.id!==linha.id;});});
+    var r=await supaClient.from("semana").delete().eq("id",linha.id);
+    if(r.error){setSemana(antes);showToast("Não consegui tirar. Tente de novo.","err");}
+  }
+  // arrastar (computador): uma ideia da lista ou uma linha de outro dia
+  function soltarNoDia(e,dia){
+    e.preventDefault();setAlvoDia(null);
+    var d={};try{d=JSON.parse(e.dataTransfer.getData("text/plain")||"{}");}catch(_){}
+    if(d.linha){var l=semana.find(function(x){return x.id===d.linha;});if(l&&l.dia!==dia)mudarNaSemana(l,{dia:dia});return;}
+    if(d.ideia){var lista=((dadosLoja(contaMeta)||{}).dossie||{}).ideias,id=((lista&&lista.lista)||[]).find(function(x){return x.titulo===d.ideia;});if(id)colocarNaSemana(id,dia);}
+  }
+  function escolherDia(ideia){
+    return ce("div",{className:"chips",style:{marginTop:8}},proximosDias(7).map(function(d){return ce("button",{key:d.iso,className:"chip",onClick:function(){colocarNaSemana(ideia,d.iso);}},d.rot.split(" · ")[0]);}),ce("button",{className:"chip",onClick:function(){setAgendando(null);}},"Cancelar"));
+  }
+  function renderSemana(lista){
+    var dos=(dadosLoja(contaMeta)||{}).dossie||{},quadros=((dos.ideias&&dos.ideias.quadros)||[]);
+    var noPlano={};semana.forEach(function(s){noPlano[s.titulo]=1;});
+    var livres=lista.filter(function(x){return !noPlano[x.titulo];});
+    return ce("div",{style:{display:"flex",gap:16,alignItems:"flex-start"}},
+      ce("div",{style:{flex:1,minWidth:0}},
+        ce("div",{style:{fontSize:13.5,lineHeight:1.5,color:"var(--mu2)",marginBottom:12}},quadros.length?"Os quadros fixos foram sugeridos pelo time nos melhores dias para postar da sua conta. Toque em \u201CColocar na semana\u201D em cada ideia"+(window.innerWidth>768?" ou arraste as ideias da direita para os dias.":"."):"Toque em \u201CColocar na semana\u201D em cada ideia para montar o seu plano. Os quadros fixos aparecem depois da próxima análise do time."),
+        proximosDias(7).map(function(d){
+          var q=quadros.find(function(x){return x.dia===d.chave;}),itens=semana.filter(function(s){return s.dia===d.iso;});
+          var sug=q?livres.find(function(x){return formatoIdeia(x)===q.formato;}):null;
+          return ce("div",{key:d.iso,className:"dia"+(alvoDia===d.iso?" alvo":""),onDragOver:function(e){e.preventDefault();if(alvoDia!==d.iso)setAlvoDia(d.iso);},onDragLeave:function(){if(alvoDia===d.iso)setAlvoDia(null);},onDrop:function(e){soltarNoDia(e,d.iso);}},
+            ce("div",{className:"dia-h"},ce("div",{style:{fontWeight:700,fontSize:15}},d.rot),q?ce("span",{className:"pill-s pill-mu",title:q.por_que||""},q.nome):null),
+            itens.map(function(s){var f=s.ideia?formatoIdeia(s.ideia):"";return ce("div",{key:s.id,className:"dia-i arrasta",draggable:!verComo,onDragStart:function(e){e.dataTransfer.setData("text/plain",JSON.stringify({linha:s.id}));}},
+              ce("button",{className:"gostei",style:{width:32,borderLeft:"none",color:s.feito?"var(--ok)":"var(--mu2)"},"aria-pressed":!!s.feito,"aria-label":s.feito?"Desmarcar gravado":"Marcar como gravado",onClick:function(){mudarNaSemana(s,{feito:!s.feito});}},ico("check",20,s.feito?"var(--ok)":"var(--mu)",2.6)),
+              ce("div",{style:{flex:1,minWidth:0,textDecoration:s.feito?"line-through":"none",color:s.feito?"var(--mu2)":"var(--tx)"}},f?ce("span",{className:"ideia-fmt",style:{display:"inline",marginRight:6}},NOME_FORMATO[f]):null,s.titulo),
+              verComo?null:ce("button",{className:"link-mini",onClick:function(){tirarDaSemana(s);}},"Tirar"));}),
+            !itens.length?ce("div",{style:{fontSize:13,color:"var(--mu2)"}},sug&&!verComo?ce("span",null,"Sugestão: ",ce("b",null,sug.titulo)," ",ce("button",{className:"link-mini",onClick:function(){colocarNaSemana(sug,d.iso);}},"Colocar aqui")):"Nada ainda."):null);
+        })),
+      window.innerWidth>900&&livres.length?ce("div",{style:{width:260,flexShrink:0,position:"sticky",top:16}},
+        ce("div",{className:"sec-h",style:{marginTop:0}},"Ideias para arrastar"),
+        livres.slice(0,14).map(function(x){return ce("div",{key:x.titulo,className:"dia-i arrasta",draggable:!verComo,onDragStart:function(e){e.dataTransfer.setData("text/plain",JSON.stringify({ideia:x.titulo}));},style:{borderTop:"1px solid var(--bo)",fontSize:13}},ce("span",{className:"ideia-fmt",style:{display:"inline",marginRight:6}},NOME_FORMATO[formatoIdeia(x)]),x.titulo);})):null);
+  }
+  // ---------- melhor dia e horario para postar (pela propria conta) ----------
+  function melhoresHorariosApp(posts){
+    var porDia={},porFaixa={};
+    (posts||[]).filter(function(p){return p.data&&p.alcance>0&&!p.pouco_alcance&&p.indice>0;}).forEach(function(p){
+      var d=new Date(p.data),dia=DIAS_SEMANA[d.getDay()],h=d.getHours(),fx=h<6?"de madrugada":h<12?"de manhã":h<18?"à tarde":"à noite";
+      (porDia[dia]=porDia[dia]||[]).push(p.indice);(porFaixa[fx]=porFaixa[fx]||[]).push(p.indice);
+    });
+    function lista(o){return Object.keys(o).filter(function(k){return o[k].length>=3;}).map(function(k){return {k:k,n:o[k].length,med:mediana(o[k])};}).sort(function(a,b){return b.med-a.med;});}
+    return {dias:lista(porDia),faixas:lista(porFaixa)};
+  }
+  function blocoHorarios(dl){
+    var h=melhoresHorariosApp(dl.posts||[]);if(!h.dias.length)return null;
+    var card={background:"var(--sur)",border:"1px solid var(--bo)",borderRadius:14,padding:14,marginBottom:14},max=h.dias[0].med||1;
+    return ce("div",{style:card},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:6}},"🕒 Melhor dia e horário para postar"),
+      ce("div",{style:{fontSize:13.5,lineHeight:1.5,marginBottom:10}},"Na sua conta, os posts de ",ce("b",null,NOME_DIA[h.dias[0].k].toLowerCase()),h.faixas.length?ce("span",null," ",ce("b",null,h.faixas[0].k)):null," engajam mais: "+fmtX(h.dias[0].med)+" a média."),
+      h.dias.map(function(d){return ce("div",{key:d.k,style:{display:"flex",alignItems:"center",gap:8,fontSize:13,marginBottom:6}},ce("span",{style:{width:70}},NOME_DIA[d.k]),ce("div",{className:"bar",style:{flex:1,margin:0}},ce("i",{style:{width:Math.round(d.med/max*100)+"%",background:"var(--ac2)"}})),ce("span",{style:{width:64,textAlign:"right",color:"var(--mu2)"}},fmtX(d.med)+" ("+d.n+")"));}),
+      ce("div",{style:{fontSize:11.5,color:"var(--mu)",borderTop:"1px solid var(--bo)",paddingTop:8,marginTop:6,lineHeight:1.5}},ce("b",null,"De onde vem: "),"engajamento dos seus posts dos últimos 90 dias, por dia e horário em que foram publicados. Entram só dias com 3 posts ou mais."));
+  }
+  // ---------- o que as clientes perguntam e o resultado por tipo de video ----------
+  function blocoPerguntas(d){
+    var q=((d.publico&&d.publico.perguntas_clientes)||[]).filter(function(x){return x&&x.duvida;});if(!q.length)return null;
+    var card={background:"var(--sur)",border:"1px solid var(--bo)",borderRadius:14,padding:14,marginBottom:14};
+    return ce("div",{style:card},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:8}},"💬 O que suas clientes perguntam"),
+      q.slice(0,8).map(function(x,i){return ce("div",{key:i,style:{fontSize:13.5,lineHeight:1.5,marginBottom:8}},ce("b",null,x.duvida),x.quantas?ce("span",{style:{color:"var(--ac2)",fontWeight:700}}," · "+x.quantas+(x.quantas===1?" pergunta":" perguntas")):null,x.exemplo?ce("div",{style:{fontSize:12.5,color:"var(--mu2)"}},"\u201C"+x.exemplo+"\u201D"):null);}),
+      ce("div",{style:{fontSize:12.5,color:"var(--mu2)",marginTop:4}},"O time usa essas dúvidas nas ideias e nos roteiros de venda."));
+  }
+  function blocoEtiquetas(m){
+    var p=((m&&m.por_etiqueta)||[]);if(p.length<2)return null;
+    var card={background:"var(--sur)",border:"1px solid var(--bo)",borderRadius:14,padding:14,marginBottom:14},max=p[0].media||1;
+    return ce("div",{style:card},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:6}},"🏷️ Resultado por tipo de vídeo"),
+      ce("div",{style:{fontSize:13.5,lineHeight:1.5,marginBottom:10}},ce("b",null,p[0].etiqueta.charAt(0).toUpperCase()+p[0].etiqueta.slice(1))," é o que mais rende na sua loja: "+fmtX(p[0].media)+" a média."),
+      p.slice(0,8).map(function(x){return ce("div",{key:x.etiqueta,style:{display:"flex",alignItems:"center",gap:8,fontSize:13,marginBottom:6}},ce("span",{style:{width:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},x.etiqueta),ce("div",{className:"bar",style:{flex:1,margin:0}},ce("i",{style:{width:Math.round(x.media/max*100)+"%",background:x.media>=1?"var(--ok)":"var(--ac2)"}})),ce("span",{style:{width:64,textAlign:"right",color:"var(--mu2)"}},fmtX(x.media)+" ("+x.posts+")"));}),
+      ce("div",{style:{fontSize:11.5,color:"var(--mu)",borderTop:"1px solid var(--bo)",paddingTop:8,marginTop:6,lineHeight:1.5}},ce("b",null,"De onde vem: "),"o time marca cada post (provador, narrado, com rosto, preço na tela...) e compara o engajamento. Entre parênteses, quantos posts."));
+  }
+  // ---------- lojas de referencia e anuncios da concorrencia ----------
+  async function salvarReferencias(){
+    if(somenteLeitura())return;setSalvandoRef(true);
+    try{
+      var tk=await tokenAtual();
+      var r=await fetch("/api/referencias",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tk},body:JSON.stringify({perfis:String(refTxt||"")})});
+      var d={};try{d=await r.json();}catch(_){}
+      if(!r.ok)throw new Error(d.error||("Erro "+r.status));
+      setLojaInfo(function(l){return Object.assign({},l||{},{referencias:d.perfis||[]});});
+      setContaMeta(function(c){return c?Object.assign({},c,{referencias:d.referencias}):c;});
+      setRefTxt(null);showToast(d.perfis&&d.perfis.length?"Referências salvas! O time passa a usar nas próximas ideias.":"Referências removidas.");
+    }catch(e){avisarErro(e,"Não consegui salvar as referências agora.",salvarReferencias);}
+    setSalvandoRef(false);
+  }
+  function linkBiblioteca(q){return "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=BR&media_type=all&search_type=keyword_unordered&q="+encodeURIComponent(String(q||"").replace(/^@/,""));}
+  function blocoLojasReferencia(){
+    var lista=(lojaInfo&&lojaInfo.referencias)||[],dados=(contaMeta&&contaMeta.referencias)||null,editando=refTxt!==null;
+    var card={background:"var(--sur)",border:"1px solid var(--bo)",borderRadius:14,padding:14,marginBottom:14};
+    return ce("div",{style:card},
+      ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:6}},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15}},"⭐ Lojas de referência"),!editando&&!verComo?ce("button",{className:"link-mini",onClick:function(){setRefTxt(lista.map(function(u){return "@"+u;}).join(", "));}},lista.length?"Editar":"Escolher"):null),
+      ce("div",{style:{fontSize:13,color:"var(--mu2)",lineHeight:1.5,marginBottom:8}},"Até 5 perfis que você admira. O time olha os posts que mais deram certo neles e usa como inspiração de formato, sem copiar."),
+      editando?ce("div",null,ce(CampoTexto,{tag:"input",value:refTxt,onChange:function(x){setRefTxt(x);},placeholder:"@perfil1, @perfil2",style:{width:"100%",background:"var(--sur2)",border:"1px solid var(--boh)",borderRadius:10,color:"var(--tx)",fontFamily:"inherit",fontSize:16,padding:"10px 12px"}}),
+        ce("div",{style:{display:"flex",gap:8,marginTop:8}},ce("button",{className:"chip on",style:{minHeight:44},disabled:salvandoRef,onClick:salvarReferencias},salvandoRef?"Lendo os perfis...":"Salvar"),ce("button",{className:"chip",style:{minHeight:44},onClick:function(){setRefTxt(null);}},"Cancelar")),
+        ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:6}},"Só dá para acompanhar perfis comerciais ou de criador (a Meta não libera perfis pessoais).")):null,
+      dados&&dados.erro?ce("div",{className:"nota",style:{marginBottom:0}},dados.erro):null,
+      ((dados&&dados.perfis)||[]).map(function(p){return ce("div",{key:p.username,style:{borderTop:"1px solid var(--bo)",paddingTop:10,marginTop:10}},
+        ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap"}},ce("a",{href:"https://www.instagram.com/"+p.username+"/",target:"_blank",rel:"noopener",style:{fontWeight:700,color:"var(--tx)",textDecoration:"none"}},"@"+p.username),p.seguidores?ce("span",{style:{fontSize:12,color:"var(--mu2)"}},compacto(p.seguidores)+" seguidores"):null,ce("a",{href:linkBiblioteca(p.username),target:"_blank",rel:"noopener",className:"link-mini",style:{marginLeft:"auto"}},"Ver os anúncios ↗")),
+        p.erro?ce("div",{style:{fontSize:13,color:"var(--ac2)",marginTop:4}},p.erro):ce("div",{className:"refs-ig"},(p.posts||[]).map(function(x,i){return ce("a",{key:i,href:x.link||"#",target:"_blank",rel:"noopener","aria-label":"Abrir post de @"+p.username},x.capa?img(x.capa):null,ce("span",null,"♥ "+compacto(x.curtidas)+(x.indice>=1.5?" · "+fmtX(x.indice):"")));})));}));
+  }
+  function blocoConcorrencia(){
+    var card={background:"var(--sur)",border:"1px solid var(--bo)",borderRadius:14,padding:14,marginBottom:14};
+    return ce("div",{style:card},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:6}},"📣 Anúncios da concorrência"),
+      ce("div",{style:{fontSize:13,color:"var(--mu2)",lineHeight:1.5,marginBottom:8}},"A Meta mostra todos os anúncios ativos de qualquer loja na Biblioteca de Anúncios, que é pública. Digite o nome ou o @ de uma loja e veja o que ela está anunciando agora."),
+      ce("div",{style:{display:"flex",gap:8}},ce(CampoTexto,{tag:"input",value:concTxt,onChange:function(x){setConcTxt(x);},placeholder:"Ex.: nome da loja",style:{flex:1,minWidth:0,background:"var(--sur2)",border:"1px solid var(--boh)",borderRadius:10,color:"var(--tx)",fontFamily:"inherit",fontSize:16,padding:"10px 12px"},onKeyDown:function(e){if(e.key==="Enter"&&e.target.value.trim())window.open(linkBiblioteca(e.target.value),"_blank","noopener");}}),
+        ce("button",{className:"chip on",style:{minHeight:44},onClick:function(){var q=String(concTxt||"").trim();if(!q){showToast("Digite o nome da loja.","err");return;}window.open(linkBiblioteca(q),"_blank","noopener");}},"Ver anúncios ↗")),
+      ce("div",{style:{fontSize:11.5,color:"var(--mu)",marginTop:8,lineHeight:1.5}},"Abre no site da Meta. A leitura automática desses anúncios não é liberada pela Meta no Brasil, então o time não analisa por conta própria."));
+  }
+  // ---------- resumo da semana (Inicio): 3 destaques e 1 acao ----------
+  function resumoSemana(dl){
+    if(!dl)return null;
+    var agora=Date.now(),s7=(dl.posts||[]).filter(function(p){return p.data&&agora-new Date(p.data).getTime()<7*864e5;}),s14=(dl.posts||[]).filter(function(p){var a=agora-new Date(p.data).getTime();return p.data&&a>=7*864e5&&a<14*864e5;});
+    var v7=s7.reduce(function(s,p){return s+(p.visualizacoes||0);},0),v14=s14.reduce(function(s,p){return s+(p.visualizacoes||0);},0);
+    var dest=[];
+    if(s7.length)dest.push(numBR(s7.length)+(s7.length===1?" post":" posts")+" e "+compacto(v7)+" visualizações nos últimos 7 dias"+(v14>0?" ("+(v7>=v14?"+":"")+Math.round((v7-v14)/v14*100)+"% em relação à semana anterior)":"")+".");
+    var melhor=s7.filter(function(p){return !p.pouco_alcance;}).sort(function(a,b){return (b.indice||0)-(a.indice||0);})[0];
+    if(melhor&&melhor.indice>=1.2)dest.push("Destaque: o "+(melhor.tipo||"post")+" de "+new Date(melhor.data).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" teve "+fmtX(melhor.indice)+" o engajamento médio.");
+    var a7=dl.ads&&dl.ads.p7&&dl.ads.p7.totais;
+    if(a7&&a7.gasto>0)dest.push("Anúncios: "+brl(a7.gasto)+" investidos"+(a7.receita>0?" e "+brl(a7.receita)+" em vendas":a7.resultados?" e "+numBR(a7.resultados)+" "+rotRes(dl.ads.p7.tipo_resultado,a7.resultados,a7.res_nome):"")+" nos últimos 7 dias.");
+    var pe=contaMeta&&contaMeta.memoria&&(contaMeta.memoria.por_etiqueta||[])[0];
+    if(dest.length<3&&pe&&pe.media>=1.3)dest.push("Na sua loja, "+pe.etiqueta+" rende "+fmtX(pe.media)+" a média.");
+    if(!dest.length)return null;
+    var hoje=proximosDias(1)[0],doDia=semana.filter(function(s){return s.dia===hoje.iso&&!s.feito;})[0];
+    var ideia=doDia||(((dl.dossie||{}).ideias||{}).lista||[])[0];
+    return ce("div",{className:"card2",style:{padding:16,marginBottom:18}},
+      ce("div",{className:"sec-h",style:{margin:"0 0 8px"}},"Sua semana"),
+      dest.slice(0,3).map(function(t,i){return ce("div",{key:i,style:{fontSize:13.5,lineHeight:1.5,marginBottom:6,display:"flex",gap:8}},ce("span",{style:{color:"var(--ac2)",fontWeight:800}},"•"),t);}),
+      ideia?ce("div",{style:{marginTop:10,paddingTop:10,borderTop:"1px solid var(--bo)",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}},ce("div",{style:{flex:1,minWidth:180,fontSize:13.5}},ce("b",null,doDia?"Hoje no seu plano: ":"Para gravar agora: "),ideia.titulo),ce("button",{className:"chip on",style:{minHeight:44},onClick:function(){setIdeiasAba(doDia?"semana":"lista");irPara("ideias");}},doDia?"Ver a semana":"Ver a ideia")):null);
+  }
+  // ---------- veredito simples do video (na hora) e "como melhorar" (IA) ----------
+  function vereditoVideo(v,todos){
+    var p=[],mr=mediana(todos.map(function(x){return x.retencao_3s;})),mt=mediana(todos.map(function(x){return x.tempo_medio_s;}));
+    if(v.retencao_3s!=null&&mr)p.push(v.retencao_3s>=mr*1.1?"prendeu no começo":v.retencao_3s<=mr*0.9?"perdeu gente logo no começo":"começo na média");
+    if(v.tempo_medio_s&&mt)p.push(v.tempo_medio_s>=mt*1.1?"segurou até o fim":v.tempo_medio_s<=mt*0.9?"perdeu gente no meio":"meio na média");
+    if(v.indice&&!v.pouco_alcance)p.push(v.indice>=1.3?"engajou bem acima da média":v.indice<=0.7?"engajou pouco":"engajamento na média");
+    return p.length?p.join(", ").replace(/^./,function(c){return c.toUpperCase();})+".":"";
+  }
+  async function pedirVeredito(tipo,id){
+    var chave=tipo+":"+id;setVereditoIA({chave:chave,carregando:true});
+    try{
+      var tk=await tokenAtual();
+      var r=await fetch("/api/veredito",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tk},body:JSON.stringify({tipo:tipo,id:id})});
+      var d={};try{d=await r.json();}catch(_){}
+      if(!r.ok)throw new Error(d.error||("Erro "+r.status));
+      setVereditoIA({chave:chave,dados:d});
+    }catch(e){setVereditoIA(null);avisarErro(e,"Não consegui analisar o vídeo agora.",function(){pedirVeredito(tipo,id);});}
+  }
+  function blocoComoMelhorar(tipo,id){
+    if(!id)return null;
+    var chave=tipo+":"+id,vi=vereditoIA&&vereditoIA.chave===chave?vereditoIA:null;
+    if(!vi)return verComo?null:ce("button",{className:"btn-sec2",style:{width:"100%",minHeight:48,marginBottom:12},onClick:function(){pedirVeredito(tipo,id);}},"💡 Como melhorar este vídeo");
+    if(vi.carregando)return ce("div",{className:"esqueleto",style:{height:120,marginBottom:12}});
+    var d=vi.dados||{};
+    return ce("div",{className:"card2",style:{padding:14,marginBottom:12}},
+      ce("div",{style:{fontWeight:700,marginBottom:6}},"💡 Como melhorar"),
+      d.resumo?ce("div",{style:{fontSize:13.5,lineHeight:1.5,marginBottom:8}},d.resumo):null,
+      d.manter?ce("div",{style:{fontSize:13.5,lineHeight:1.5,marginBottom:8}},ce("b",null,"Manter: "),d.manter):null,
+      (d.correcoes||[]).length?ce("ol",{className:"ideia-ol",style:{fontSize:13.5,lineHeight:1.5}},d.correcoes.map(function(c,i){return ce("li",{key:i},c);})):null);
+  }
+  // ---------- roteiro que virou post (o Agente de Memoria liga o roteiro ao Reels) ----------
+  function viraPost(s){
+    var v=((contaMeta&&contaMeta.memoria&&contaMeta.memoria.vinculos_roteiros)||[]).filter(function(x){return activeProject&&x.projeto_id===activeProject.id&&String(x.roteiro_id)===String(s.id)&&x.confianca!=="baixa";});
+    return v[0]||null;
+  }
   // ---------- IDEIAS DE CONTEUDO (Agente de Ideias) ----------
   function cartaoIdeia(ideia,i,compacto){
     var chave=(compacto?"h:":"i:")+ideia.titulo,aberta=ideiaAberta===chave,fmt=formatoIdeia(ideia);
@@ -1265,7 +1469,7 @@ function App(){
       ce("div",{className:"ideia-h"},ce("button",{className:"ideia-t","aria-expanded":aberta,onClick:function(){setIdeiaAberta(aberta?null:chave);}},
         ce("span",{style:{flex:1,minWidth:0}},
           ce("span",{className:"ideia-fmt"},(NOME_FORMATO[fmt]||"Vídeo")+(ideia.duracao_s?" · "+ideia.duracao_s+" s":"")),
-          ce("span",{style:{display:"block"}},ideia.nova?ce("span",{className:"ideia-nova"},"Nova"):null,ideia.titulo)),
+          ce("span",{style:{display:"block"}},ideia.nova?ce("span",{className:"ideia-nova"},"Nova"):null,ideia.tipo==="refazer_campeao"?ce("span",{className:"selo camp"},"Refazer um campeão"):null,ideia.guardada?ce("span",{className:"selo guard"},"Guardada"):null,ideia.titulo)),
         ce("span",{className:"ideia-seta","aria-hidden":"true"},ico("seta",16,"var(--mu2)"))),
         ce("button",{className:"gostei","aria-pressed":gi,"aria-label":gi?"Tirar o Gostei desta ideia":"Gostei desta ideia",title:gi?"Você gostou desta ideia":"Gostei",onClick:function(){alternarGostei("ideia",ideia.titulo,ideia.titulo,{gancho:ideia.gancho||"",formato:fmt});}},coracao(gi,20))),
       aberta?ce("div",{className:"ideia-c"},
@@ -1278,7 +1482,9 @@ function App(){
         insp&&(insp.link||insp.miniatura)?bloco("Inspirado no seu "+(insp.tipo==="anuncio"?"anúncio":"post"),ce("a",{className:"ideia-insp",href:insp.link?linkIG(insp.link):undefined,target:"_blank",rel:"noopener"},insp.miniatura?ce("span",{className:"thumb",style:{width:44,height:58,borderRadius:8,flexShrink:0}},img(insp.miniatura)):null,ce("span",{style:{fontSize:12.5,color:"var(--mu2)",lineHeight:1.4}},insp.legenda||"Ver no Instagram"))):null,
         ideia.por_que?ce("div",{style:{fontSize:12.5,lineHeight:1.5,color:"var(--mu2)"}},ideia.por_que):null,
         bloco("Como saber se deu certo",ideia.metrica?ce("div",{style:{fontSize:13}},ideia.metrica):null),
-        verComo?null:ce("div",null,ce("button",{className:"chip on",style:{minHeight:44,fontSize:13},onClick:function(){ideiaParaRoteiro(ideia);}},fmt==="curto"?"Criar o roteiro deste vídeo":"Criar roteiro a partir desta ideia"))):null);
+        verComo?null:ce("div",null,ce("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},ce("button",{className:"chip on",style:{minHeight:44,fontSize:13},onClick:function(){ideiaParaRoteiro(ideia);}},fmt==="curto"?"Criar o roteiro deste vídeo":"Criar roteiro a partir desta ideia"),
+          semana.some(function(x){return x.titulo===ideia.titulo;})?ce("span",{className:"pill-s pill-ok",style:{alignSelf:"center"}},"\u2713 Na sua semana"):ce("button",{className:"chip",style:{minHeight:44,fontSize:13},onClick:function(){setAgendando(agendando===chave?null:chave);}},"📅 Colocar na semana")),
+          agendando===chave?escolherDia(ideia):null)):null);
   }
   function atualizandoIdeias(){return !!(contaMeta&&/^Analisando/.test(contaMeta.status||""));}
   // o que a loja quer vender agora: a versao da dona vale mais que a da consultoria nas ideias
@@ -1309,11 +1515,11 @@ function App(){
     var ops=[{id:"todas",lb:"Todas"},{id:"curto",lb:"Vídeos curtos"},{id:"narrado",lb:"Vídeos narrados"},{id:"provador",lb:"Provador"}];
     var filtro=ops.some(function(o){return o.id===ideiaFiltro;})?ideiaFiltro:"todas";
     var vis=lista.filter(function(x){return passa(x,filtro);});
-    return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:760}},
+    return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:ideiasAba==="semana"?1040:760}},
       ce("button",{className:"back",onClick:function(){voltar(function(){irPara("home");});}},ico("voltar",22),"Voltar"),
       ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:10}},ce("div",{className:"pg-h",style:{margin:0}},"Ideias de conteúdo"),ideiasAba==="lista"?botaoMaisIdeias():null),
-      ce("div",{className:"seg"},[{id:"lista",lb:"Ideias"},{id:"chat",lb:"Pedir ao time"}].map(function(a){return ce("button",{key:a.id,className:ideiasAba===a.id?"on":"",onClick:function(){setIdeiasAba(a.id);if(a.id==="chat")carregarConversa("ideias");}},a.lb);})),
-      ideiasAba==="chat"?painelChat("ideias"):ce("div",null,
+      ce("div",{className:"seg"},[{id:"lista",lb:"Ideias"},{id:"semana",lb:"Minha semana"},{id:"chat",lb:"Pedir ao time"}].map(function(a){return ce("button",{key:a.id,className:ideiasAba===a.id?"on":"",onClick:function(){setIdeiasAba(a.id);if(a.id==="chat")carregarConversa("ideias");}},a.lb);})),
+      ideiasAba==="chat"?painelChat("ideias"):ideiasAba==="semana"?renderSemana(lista):ce("div",null,
         atualizandoIdeias()?ce("div",{className:"nota"},ce("b",null,"Atualizando suas ideias: "),"o time de agentes está estudando os seus vídeos mais recentes. Leva alguns minutos; enquanto isso, as ideias abaixo continuam valendo."):null,
         blocoVender(),
         avisoGostei(),
@@ -1365,6 +1571,7 @@ function App(){
       temDados||carregandoConta
         ?null
         :ce("div",{className:"nota",style:{marginBottom:18}},ce("b",null,"Seus números aparecem aqui "),"assim que o Instagram e os anúncios da loja forem conectados. A equipe do MCP Studio cuida disso para você."),
+      resumoSemana(dl),
       melhores?ce("div",{style:{marginBottom:22}},melhores):null,
       gravar
     ));
@@ -1467,12 +1674,17 @@ function App(){
       (d.resumo_loja||d.texto)&&ce("div",{className:"nota"},ce("b",null,"O que o time de agentes descobriu: "),d.resumo_loja||d.texto),
       d.gerado_em&&ce("div",{style:{fontSize:12,color:"var(--mu2)",margin:"-4px 0 14px"}},"Análise feita "+quando(d.gerado_em)+" com os últimos 90 dias. O time analisa de novo de madrugada sempre que entra post ou anúncio novo."+(poucos?" Ainda há poucos dados, então algumas conclusões são iniciais.":"")),
       blocoMemoria(contaMeta&&contaMeta.memoria),
+      blocoPerguntas(d),
+      blocoEtiquetas(contaMeta&&contaMeta.memoria),
+      blocoHorarios(dl),
       blocoRelatorio("👥 Agente de Público",d.publico,{quem_e:"Quem é",idade_genero:"Idade e gênero",regioes:"Regiões",faixas:"Por faixa de idade",quem_compra:"Quem mais compra",dores:"Dores",desejos:"Desejos",objecoes:"Objeções",motivos_compra:"Por que compra",motivos_nao_compra:"Por que desiste",gatilhos:"O que faz comprar nesta loja",situacoes:"Situações do dia a dia",angulos:"Ângulos de comunicação",expressoes_reais:d.publico_fonte==="comentarios"?"Como o público fala (dos comentários)":"Frases que mais engajaram"},
         "idade, gênero e cidades dos seguidores (Meta ou Reportei)"+(d.publico_fonte==="comentarios"?", comentários reais das seguidoras (Meta)":"")+". Quem é, dores, desejos e objeções são leituras do time a partir do que mais engajou."),
       blocoRelatorio("💰 Agente de Anúncios",d.anuncios&&d.anuncios.relatorio,{o_que_vende:"O que vende",ganchos_que_convertem:"Ganchos que convertem",argumentos_e_ofertas:"Argumentos e ofertas",ctas:"Chamadas que funcionam",diagnostico_dos_fracos:"Onde os fracos perdem"},
         "números dos anúncios (Reportei)"+(d.anuncios&&d.anuncios.com_texto?", texto do anúncio e fala do vídeo (Meta)":"")+"."),
       blocoRelatorio("🔎 Agente Orgânico",d.organico&&d.organico.relatorio,{o_que_funciona:"O que funciona",formatos_mae:"Formatos que vale repetir",ganchos_que_funcionam:"Ganchos que funcionam",temas:"Temas",formatos:"Formatos",evitar:"Evitar"},
-        "números dos posts (Reportei)"+(d.versao>=3?", fala dos Reels e tempo médio assistido (Meta)":"")+"."));
+        "números dos posts (Reportei)"+(d.versao>=3?", fala dos Reels e tempo médio assistido (Meta)":"")+"."),
+      blocoLojasReferencia(),
+      blocoConcorrencia());
   }
 
   // ---------- DETALHE de um post ou de um anuncio ----------
@@ -1499,6 +1711,8 @@ function App(){
         ce("div",{className:"counters"},[["coracao",v.curtidas,"curtidas"],["balao",v.comentarios,"comentários"],["enviar",v.compartilhamentos,"compartilhamentos"],["salvo",v.salvamentos,"salvos"]].map(function(c){return ce("div",{key:c[0],title:c[2],"aria-label":c[2]},ico(c[0],22),numBR(c[1]||0));})),
         ce("div",{className:"sec-h"},"Visão geral"),
         ce("div",{style:{marginBottom:16}},linhas.map(function(l){return ce("div",{key:l[0],className:"linha"},ce("span",null,l[0]),ce("span",null,l[1]));})),
+        (function(){var vv=vereditoVideo(v,todos);return vv?ce("div",{className:"nota"},ce("b",null,"Resumo: "),vv):null;})(),
+        blocoComoMelhorar("org",v.id),
         destaques.length?ce("div",{className:"nota"},ce("b",null,"Por que se destacou: "),destaques.map(function(x){return fmtX(x.r)+" mais "+x.lb;}).join(", ")+" que a média dos seus posts."):null,
         falaDoVideo(v.transcricao),
         ce("button",{className:"btn-pri",onClick:function(){usarComoReferencia("organico",v);}},"Gerar roteiro parecido")
@@ -1525,6 +1739,7 @@ function App(){
       barras.length?ce("div",{style:{marginBottom:16}},ce("div",{className:"sec-h"},"Onde o vídeo ganha ou perde"),
         barras.map(function(b){var max=Math.max(b[1],b[2])*1.3||1,bom=b[1]>=b[2];return ce("div",{key:b[0],style:{marginBottom:12}},ce("div",{style:{display:"flex",justifyContent:"space-between",gap:8,fontSize:13.5}},ce("span",null,b[0]),ce("span",{style:{fontWeight:700,color:bom?"var(--ok)":"var(--ac2)"}},String(b[1]).replace(".",",")+"%")),ce("div",{className:"bar"},ce("i",{style:{width:Math.min(100,b[1]/max*100)+"%",background:bom?"var(--ok)":"var(--ac2)"}}),ce("b",{style:{left:Math.min(99,b[2]/max*100)+"%"}})));}),
         ce("div",{style:{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--mu2)"}},ce("span",{style:{width:2,height:12,background:"var(--tx)"}}),"média da sua conta")):null,
+      blocoComoMelhorar("ad",v.id),
       dica.length?ce("div",{className:"nota"},ce("b",null,"Dica do agente: "),dica.join(", ").replace(/^./,function(c){return c.toUpperCase();})+"."):null,
       textoDoAnuncio(v),
       falaDoVideo(v.transcricao),
@@ -1798,8 +2013,9 @@ function App(){
             (activeProject.rodadas||[]).map(function(rd,i){return avisoRodada(rd,i);}).reverse(),
             scripts.length?avisoGostei():null,
             ce("div",{className:"scripts"},scripts.map(function(s){var gr=gostou("roteiro",activeProject.id+":"+s.id);return ce("div",{key:s.id,className:"sc"},
-              ce("div",{className:"sc-hd",onClick:function(){togSc(s.id);}},ce("div",{className:"sc-n"},s.numGlobal||s.id),ce("div",{className:"sc-inf"},ce("div",{className:"sc-title"},s.titulo),ce("div",{className:"sc-pilar"},s.pilar)),ce("div",{className:"sc-tags"},s.gravado?ce("span",{className:"tag topo"},"GRAVADO"):null,s.formato==="curto"?ce("span",{className:"tag"},"SEM FALA"):null,ftag(s.funil),s.duracao_s?ce("span",{className:"tag"},s.duracao_s+" s"):null),ce("span",{style:{color:"var(--mu)",marginLeft:8}},openScripts[s.id]?"v":">")),
+              ce("div",{className:"sc-hd",onClick:function(){togSc(s.id);}},ce("div",{className:"sc-n"},s.numGlobal||s.id),ce("div",{className:"sc-inf"},ce("div",{className:"sc-title"},s.titulo),ce("div",{className:"sc-pilar"},s.pilar)),ce("div",{className:"sc-tags"},s.gravado?ce("span",{className:"tag topo"},"GRAVADO"):null,s.formato==="curto"?ce("span",{className:"tag"},"SEM FALA"):null,viraPost(s)?ce("span",{className:"tag topo"},"VIROU POST"):null,ftag(s.funil),s.duracao_s?ce("span",{className:"tag"},s.duracao_s+" s"):null),ce("span",{style:{color:"var(--mu)",marginLeft:8}},openScripts[s.id]?"v":">")),
               ce("div",{className:"sc-body"+(openScripts[s.id]?" op":"")},
+                (function(){var vp=viraPost(s);if(!vp)return null;var RES={acima:"ficou acima da média",na_media:"ficou na média",abaixo:"ficou abaixo da média",sem_dado:"ainda sem resultado"};return ce("a",{href:vp.post_link?linkIG(vp.post_link):undefined,target:"_blank",rel:"noopener",className:"nota",style:{display:"flex",gap:10,alignItems:"center",textDecoration:"none",color:"inherit"}},vp.miniatura?ce("span",{className:"thumb",style:{width:40,height:52,borderRadius:6,flexShrink:0}},img(vp.miniatura)):null,ce("span",null,ce("b",null,"Você gravou este roteiro: "),"o post "+(RES[vp.resultado]||"")+(vp.indice?" ("+fmtX(vp.indice)+")":"")+". Ver no Instagram ↗"));})(),
                 corpoRoteiro(s),
                 ce("div",{className:"sc-ft",style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},ce("button",{className:"cbtn"+(gr?" cp":""),"aria-pressed":gr,"aria-label":gr?"Tirar o Gostei deste roteiro":"Gostei deste roteiro",onClick:function(e){e.stopPropagation();alternarGostei("roteiro",activeProject.id+":"+s.id,s.titulo,{gancho:s.gancho||"",projeto:activeProject.name||""});}},ce("span",{className:"gostei-b"},coracao(gr,15),"Gostei")),ce("button",{className:"cbtn"+(copiedId===s.id?" cp":""),onClick:function(){copySc(s);}},copiedId===s.id?"Copiado!":"Copiar roteiro"),podeCompartilhar()?ce("button",{className:"cbtn",onClick:function(e){e.stopPropagation();compartilharTexto(s.titulo,textoRoteiro(s));}},"Compartilhar"):null,ce("button",{className:"cbtn"+(s.gravado?" cp":""),"aria-pressed":!!s.gravado,onClick:function(e){e.stopPropagation();marcarGravado(s);}},s.gravado?"✓ Gravado":"Já gravei"),ce("button",{onClick:function(e){e.stopPropagation();regenerarRoteiro(s);},disabled:regenId===s.id,style:{background:"none",border:"1px solid var(--bo)",borderRadius:8,color:"var(--mu2)",padding:"4px 12px",fontSize:12,cursor:regenId===s.id?"wait":"pointer",fontFamily:"inherit"}},regenId===s.id?"Refazendo...":"Refazer"),ce("button",{onClick:function(e){e.stopPropagation();setEditingScript(s);setEditInstr("");},style:{background:"rgba(155,142,255,.1)",border:"1px solid rgba(155,142,255,.3)",color:"#9B8EFF",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Ajustar"),ce("button",{onClick:function(e){e.stopPropagation();setImgModal({roteiro:s,choosing:true});},title:"Gerar uma imagem de anúncio com este gancho",style:{background:"rgba(255,138,80,.12)",border:"1px solid rgba(255,138,80,.35)",color:"var(--ac2)",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"🎨 Imagem"))
               )

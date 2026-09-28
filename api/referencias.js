@@ -1,0 +1,33 @@
+// =====================================================================
+//  LOJAS DE REFERENCIA (tela Descobertas)
+//  A dona salva ate 5 perfis publicos que admira; lemos os melhores posts
+//  deles na hora (so leitura, pela Meta) e o time passa a usar como
+//  inspiracao nas proximas ideias. Veja api/_referencias.js.
+// =====================================================================
+
+const { banco, acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
+const { limparNomes, atualizarReferencias } = require("./_referencias.js");
+
+module.exports = async function handler(req, res) {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const auth = req.headers && (req.headers.authorization || req.headers.Authorization);
+    const jwt = (auth && auth.indexOf("Bearer ") === 0) ? auth.slice(7) : "";
+    let uid;
+    try { uid = await acessoLiberado(jwt); } catch (e) { return res.status(500).json({ error: "Não consegui confirmar o seu acesso. Tente de novo." }); }
+    if (!uid) return res.status(jwt ? 403 : 401).json({ error: jwt ? SEM_ACESSO : "Entre na sua conta de novo." });
+    const nomes = limparNomes((req.body || {}).perfis);
+    try {
+        const id = encodeURIComponent(uid);
+        // guarda a lista na loja (cria a linha se ainda nao existir)
+        const feito = await banco("lojas?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=representation" }, body: { referencias: nomes } });
+        if (!feito || !feito.length) {
+            const cc = await banco("connect_clientes?user_id=eq." + id + "&select=nome").catch(function () { return []; });
+            await banco("lojas", { method: "POST", headers: { Prefer: "return=minimal" }, body: { user_id: uid, nome: (cc && cc[0] && cc[0].nome) || "Minha loja", referencias: nomes } });
+        }
+        const ref = await atualizarReferencias(uid, nomes);
+        return res.status(200).json({ ok: true, perfis: nomes, referencias: ref });
+    } catch (e) {
+        console.error("[referencias] " + uid + ": " + (e && e.message));
+        return res.status(500).json({ error: "Não consegui salvar as referências agora. Tente de novo." });
+    }
+};

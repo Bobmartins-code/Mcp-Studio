@@ -36,6 +36,7 @@ const { registrarUso } = require("./_uso-ia.js");
 const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
 const { blocoDaResposta, diaSP, assinaturaDe } = require("./_coleta.js");
 const { enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia } = require("./_meta-leitura.js");
+const { atualizarReferencias, textoReferencias, REF_MS } = require("./_referencias.js");
 
 const MODELO = "claude-sonnet-5";
 const API = "https://api.anthropic.com/v1";
@@ -107,6 +108,10 @@ const ESQ_PUBLICO = objeto({
     gatilhos: listaPT("Gatilhos que os dados mostram que funcionam nesta loja (preço no gancho, novidade, ocasião, prova no corpo)."),
     situacoes: listaPT("De 5 a 8 situações do dia a dia dessa cliente, do jeito que ela diria (exemplo: provei 5 looks e não gostei de nenhum)."),
     angulos: listaPT("De 3 a 5 ângulos de comunicação para esta loja."),
+    perguntas_clientes: {
+        type: "array", description: "Dúvidas que aparecem nos COMENTÁRIOS REAIS, agrupadas por assunto (tamanho, preço, entrega, tecido, cor, onde fica a loja), da mais pedida para a menos. Lista vazia se não houver comentário com dúvida.",
+        items: objeto({ duvida: textoPT("A dúvida em uma frase simples (exemplo: se a calça veste 46)."), quantas: { type: "integer", description: "Quantos comentários perguntaram isso." }, exemplo: { type: "string", description: "Um comentário real com essa dúvida, copiado como a cliente escreveu." } })
+    },
     expressoes_reais: lista, confianca: confianca
 });
 const ESQ_DIRETOR = objeto({
@@ -131,16 +136,27 @@ const ESQ_ESPECIALISTA = objeto({
             por_que: textoPT("Em uma frase, o dado desta loja que sustenta a ideia. A dona lê este texto: nunca use códigos como P1 ou A1, descreva o post ou anúncio (exemplo: o Reels do vestido azul de 18/09 teve 3,6x a média)."),
             metrica: textoPT("Como a dona sabe se deu certo, em palavras simples."),
             funil: { type: "string", enum: ["topo", "meio", "fundo"] },
-            metodo: { type: "string", enum: ["fftopo", "ffmeio", "fffundo", "dsb", "angulo"], description: "O método de roteiro mais próximo, se a ideia virar roteiro." }
+            metodo: { type: "string", enum: ["fftopo", "ffmeio", "fffundo", "dsb", "angulo"], description: "O método de roteiro mais próximo, se a ideia virar roteiro." },
+            tipo: { type: "string", enum: ["refazer_campeao", "nova"], description: "refazer_campeao quando a ideia repete o formato de um post ou anúncio campeão desta conta com peça, situação ou ângulo novos." }
         })
     }
 });
 const ESQ_CURADOR = objeto({
     resumo: textoPT("2 frases para a dona: por onde começar esta semana e por quê."),
     principais: { type: "array", items: { type: "string" }, description: "Códigos escolhidos, em ordem de prioridade: 4 curtos (C), 3 narrados (N) e 3 provadores (V)." },
-    reserva: { type: "array", items: { type: "string" }, description: "Os outros códigos bons, do melhor para o pior. Fora os fracos ou repetidos." }
+    reserva: { type: "array", items: { type: "string" }, description: "Os outros códigos bons, do melhor para o pior. Fora os fracos ou repetidos." },
+    quadros: {
+        type: "array", description: "De 3 a 4 quadros fixos para a semana desta loja, de preferência nos MELHORES DIAS PARA POSTAR, para criar rotina (exemplo: Terça do provador).",
+        items: objeto({
+            dia: { type: "string", enum: ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"] },
+            nome: textoPT("Nome curto do quadro, com o dia (exemplo: Terça do provador)."),
+            formato: { type: "string", enum: ["curto", "narrado", "provador"] },
+            por_que: textoPT("Em 1 frase, o dado desta loja que justifica o quadro.")
+        })
+    }
 });
 
+const ETIQUETAS = ["provador", "narrado", "vídeo curto sem fala", "foto", "carrossel", "com o rosto da dona", "sem rosto", "look completo", "close no detalhe", "preço na tela", "bastidor da loja", "novidade ou chegada", "antes e depois do look", "POV"];
 const ESQ_MEMORIA = objeto({
     resumo: textoPT("2 frases para a dona: o que o time aprendeu sobre a loja dela até agora."),
     vinculos: {
@@ -161,7 +177,15 @@ const ESQ_MEMORIA = objeto({
         })
     },
     visual: listaPT("De 2 a 6 padrões visuais das capas: o que se repete nos melhores e nos piores posts (cenário, luz, enquadramento, rosto, texto na capa, peça em destaque)."),
-    gosto: listaPT("O gosto e os limites da dona: o que ela marca como Gostei, o que pede no chat, o que escolhe gravar. Lista vazia se não houver sinal.")
+    gosto: listaPT("O gosto e os limites da dona: o que ela marca como Gostei, o que pede no chat, o que escolhe gravar. Lista vazia se não houver sinal."),
+    etiquetas: {
+        type: "array", description: "Para cada post recente (R), de 1 a 4 etiquetas do que ele é, pela legenda, pela fala, pelo tipo e pela capa.",
+        items: objeto({ post: { type: "string", description: "Código do post (R1...)." }, etiquetas: { type: "array", items: { type: "string", enum: ETIQUETAS } } })
+    },
+    vinculos_roteiros: {
+        type: "array", description: "Cada post recente (R) que seguiu um roteiro escrito pelo time (S): a fala ou a legenda repete o gancho, a estrutura ou a peça do roteiro.",
+        items: objeto({ roteiro: { type: "string", description: "Código do roteiro (S1...)." }, post: { type: "string", description: "Código do post (R1...)." }, confianca: confianca, resultado: { type: "string", enum: ["acima", "na_media", "abaixo", "sem_dado"] } })
+    }
 });
 
 // ---------- chamada da IA ----------
@@ -421,19 +445,45 @@ function vozEGanchos(met, comentarios) {
     };
 }
 
+// ---------- melhores dias e horarios para postar (mediana do engajamento, so com 3 posts ou mais) ----------
+const NOME_DIA = { domingo: "domingo", segunda: "segunda", terca: "terça", quarta: "quarta", quinta: "quinta", sexta: "sexta", sabado: "sábado" };
+function medianaNum(v) { const a = v.filter(function (x) { return x > 0; }).sort(function (x, y) { return x - y; }); if (!a.length) return 0; const m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
+function melhoresHorarios(posts) {
+    const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", weekday: "short", hour: "numeric", hour12: false });
+    const SEMANA = { Sun: "domingo", Mon: "segunda", Tue: "terca", Wed: "quarta", Thu: "quinta", Fri: "sexta", Sat: "sabado" };
+    const porDia = {}, porFaixa = {};
+    (posts || []).filter(function (p) { return p.data && p.alcance > 0 && !p.pouco_alcance && p.indice > 0; }).forEach(function (p) {
+        const partes = fmt.formatToParts(new Date(p.data));
+        const dia = SEMANA[(partes.find(function (x) { return x.type === "weekday"; }) || {}).value], h = Number((partes.find(function (x) { return x.type === "hour"; }) || {}).value) % 24;
+        const faixa = h < 6 ? "madrugada" : h < 12 ? "manhã" : h < 18 ? "tarde" : "noite";
+        if (dia) (porDia[dia] = porDia[dia] || []).push(p.indice);
+        (porFaixa[faixa] = porFaixa[faixa] || []).push(p.indice);
+    });
+    function lista(o) { return Object.keys(o).filter(function (k) { return o[k].length >= 3; }).map(function (k) { return { k: k, n: o[k].length, med: arred(medianaNum(o[k]), 2) }; }).sort(function (a, b) { return b.med - a.med; }); }
+    return { dias: lista(porDia), faixas: lista(porFaixa) };
+}
+function textoHorarios(h) {
+    if (!h || (!(h.dias || []).length && !(h.faixas || []).length)) return "";
+    const f = function (x) { return String(x).replace(".", ","); };
+    return "MELHORES DIAS E HORÁRIOS PARA POSTAR NESTA CONTA (mediana do engajamento dos posts, do melhor para o pior): " +
+        (h.dias || []).map(function (d) { return (NOME_DIA[d.k] || d.k) + " " + f(d.med) + "x (" + d.n + " posts)"; }).join(", ") +
+        ((h.faixas || []).length ? " | horários: " + h.faixas.map(function (d) { return d.k + " " + f(d.med) + "x (" + d.n + " posts)"; }).join(", ") : "");
+}
+
 // ---------- contexto de uma loja (lido de novo a cada etapa) ----------
 async function carregar(userId) {
     const id = encodeURIComponent(userId);
     const desde = encodeURIComponent(new Date(Date.now() - 60 * DIA_MS).toISOString());
-    const [contas, lojas, projetos, gostei, conversas] = await Promise.all([
-        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job,memoria"),
-        banco("lojas?user_id=eq." + id + "&select=nome,nicho,site,produtos_dona,produtos_dona_em,produtos_admin,publico_admin").catch(function () { return []; }),
-        banco("projetos?user_id=eq." + id + "&select=nome,form&order=criado_em.desc&limit=5").catch(function () { return []; }),
+    const [contas, lojas, projetos, gostei, conversas, semana] = await Promise.all([
+        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job,memoria,referencias"),
+        banco("lojas?user_id=eq." + id + "&select=nome,nicho,site,produtos_dona,produtos_dona_em,produtos_admin,publico_admin,referencias").catch(function () { return []; }),
+        banco("projetos?user_id=eq." + id + "&select=id,nome,form,rodadas,criado_em&order=criado_em.desc&limit=6").catch(function () { return []; }),
         banco("gostei?user_id=eq." + id + "&criado_em=gte." + desde + "&select=tipo,titulo,conteudo,criado_em&order=criado_em.desc&limit=30").catch(function () { return []; }),
-        banco("conversas?user_id=eq." + id + "&criado_em=gte." + desde + "&select=area,pedido,criado_em&order=criado_em.desc&limit=15").catch(function () { return []; })
+        banco("conversas?user_id=eq." + id + "&criado_em=gte." + desde + "&select=area,pedido,criado_em&order=criado_em.desc&limit=15").catch(function () { return []; }),
+        banco("semana?user_id=eq." + id + "&dia=gte." + diaSP(new Date(Date.now() - 7 * DIA_MS)) + "&select=titulo,dia,feito").catch(function () { return []; })
     ]);
     const conta = (contas && contas[0]) || {};
-    return { userId: userId, conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, gostei: gostei || [], conversas: conversas || [] };
+    return { userId: userId, conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, gostei: gostei || [], conversas: conversas || [], semana: semana || [] };
 }
 // comMeta: consulta a Meta (so na primeira etapa); nas outras usa o que ja foi guardado
 async function preparar(ctx, comMeta) {
@@ -455,6 +505,12 @@ async function preparar(ctx, comMeta) {
     ctx.ads = anunciosDaLoja(met);
     ctx.demografia = textoDemografia(cache);
     ctx.sobreLoja = montarSobreLoja(ctx.loja, ctx.projetos, met);
+    ctx.horarios = melhoresHorarios(postsTodos);
+    // lojas de referencia: os melhores posts dos perfis que a dona admira (1 vez por semana)
+    const refs = ctx.loja.referencias || [], ref = ctx.conta.referencias;
+    if (comMeta && refs.length && (!ref || !ref.em || Date.now() - new Date(ref.em).getTime() > REF_MS)) {
+        ctx.conta.referencias = await atualizarReferencias(ctx.userId, refs).catch(function () { return ref; });
+    }
     return ctx;
 }
 // codigos P1/A1 para achar o video que inspirou cada ideia (guardado com a etapa, porque os numeros mudam entre as etapas)
@@ -466,7 +522,7 @@ function mapaDeCodigos(ctx) {
 }
 function publicoVencido(ctx) {
     const d = ctx.dossie;
-    return !d.publico || !d.publico.situacoes || !d.publico_em || Date.now() - new Date(d.publico_em).getTime() >= PUBLICO_MS || (ctx.loja.publico_admin || "") !== (d.publico_admin_usado || "");
+    return !d.publico || !d.publico.situacoes || !Array.isArray(d.publico.perguntas_clientes) || !d.publico_em || Date.now() - new Date(d.publico_em).getTime() >= PUBLICO_MS || (ctx.loja.publico_admin || "") !== (d.publico_admin_usado || "");
 }
 function resumoRel(rel) { return rel ? JSON.stringify(rel) : "não disponível"; }
 function dadosEmTexto(ctx, nPosts, nAds, nCom) {
@@ -500,12 +556,13 @@ function textoGosto(ctx) {
 function textoMemoria(mem) {
     mem = mem || {};
     const ap = mem.aprendizados || [], vis = mem.visual || [], gos = mem.gosto || [], vin = (mem.vinculos || []).filter(function (v) { return v.confianca !== "baixa"; });
-    if (!ap.length && !vis.length && !gos.length && !vin.length) return "";
+    if (!ap.length && !vis.length && !gos.length && !vin.length && !(mem.por_etiqueta || []).length) return "";
     const RES = { acima: "acima da média", na_media: "na média", abaixo: "abaixo da média", sem_dado: "ainda sem resultado" };
     return "\n\nO QUE O TIME JÁ APRENDEU COM ESTA LOJA (memória, confirmada com os resultados dos posts dela)" +
         (ap.length ? "\nAPRENDIZADOS:\n" + ap.map(function (a) { return "- " + a.texto + " [" + (a.forca || "pista") + "; " + a.evidencias + "]"; }).join("\n") : "") +
         (vis.length ? "\nNAS CAPAS:\n" + vis.map(function (v) { return "- " + v; }).join("\n") : "") +
         (gos.length ? "\nGOSTO DA DONA:\n" + gos.map(function (v) { return "- " + v; }).join("\n") : "") +
+        ((mem.por_etiqueta || []).length ? "\nRESULTADO POR TIPO DE VÍDEO NESTA LOJA (média do engajamento): " + mem.por_etiqueta.slice(0, 8).map(function (x) { return x.etiqueta + " " + String(x.media).replace(".", ",") + "x (" + x.posts + " posts)"; }).join(", ") : "") +
         (vin.length ? "\nIDEIAS DO TIME QUE VIRARAM POST:\n" + vin.slice(0, 10).map(function (v) { return "- " + corta(v.ideia, 120) + ": " + (RES[v.resultado] || v.resultado) + (v.indice ? " (" + String(v.indice).replace(".", ",") + "x a média)" : ""); }).join("\n") : "");
 }
 async function imagemBase64(url) {
@@ -525,8 +582,18 @@ async function pedidoMemoria(ctx) {
         .sort(function (a, b) { return String(b.data).localeCompare(String(a.data)); }).slice(0, 25);
     if (recentes.length < 2) return null;
     const mem = ctx.memoria || {}, sugeridas = (mem.sugeridas || []).slice(0, 40);
-    const mapa = { ideias: {}, posts: {} };
+    const mapa = { ideias: {}, posts: {}, roteiros: {} };
     sugeridas.forEach(function (s, i) { mapa.ideias["I" + (i + 1)] = s.t; });
+    // roteiros escritos pelo time nos ultimos 35 dias (para achar o Reels que cada um virou)
+    const roteiros = [];
+    (ctx.projetos || []).forEach(function (pj) {
+        (pj.rodadas || []).forEach(function (rd) {
+            const quando = rd.iniciado_em || pj.criado_em;
+            if (!quando || new Date(quando).getTime() < desde) return;
+            ((rd.resultado && rd.resultado.roteiros) || []).forEach(function (s) { if (roteiros.length < 30) roteiros.push({ pj: pj, s: s }); });
+        });
+    });
+    roteiros.forEach(function (x, i) { mapa.roteiros["S" + (i + 1)] = { projeto_id: x.pj.id, roteiro_id: x.s.id, titulo: corta(x.s.titulo, 120) }; });
     recentes.forEach(function (p, i) { mapa.posts["R" + (i + 1)] = { id: p.id, link: p.link || "", miniatura: p.miniatura || "", data: p.data, indice: p.pouco_alcance ? null : p.indice, legenda: corta(p.legenda, 90) }; });
     ctx.mapaMem = mapa;
     function linha(p, i) {
@@ -542,13 +609,16 @@ async function pedidoMemoria(ctx) {
         "B) Julgue o resultado de cada ideia gravada: acima (1,3x a média ou mais), na média, abaixo (0,7x ou menos) ou sem dado (post de menos de 2 dias ou com alcance muito baixo). Desconte post impulsionado e data especial antes de concluir.\n" +
         "C) Atualize a MEMÓRIA ATUAL: confirme um aprendizado quando surgir mais uma evidência, enfraqueça quando um resultado contradisser e remova o que ficou sem sustentação. Aprendizado com 2 posts ou mais como prova pode ser médio ou forte; com 1 post só, entra como pista. No máximo 12, do mais forte para o mais fraco. Cada um é uma regra prática desta loja, com números. Cite os posts pela data e por uma descrição curta, nunca pelo código, porque os outros agentes não veem os códigos R e I.\n" +
         "D) Olhe as CAPAS: anote padrões visuais que se repetem nos melhores e nos piores posts (cenário, luz, enquadramento, rosto, texto na capa, peça em destaque).\n" +
-        "E) Registre o gosto da dona: o que ela marcou como Gostei, o que pediu no chat e que tipo de ideia escolhe gravar. Ideia não gravada, sem outro sinal, é só uma pista fraca: pode ter sido falta de tempo.\n\n" +
+        "E) Registre o gosto da dona: o que ela marcou como Gostei, o que pediu no chat e que tipo de ideia escolhe gravar. Ideia não gravada, sem outro sinal, é só uma pista fraca: pode ter sido falta de tempo.\n" +
+        "F) Dê de 1 a 4 etiquetas para cada post recente (R), pela legenda, pela fala, pelo tipo e pela capa.\n" +
+        "G) Faça com os ROTEIROS (S) o mesmo que com as ideias: ligue o post ao roteiro que ele seguiu (a fala ou a legenda repete o gancho, a estrutura ou a peça) e julgue o resultado.\n\n" +
         "REGRAS\n- Nada de dica genérica de marketing: só o que os dados DESTA loja mostram.\n- Um post sozinho é pista, não regra.\n- Em resumo, 2 frases para a dona sobre o que o time aprendeu com a loja dela.\n\n" +
         ctx.sobreLoja +
         "\n\nMEMÓRIA ATUAL:\n" + ((mem.aprendizados || []).map(function (a, i) { return "M" + (i + 1) + ") " + a.texto + " [" + a.forca + "; " + a.evidencias + "]"; }).join("\n") || "vazia (primeira vez)") +
         ((mem.visual || []).length ? "\nPADRÕES VISUAIS JÁ ANOTADOS: " + mem.visual.join(" | ") : "") +
         "\n\nIDEIAS SUGERIDAS PELO TIME NOS ÚLTIMOS 35 DIAS:\n" + (sugeridas.map(function (s, i) { return "I" + (i + 1) + ") " + dataBR(s.em) + " | " + (NOME_FORMATO_TXT[s.f] || "vídeo") + " | " + s.t + (s.g ? " | gancho: " + s.g : "") + (s.p ? " | peça: " + s.p : ""); }).join("\n") || "nenhuma registrada ainda") +
         textoGosto(ctx) +
+        (roteiros.length ? "\n\nROTEIROS ESCRITOS PELO TIME NOS ÚLTIMOS 35 DIAS:\n" + roteiros.map(function (x, i) { return "S" + (i + 1) + ") " + corta(x.s.titulo, 80) + " | gancho: " + corta(x.s.gancho, 160) + (x.s.gravado ? " | a dona marcou como gravado" : ""); }).join("\n") : "") +
         "\n\nPOSTS PUBLICADOS NOS ÚLTIMOS 35 DIAS (do mais novo para o mais antigo):\n" + recentes.map(linha).join("\n");
     // capas: os 4 melhores e os 3 piores posts recentes (so os de alcance normal)
     const medidos = recentes.map(function (p, i) { return { p: p, cod: "R" + (i + 1) }; }).filter(function (x) { return x.p.miniatura && !x.p.pouco_alcance; })
@@ -575,7 +645,27 @@ function memoriaNova(ctx, p, mapaMem, ideias) {
         const ja = {};
         vinculos.forEach(function (v) { ja[v.ideia + "|" + v.post_link] = 1; });
         const velhas = (antes.vinculos || []).filter(function (v) { return !ja[v.ideia + "|" + v.post_link]; });
-        mem = Object.assign(mem, { resumo: m.resumo, aprendizados: (m.aprendizados || []).slice(0, 12), visual: m.visual || [], gosto: m.gosto || [], vinculos: vinculos.concat(velhas).slice(0, 40), aprendeu_em: new Date().toISOString() });
+        // etiquetas de cada post e o resultado medio por etiqueta ("provador rende 2x nesta loja")
+        const et = Object.assign({}, antes.etiquetas_posts || {});
+        (m.etiquetas || []).forEach(function (e) { const post = postsMap[String(e.post).trim().toUpperCase()]; if (post && post.id) et[post.id] = { e: (e.etiquetas || []).slice(0, 4), i: post.indice, d: post.data }; });
+        const et2 = {};
+        Object.keys(et).sort(function (a, b) { return String(et[b].d || "").localeCompare(String(et[a].d || "")); }).slice(0, 150).forEach(function (k) { et2[k] = et[k]; });
+        const por = {};
+        Object.keys(et2).forEach(function (k) { const x = et2[k]; if (!(x.i > 0)) return; (x.e || []).forEach(function (tag) { (por[tag] = por[tag] || []).push(x.i); }); });
+        const porEtiqueta = Object.keys(por).filter(function (k) { return por[k].length >= 2; })
+            .map(function (k) { return { etiqueta: k, posts: por[k].length, media: arred(por[k].reduce(function (s, v) { return s + v; }, 0) / por[k].length, 2) }; })
+            .sort(function (a, b) { return b.media - a.media; });
+        // roteiros que viraram post
+        const rotMap = (mapaMem && mapaMem.roteiros) || {};
+        const vr = (m.vinculos_roteiros || []).map(function (v) {
+            const s = rotMap[String(v.roteiro).trim().toUpperCase()], post = postsMap[String(v.post).trim().toUpperCase()];
+            if (!s || !post) return null;
+            return { projeto_id: s.projeto_id, roteiro_id: s.roteiro_id, titulo: s.titulo, post_link: post.link, miniatura: post.miniatura, data: post.data, indice: post.indice, confianca: v.confianca, resultado: v.resultado };
+        }).filter(Boolean);
+        const jaR = {};
+        vr.forEach(function (v) { jaR[v.projeto_id + "|" + v.roteiro_id + "|" + v.post_link] = 1; });
+        const velhasR = (antes.vinculos_roteiros || []).filter(function (v) { return !jaR[v.projeto_id + "|" + v.roteiro_id + "|" + v.post_link]; });
+        mem = Object.assign(mem, { resumo: m.resumo, aprendizados: (m.aprendizados || []).slice(0, 12), visual: m.visual || [], gosto: m.gosto || [], vinculos: vinculos.concat(velhas).slice(0, 40), etiquetas_posts: et2, por_etiqueta: porEtiqueta, vinculos_roteiros: vr.concat(velhasR).slice(0, 40), aprendeu_em: new Date().toISOString() });
     }
     return comSugeridas(mem, ideias);
 }
@@ -658,6 +748,8 @@ function regrasDasIdeias(ctx, anteriores) {
     const datas = datasDoVarejo(new Date());
     return "\n\nCOMO USAR OS DADOS DESTA LOJA\n" +
         "- Regra 80/20: a maior parte das ideias repete, com peça e situação novas, os FORMATOS-MÃE que já provaram resultado nesta conta; o resto testa um formato novo. Repetir o que funcionou com variação é o que dá constância.\n" +
+        "- REFAZER OS CAMPEÕES: pelo menos 2 das 6 ideias refazem um campeão desta conta (tipo refazer_campeao): o mesmo formato de um post ou anúncio que ficou bem acima da média, com peça, situação ou ângulo novos, e o código dele em inspirado_em. Vale também o anúncio que mais vendeu virando post orgânico, ou o post que mais engajou virando anúncio (diga isso no por_que).\n" +
+        "- Se o MAPA DE PÚBLICO trouxer perguntas_clientes, pelo menos 1 ideia responde a uma dessas dúvidas e diz quantas clientes perguntaram (exemplo: 5 clientes perguntaram se veste 46, então é prova real no corpo).\n" +
         "- Cada ideia se apoia num dado desta loja: um post (P) ou anúncio (A) que funcionou, com o código em inspirado_em; um comentário; uma dor ou situação do MAPA DE PÚBLICO; um produto do momento; ou uma data do calendário.\n" +
         "- Use as peças dos PRODUTOS E OFERTAS DO MOMENTO sempre que fizer sentido. Sem produto informado, use a peça como aparece nos posts que funcionaram ou escreva 'a peça que você quer vender'.\n" +
         "- Fale com a faixa de idade que mais segue a loja e com as situações do dia a dia dela.\n" +
@@ -673,7 +765,7 @@ function regrasDasIdeias(ctx, anteriores) {
 }
 function contextoDasIdeias(ctx, p) {
     const pub = p.pub || ctx.dossie.publico;
-    return textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
+    return textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + textoReferencias(ctx.conta && ctx.conta.referencias) + "\n\n" + ctx.sobreLoja +
         "\nDADOS DE SEGUIDORES: " + (ctx.demografia || "não disponível") +
         "\nMAPA DE PÚBLICO: " + resumoRel(pub) +
         "\nRELATÓRIO ORGÂNICO (com os formatos-mãe): " + resumoRel(p.org) +
@@ -728,7 +820,8 @@ function pedidoCurador(ctx, p) {
             "4. diferentes entre si: sem duas com o mesmo tema, peça ou gancho;\n" +
             "5. sem preço, promoção ou número que não esteja nos dados;\n" +
             "6. de acordo com o que o time já aprendeu com esta loja e com o gosto da dona, quando houver.\n" +
-            "Depois ordene as que sobraram em reserva, da melhor para a pior, deixando de fora as fracas ou repetidas. Em resumo, 2 frases para a dona: por onde começar esta semana e por quê.\n\n" +
+            "Depois ordene as que sobraram em reserva, da melhor para a pior, deixando de fora as fracas ou repetidas. Em resumo, 2 frases para a dona: por onde começar esta semana e por quê. Por fim, monte de 3 a 4 quadros fixos da semana (um formato que se repete no mesmo dia, para a dona criar rotina), nos melhores dias para postar desta conta.\n" +
+            textoHorarios(ctx.horarios) + "\n\n" +
             ctx.sobreLoja + "\nMAPA DE PÚBLICO (resumo): " + (((p.pub || ctx.dossie.publico) || {}).resumo || "não disponível") + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) +
             "\n\nOPÇÕES:\n" + cands.map(function (c) { return c.codigo + ") " + JSON.stringify(c.ideia); }).join("\n")
     };
@@ -753,13 +846,23 @@ function montarIdeias(p, mapa) {
         return {
             titulo: x.titulo, formato: c.formato, formatos: [formatoAntigo(c.formato)],
             gancho: x.gancho, como_fazer: x.gancho, passos: x.passos || [], texto_na_tela: x.texto_na_tela || "", fala: x.fala || "", stories: x.stories || [],
-            duracao_s: x.duracao_s || null, peca: x.peca || "", inspirado: insp || null, por_que: x.por_que, metrica: x.metrica, funil: x.funil, metodo: x.metodo
+            duracao_s: x.duracao_s || null, peca: x.peca || "", inspirado: insp || null, por_que: x.por_que, metrica: x.metrica, funil: x.funil, metodo: x.metodo, tipo: x.tipo || "nova"
         };
     }
     // ordem da tela: curtos, narrados e provador
     const ordem = { curto: 0, narrado: 1, provador: 2 };
     const lista = principais.map(ideia).sort(function (a, b) { return ordem[a.formato] - ordem[b.formato]; });
-    return { resumo: cur.resumo || "", lista: lista, reserva: reserva.map(ideia) };
+    return { resumo: cur.resumo || "", lista: lista, reserva: reserva.map(ideia), quadros: (cur.quadros || []).slice(0, 4) };
+}
+
+// as ideias da analise anterior que a dona marcou com Gostei ou colocou na semana continuam na lista
+function ideiasGuardadas(ctx, antIdeias, novas) {
+    const guardar = {}, ja = {};
+    (ctx.gostei || []).forEach(function (g) { if (g.tipo === "ideia" && g.titulo) guardar[g.titulo] = 1; });
+    (ctx.semana || []).forEach(function (s) { if (s.titulo) guardar[s.titulo] = 1; });
+    (novas || []).forEach(function (i) { ja[i.titulo] = 1; });
+    return ((antIdeias && antIdeias.lista) || []).filter(function (i) { return guardar[i.titulo] && !ja[i.titulo]; })
+        .map(function (i) { const c = Object.assign({}, i, { guardada: true }); delete c.nova; return c; });
 }
 
 // ---------- dossie final ----------
@@ -776,12 +879,13 @@ async function salvarDossie(ctx, p, motivo, mapa, mapaMem) {
         ...vozEGanchos(met, ctx.comentarios),
         organico: p.org ? { relatorio: p.org, total_posts: ctx.postsTodos.length, videos: posts.filter(function (x) { return x.transcricao; }).map(function (x) { return { id: x.id, link: x.link, legenda: corta(x.legenda, 80), transcricao: x.transcricao }; }) } : null,
         anuncios: ads ? { relatorio: p.ads, tipo_resultado: ads.tipo, total: ads.lista.length, com_texto: ads.lista.filter(function (a) { return a.texto || a.transcricao; }).length, anuncios: ads.lista.filter(function (a) { return a.transcricao; }).map(function (a) { return { id: a.id, nome: a.nome, transcricao: a.transcricao }; }) } : null,
-        ideias: ideias.lista.length ? Object.assign({ gerado_em: new Date().toISOString(), resumo: ideias.resumo, lista: ideias.lista, reserva: ideias.reserva }, antIdeias.levas_dia ? { levas_dia: antIdeias.levas_dia, levas: antIdeias.levas } : {}) : (antIdeias.lista ? antIdeias : null),
+        ideias: ideias.lista.length ? Object.assign({ gerado_em: new Date().toISOString(), resumo: ideias.resumo, lista: ideias.lista.concat(ideiasGuardadas(ctx, antIdeias, ideias.lista)).slice(0, 30), reserva: ideias.reserva, quadros: ideias.quadros && ideias.quadros.length ? ideias.quadros : (antIdeias.quadros || []) }, antIdeias.levas_dia ? { levas_dia: antIdeias.levas_dia, levas: antIdeias.levas } : {}) : (antIdeias.lista ? antIdeias : null),
         publico: p.pub || dossieAnt.publico || null,
         publico_em: pubNovo ? new Date().toISOString() : (dossieAnt.publico_em || null),
         publico_admin_usado: pubNovo ? (ctx.loja.publico_admin || "") : (dossieAnt.publico_admin_usado || ""),
         publico_fonte: ctx.comentarios.length ? "comentarios" : "legendas",
         demografia: ctx.cacheMeta && ctx.cacheMeta.demografia ? ctx.demografia : "",
+        horarios: ctx.horarios || null,
         meta: ctx.cacheMeta ? { em: ctx.cacheMeta.em, erro: ctx.cacheMeta.erro, comentarios: ctx.comentarios.length } : null
     };
     const memoria = memoriaNova(ctx, p, mapaMem, ideias.lista);
