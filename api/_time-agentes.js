@@ -60,6 +60,8 @@ REGRAS
 - Seja específico desta loja. Frases genéricas como "conteúdo de valor" ou "engaje seu público" não ajudam a dona a gravar nada.
 - Escreva em português do Brasil com acentuação completa e correta em todas as palavras (é, ê, á, ã, õ, ç, í, ú), inclusive quando os dados ou os nomes chegarem sem acento ou com erro de digitação. Frases curtas e linguagem simples de dona de loja. Use vírgula ou ponto no lugar de travessão.
 - Quem lê é a própria dona da loja, no celular. Explique em palavras em vez de usar siglas como CTR, CPC ou ROAS.
+- Nada de palavras em inglês: escreva "já" (e não already), "volta para o começo" (e não loop), "cena" (e não take), "chamada" (e não CTA), "tendência" (e não trend), "gancho" (e não hook). Só ficam Reels, stories, direct, close e POV, que a dona já usa.
+- Seja simples e direto, como uma consultora falando com a dona: frases curtas, uma instrução por frase, sem termo técnico de edição ou de marketing.
 - Não use etiquetas de ação para anúncios como Escalar, Manter ou Otimizar.
 
 COMO MEDIMOS RESULTADO
@@ -665,6 +667,7 @@ function regrasDasIdeias(ctx, anteriores) {
         "- Preço, promoção, estoque, depoimento e número só entram se estiverem nos dados ou nos produtos informados. Urgência e escassez só com estoque baixo informado.\n" +
         "- Antes e depois só do look. Fale da peça e da situação, não do corpo da cliente (a calça que não marca, e não você que tem barriga), porque a Meta reprova anúncio que aponta característica pessoal e porque assim a cliente se sente bem.\n" +
         "- Tudo gravável só com o celular pela dona ou pela equipe.\n" +
+        "- Escreva para a dona entender de primeira: cada passo com até 12 palavras, dizendo o que aparece; por_que e metrica com uma frase curta cada.\n" +
         "- Entregue 6 ideias diferentes entre si (peças, situações e ganchos distintos)." +
         (anteriores.length ? "\n- Estas ideias já foram sugeridas; traga outras: " + anteriores.slice(0, 40).join(" | ") : "");
 }

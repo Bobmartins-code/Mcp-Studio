@@ -1480,6 +1480,12 @@ function App(){
     var ord={vistos:function(a,b){return (b.visualizacoes||0)-(a.visualizacoes||0);},engaj:function(a,b){return (a.pouco_alcance?1:0)-(b.pouco_alcance?1:0)||(b.indice||0)-(a.indice||0)||(b.taxa||0)-(a.taxa||0);},
       tempo:function(a,b){return (b.tempo_medio_s||0)-(a.tempo_medio_s||0);},gancho:function(a,b){return (b.retencao_3s==null?-1:b.retencao_3s)-(a.retencao_3s==null?-1:a.retencao_3s);},compart:function(a,b){return (b.compartilhamentos||0)-(a.compartilhamentos||0);},recentes:function(a,b){return String(b.data||"").localeCompare(String(a.data||""));}};
     lista=lista.slice().sort(ord[ordemOrg]||ord.vistos);
+    // selo "2x" de cada aba: o criterio da aba comparado com a mediana dos posts da conta (90 dias)
+    var CAMPO_ORD={vistos:"visualizacoes",tempo:"tempo_medio_s",gancho:"retencao_3s",compart:"compartilhamentos"};
+    var NOME_CRIT={vistos:"visualizações",engaj:"engajamento",tempo:"tempo assistido",gancho:"gancho (quem ficou nos 3 primeiros segundos)",compart:"compartilhamentos",recentes:"engajamento"};
+    var campoX=CAMPO_ORD[ordemOrg],medX=campoX?mediana(todos.map(function(p){return p[campoX];})):0;
+    function vezes(p){if(!campoX)return p.indice||0;if(!medX||p.pouco_alcance)return 0;return Math.round((p[campoX]||0)/medX*10)/10;}
+    var temSelo=lista.some(function(p){return vezes(p)>=1.5;});
     var chaveOrg="org:"+ordemOrg+":"+periodo,mostrar=lista.slice(0,limiteDe(chaveOrg));
     return ce("div",null,
       ce("div",{className:"ords"},[{id:"vistos",lb:"Mais vistos"},{id:"engaj",lb:"Mais engajamento"},{id:"tempo",lb:"Mais tempo assistido",so:"tempo_medio_s"},{id:"gancho",lb:"Melhor gancho",so:"retencao_3s"},{id:"compart",lb:"Mais compartilhados"},{id:"recentes",lb:"Mais recentes"}].filter(function(o){return !o.so||todos.some(function(p){return p[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemOrg===o.id?" on":""),"aria-pressed":ordemOrg===o.id,onClick:function(){setOrdemOrg(o.id);}},o.lb);})),
@@ -1493,7 +1499,7 @@ function App(){
           !p.miniatura&&ce("span",{style:{position:"absolute",inset:"26px 8px 30px",fontSize:11.5,color:"var(--mu2)",overflow:"hidden",textAlign:"left",lineHeight:1.35}},String(p.legenda||"").substring(0,110)),
           img(p.miniatura),ce("span",{className:"scr"}),
           p.tipo&&p.tipo!=="Reels"?ce("span",{className:"tp"},p.tipo):null,
-          ordemOrg==="engaj"&&p.pouco_alcance?ce("span",{className:"ix mu"},"pouco alcance"):(ordemOrg==="engaj"?p.indice:p.indice>=1.5)?ce("span",{className:"ix"},fmtX(p.indice)):null,
+          ordemOrg==="engaj"&&p.pouco_alcance?ce("span",{className:"ix mu"},"pouco alcance"):(ordemOrg==="engaj"?p.indice:vezes(p)>=1.5)?ce("span",{className:"ix"},fmtX(vezes(p))):null,
           ordemOrg==="engaj"?ce("span",{className:"vw eng","aria-label":(p.curtidas||0)+" curtidas, "+(p.comentarios||0)+" comentários, "+(p.salvamentos||0)+" salvamentos, "+(p.compartilhamentos||0)+" compartilhamentos"},
             [["coracao",p.curtidas],["balao",p.comentarios],["salvo",p.salvamentos],["enviar",p.compartilhamentos]].map(function(x){return ce("span",{key:x[0],className:"eng-i"},ico(x[0],12,"#fff",2.4),compacto(x[1]||0));})):
           ordemOrg==="compart"?ce("span",{className:"vw num","aria-label":(p.compartilhamentos||0)+" compartilhamentos"},ico("enviar",16,"#fff",2.4),compacto(p.compartilhamentos||0)):
@@ -1501,10 +1507,10 @@ function App(){
           ordemOrg==="gancho"&&p.retencao_3s!=null?ce("span",{className:"vw"},String(p.retencao_3s).replace(".",",")+"% passaram do gancho"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));})),verMais(chaveOrg,lista.length))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum post "+textoPeriodo(periodo)+"."+(periodo!==90?" Tente 90 dias.":"")),
       ordemOrg==="compart"
-        ?ce("div",{className:"legenda",style:{display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}},ce("span",{style:{display:"inline-flex",gap:5,alignItems:"center"}},ico("enviar",14,"var(--mu2)"),"compartilhamentos"),lista.some(function(p){return p.indice>=1.5;})?ce("span",{style:{display:"inline-flex",gap:6,alignItems:"center"}},ce("span",{className:"badge-ix"},"2x"),"melhor que a média da conta"):null)
+        ?ce("div",{className:"legenda",style:{display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}},ce("span",{style:{display:"inline-flex",gap:5,alignItems:"center"}},ico("enviar",14,"var(--mu2)"),"compartilhamentos"),temSelo?ce("span",{style:{display:"inline-flex",gap:6,alignItems:"center"}},ce("span",{className:"badge-ix"},"2x"),"compartilhado 2 vezes mais que a média da sua conta"):null)
         :ordemOrg==="engaj"
         ?ce("div",{className:"legenda",style:{display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}},[["coracao","curtidas"],["balao","comentários"],["salvo","salvamentos"],["enviar","compartilhamentos"]].map(function(x){return ce("span",{key:x[0],style:{display:"inline-flex",gap:5,alignItems:"center"}},ico(x[0],14,"var(--mu2)"),x[1]);}))
-        :lista.some(function(p){return p.indice>=1.5;})&&ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"2x"),"quantas vezes o post foi melhor que a média da sua conta")
+        :temSelo&&ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"2x"),"quantas vezes o post foi melhor que a média da sua conta em "+NOME_CRIT[ordemOrg])
     );
   }
   function renderAnuncios(dl){

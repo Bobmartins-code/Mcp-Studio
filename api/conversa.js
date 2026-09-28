@@ -96,7 +96,8 @@ async function conversarRoteiros(uid, pedido, historico, projetoId) {
         "- Pedido de mudança num roteiro: reescreva esse roteiro aplicando o pedido e diga em base o número dele.\n" +
         "- Pedido de roteiro novo: entregue de 1 a 3 roteiros completos, com base vazio.\n" +
         "- Dúvida ou conversa: responda em até 3 frases e deixe a lista de roteiros vazia.\n" +
-        "- O pedido dela vale mais que as regras gerais, desde que não invente preço, produto, depoimento ou número.\n\n" +
+        "- O pedido dela vale mais que as regras gerais, desde que não invente preço, produto, depoimento ou número.\n" +
+        "- Nada de palavras em inglês (só Reels, stories, direct, close e POV) e nada de termo técnico: frases curtas e simples, como uma consultora falando com a dona.\n\n" +
         "PROJETO: " + T.corta(proj.nome, 120) + (proj.objetivo ? " | objetivo: " + T.corta(proj.objetivo, 120) : "") +
         "\nSOBRE A PEÇA: " + T.corta([f.produto, f.descricao, f.diferenciais, f.preco ? "preço: " + f.preco : ""].filter(Boolean).join(" | "), 1500) +
         (dossie.texto ? "\n\nDOSSIÊ DA LOJA (do time de agentes): " + T.corta(dossie.texto, 1800) : "") +
