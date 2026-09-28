@@ -796,9 +796,8 @@ async function carregarCustos(){
   // falhas que a dona viu
   try{var rf=await supaClient.from("falhas").select("user_id,onde,erro,criado_em").gte("criado_em",new Date(sete).toISOString()).order("criado_em",{ascending:false}).limit(1000);
     ((rf&&rf.data)||[]).forEach(function(x){var s=u7(x.user_id||"-");s.falhas++;total7.falhas++;if(s.erros.length<5)s.erros.push(fmtCurto(x.criado_em)+" · "+x.onde+": "+String(x.erro||"").slice(0,120));});}catch(e){}
-  // gravados: roteiros marcados como gravados e ideias da semana marcadas
+  // gravados: roteiros marcados como gravados
   (allProjetos||[]).forEach(function(p){(p.rodadas||[]).forEach(function(rd){((rd.resultado&&rd.resultado.roteiros)||[]).forEach(function(s){if(s.gravado&&s.gravado_em&&new Date(s.gravado_em).getTime()>=sete)u7(p.user_id).gravados++;});});});
-  try{var rs=await supaClient.from("semana").select("user_id,dia,feito").eq("feito",true).gte("dia",new Date(sete).toISOString().slice(0,10));((rs&&rs.data)||[]).forEach(function(x){u7(x.user_id).gravados++;});}catch(e){}
 }
 function blocoUso7(uid){
   var s=uso7[uid];if(!s)return '<span class="mini">Sem uso</span>';

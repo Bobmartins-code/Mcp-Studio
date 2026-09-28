@@ -35,9 +35,6 @@
     },
     "api/veredito.js": {
       "maxDuration": 60
-    },
-    "api/referencias.js": {
-      "maxDuration": 120
     }
   },
   "crons": [

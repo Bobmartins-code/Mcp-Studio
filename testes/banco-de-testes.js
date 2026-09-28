@@ -99,12 +99,12 @@ async function rodarCaso(caso) {
     if (ARG.so !== "roteiros") {
         const p = { org: caso.dossie.organico && caso.dossie.organico.relatorio, ads: caso.dossie.anuncios && caso.dossie.anuncios.relatorio, pub: caso.dossie.publico, mem: null };
         const t0 = Date.now();
+        if (X.pedidoDiretor) { await X.rodarAgora(ctx, [X.pedidoDiretor(ctx, p)], p); out.oportunidades = ((p.dir && p.dir.oportunidades) || []).map(function (o) { return o.titulo; }); }
         await X.rodarAgora(ctx, X.pedidosEspecialistas(ctx, p, []), p);
         await X.rodarAgora(ctx, [X.pedidoCurador(ctx, p)], p);
         const feitas = X.montarIdeias(p, X.mapaDeCodigos(ctx));
         out.tempo_ideias_s = Math.round((Date.now() - t0) / 1000);
         out.ideias = feitas.lista.map(function (i) { return { titulo: i.titulo, formato: i.formato, tipo: i.tipo, gancho: i.gancho, passos: i.passos, fala: i.fala, por_que: i.por_que, metrica: i.metrica, problemas: conferir([i.titulo, i.gancho, (i.passos || []).join(" "), i.texto_na_tela, i.fala, i.por_que, i.metrica], fonte) }; });
-        out.quadros = feitas.quadros || [];
         const rep = aberturasRepetidas(out.ideias.map(function (i) { return i.gancho; }));
         if (rep.length) out.problemas.push("ideias com abertura repetida: " + rep.join(" | "));
         out.notas_ideias = await julgar(resumo, out.ideias.map(function (i) { return { titulo: i.titulo, formato: i.formato, gancho: i.gancho, passos: i.passos, fala: i.fala, por_que: i.por_que }; }));
@@ -169,7 +169,7 @@ function relatorio(atual, anterior) {
         atual.casos.map(function (c) {
             return "<h2>" + esc(c.loja) + "</h2>" + (c.problemas.length ? "<div class='p'>⚠ " + esc(c.problemas.join(" | ")) + "</div>" : "") +
                 "<div class='cols'><div><h3>Ideias (" + c.ideias.length + (c.tempo_ideias_s ? ", " + c.tempo_ideias_s + " s" : "") + ")</h3>" + lista(c.ideias, c.notas_ideias, "ideia") +
-                ((c.quadros || []).length ? "<div class='n'>Quadros: " + esc(c.quadros.map(function (q) { return q.nome; }).join(" · ")) + "</div>" : "") + "</div>" +
+                ((c.oportunidades || []).length ? "<div class='n'>Oportunidades cruzadas: " + esc(c.oportunidades.join(' · ')) + "</div>" : "") + "</div>" +
                 "<div><h3>Roteiros (" + c.roteiros.length + (c.tempo_roteiros_s ? ", " + c.tempo_roteiros_s + " s" : "") + ")</h3>" + lista(c.roteiros, c.notas_roteiros, "roteiro") + "</div></div>";
         }).join("") + "</body></html>";
 }

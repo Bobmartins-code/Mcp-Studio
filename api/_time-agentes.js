@@ -11,9 +11,12 @@
 //       e Agente de Memoria: liga as ideias sugeridas aos posts que a dona publicou,
 //       ve o resultado, olha as capas e guarda o que funciona PARA ESTA LOJA
 //       (contas_meta.memoria), junto com o gosto dela (Gostei e pedidos no chat)
-//    2. Diretor (dossie) e 3 especialistas em ideias: videos curtos (topo),
-//       narrados (meio) e provador (fundo); cada um escreve 6 opcoes
-//    3. Curador: escolhe 4 curtos, 3 narrados e 3 provadores e guarda o resto na reserva
+//    2. Diretor e estrategista: junta os relatorios no dossie dos roteiros e CRUZA as 3 fontes
+//       (o formato que prende no organico + a peca e o argumento que vendem nos anuncios +
+//       a duvida ou a dor do publico) em oportunidades de conteudo
+//    3. 3 especialistas em ideias: videos curtos (topo), narrados (meio) e provador (fundo);
+//       cada um escreve 6 opcoes partindo das oportunidades
+//    4. Curador: escolhe 4 curtos, 3 narrados e 3 provadores e guarda o resto na reserva
 //
 //  Economia: os 3 especialistas recebem o mesmo pacote de dados, gravado no cache
 //  da Anthropic pelo primeiro (os outros pagam 10% por essa parte); e a loja so e
@@ -36,11 +39,10 @@ const { registrarUso } = require("./_uso-ia.js");
 const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
 const { blocoDaResposta, diaSP, assinaturaDe } = require("./_coleta.js");
 const { enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia } = require("./_meta-leitura.js");
-const { atualizarReferencias, textoReferencias, REF_MS } = require("./_referencias.js");
 
 const MODELO = "claude-sonnet-5";
 const API = "https://api.anthropic.com/v1";
-const VERSAO = 4; // 4: especialistas em curtos, narrados e provador + curador; mapa de publico no metodo da consultoria
+const VERSAO = 5; // 5: estrategista cruza organico, anuncios e publico antes das ideias; campeoes de cada criterio
 const NICHOS = ["moda feminina", "moda masculina", "moda infantil", "moda fitness", "lingerie e moda intima", "calcados", "bolsas e acessorios", "joias e bijuterias", "beleza e cosmeticos", "saude e suplementos", "casa e decoracao", "alimentos e doces", "pet", "servicos", "cursos e infoprodutos", "outros"];
 
 const HORA_MS = 3600 * 1000, DIA_MS = 24 * HORA_MS;
@@ -118,7 +120,19 @@ const ESQ_DIRETOR = objeto({
     texto: textoPT("Dossiê para o Agente MCP, até 1400 caracteres."),
     resumo_loja: textoPT("2 ou 3 frases curtas para a dona da loja ler no celular."),
     por_metodo: objeto({ fftopo: textoPT("Full Funnel Topo nesta loja."), ffmeio: textoPT("Full Funnel Meio nesta loja."), fffundo: textoPT("Full Funnel Fundo nesta loja."), dsb: textoPT("DSB nesta loja."), angulo: textoPT("Ângulo nesta loja.") }),
-    nicho: { type: "string", enum: NICHOS }
+    nicho: { type: "string", enum: NICHOS },
+    oportunidades: {
+        type: "array", description: "De 6 a 10 oportunidades de conteúdo que CRUZAM as fontes desta loja, da mais forte para a mais fraca.",
+        items: objeto({
+            titulo: textoPT("A oportunidade numa frase concreta (exemplo: o vestido tricô que mais vende nos anúncios ainda não teve um provador no orgânico)."),
+            peca: textoPT("A peça, linha ou tema, como aparece nos dados. Vazio se for um formato sem peça definida."),
+            prova_organico: textoPT("O que o orgânico mostra: o formato, o gancho ou o assunto que prendeu, com o número (visualizações, compartilhamentos, salvamentos, tempo assistido ou gancho). Vazio se não houver."),
+            prova_anuncio: textoPT("O que os anúncios mostram: a peça ou o argumento que vende, com o número. Vazio se não houver."),
+            prova_publico: textoPT("A dúvida, dor, desejo ou situação do público que a oportunidade responde, de preferência com um comentário real. Vazio se não houver."),
+            formato: { type: "string", enum: ["curto", "narrado", "provador", "qualquer"], description: "O formato que mais combina: curto (topo, alcance), narrado (meio, consideração), provador (fundo, venda)." },
+            codigos: { type: "array", items: { type: "string" }, description: "Códigos dos posts (P) e anúncios (A) usados como prova." }
+        })
+    }
 });
 const ESQ_ESPECIALISTA = objeto({
     ideias: {
@@ -137,23 +151,15 @@ const ESQ_ESPECIALISTA = objeto({
             metrica: textoPT("Como a dona sabe se deu certo, em palavras simples."),
             funil: { type: "string", enum: ["topo", "meio", "fundo"] },
             metodo: { type: "string", enum: ["fftopo", "ffmeio", "fffundo", "dsb", "angulo"], description: "O método de roteiro mais próximo, se a ideia virar roteiro." },
-            tipo: { type: "string", enum: ["refazer_campeao", "nova"], description: "refazer_campeao quando a ideia repete o formato de um post ou anúncio campeão desta conta com peça, situação ou ângulo novos." }
+            tipo: { type: "string", enum: ["refazer_campeao", "nova"], description: "refazer_campeao quando a ideia repete o formato de um post ou anúncio campeão desta conta com peça, situação ou ângulo novos." },
+            oportunidade: { type: "integer", description: "Número da OPORTUNIDADE CRUZADA em que a ideia se apoia (0 se não partiu de nenhuma)." }
         })
     }
 });
 const ESQ_CURADOR = objeto({
     resumo: textoPT("2 frases para a dona: por onde começar esta semana e por quê."),
     principais: { type: "array", items: { type: "string" }, description: "Códigos escolhidos, em ordem de prioridade: 4 curtos (C), 3 narrados (N) e 3 provadores (V)." },
-    reserva: { type: "array", items: { type: "string" }, description: "Os outros códigos bons, do melhor para o pior. Fora os fracos ou repetidos." },
-    quadros: {
-        type: "array", description: "De 3 a 4 quadros fixos para a semana desta loja, de preferência nos MELHORES DIAS PARA POSTAR, para criar rotina (exemplo: Terça do provador).",
-        items: objeto({
-            dia: { type: "string", enum: ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"] },
-            nome: textoPT("Nome curto do quadro, com o dia (exemplo: Terça do provador)."),
-            formato: { type: "string", enum: ["curto", "narrado", "provador"] },
-            por_que: textoPT("Em 1 frase, o dado desta loja que justifica o quadro.")
-        })
-    }
+    reserva: { type: "array", items: { type: "string" }, description: "Os outros códigos bons, do melhor para o pior. Fora os fracos ou repetidos." }
 });
 
 const ETIQUETAS = ["provador", "narrado", "vídeo curto sem fala", "foto", "carrossel", "com o rosto da dona", "sem rosto", "look completo", "close no detalhe", "preço na tela", "bastidor da loja", "novidade ou chegada", "antes e depois do look", "POV"];
@@ -304,6 +310,16 @@ function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t
 function brl(n) { return "R$ " + arred(n, 2).toFixed(2).replace(".", ","); }
 function dataCurta(iso) { return iso ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }).format(new Date(iso)) : ""; }
 
+// cada criterio mostra um lado do resultado: o time olha todos, e nao so o engajamento
+const CRITERIOS_POST = [
+    { campo: "visualizacoes", nome: "mais vistos (chegam a quem não segue)", un: "visualizações" },
+    { campo: "compartilhamentos", nome: "mais compartilhados (levam a loja para gente nova)", un: "compartilhamentos" },
+    { campo: "salvamentos", nome: "mais salvos (a cliente quer voltar e comprar)", un: "salvamentos" },
+    { campo: "comentarios", nome: "mais comentados (puxam conversa e dúvida)", un: "comentários" },
+    { campo: "tempo_medio_s", nome: "mais tempo assistido", un: "s assistidos" },
+    { campo: "retencao_3s", nome: "melhor gancho (ficaram nos 3 primeiros segundos)", un: "%" }
+];
+function valorPost(p, campo) { const v = p[campo]; return v == null ? null : Number(v) || 0; }
 function postsDaLoja(met, todos) {
     const posts = (met && met.organico && met.organico.posts) || [];
     const desde30 = Date.now() - 30 * 864e5;
@@ -311,8 +327,39 @@ function postsDaLoja(met, todos) {
     const ord = posts.filter(function (p) { return p.alcance > 0; })
         .map(function (p) { return Object.assign({}, p, { recente: !!(p.data && new Date(p.data).getTime() >= desde30) }); })
         .sort(function (a, b) { return peso(b) - peso(a); });
-    // conta pequena: manda tudo; conta grande: os 15 melhores e os 5 piores
-    return todos || ord.length <= 20 ? ord : ord.slice(0, 15).concat(ord.slice(-5));
+    if (todos || ord.length <= 20) return ord;
+    // conta grande: os 15 melhores em engajamento, os 3 campeoes de cada criterio e os 5 piores
+    const ids = {}, chave = function (p) { return p.id || p.link || p.data; };
+    const escolhidos = ord.slice(0, 15);
+    escolhidos.forEach(function (p) { ids[chave(p)] = 1; });
+    CRITERIOS_POST.forEach(function (c) {
+        ord.filter(function (p) { return !p.pouco_alcance && valorPost(p, c.campo) != null; })
+            .sort(function (a, b) { return valorPost(b, c.campo) - valorPost(a, c.campo); }).slice(0, 3)
+            .forEach(function (p) { if (!ids[chave(p)]) { ids[chave(p)] = 1; escolhidos.push(p); } });
+    });
+    escolhidos.sort(function (a, b) { return peso(b) - peso(a); });
+    return escolhidos.concat(ord.slice(-5).filter(function (p) { return !ids[chave(p)]; }));
+}
+function numTxt(n) { return String(arred(n, 1)).replace(".", ","); }
+// os campeoes de cada criterio, com o codigo do post na lista enviada
+function textoCampeoes(ctx) {
+    const posts = ctx.posts || [], linhas = [];
+    CRITERIOS_POST.forEach(function (c) {
+        const top = posts.map(function (p, i) { return { p: p, i: i }; }).filter(function (x) { return !x.p.pouco_alcance && valorPost(x.p, c.campo) > 0; })
+            .sort(function (a, b) { return valorPost(b.p, c.campo) - valorPost(a.p, c.campo); }).slice(0, 3);
+        if (top.length) linhas.push("- " + c.nome + ": " + top.map(function (x) { return "P" + (x.i + 1) + " (" + numTxt(valorPost(x.p, c.campo)) + (c.un === "%" ? "%" : " " + c.un) + ")"; }).join(", "));
+    });
+    const ads = (ctx.ads && ctx.ads.lista) || [];
+    if (ads.length) {
+        const cod = function (a) { return "A" + (ads.indexOf(a) + 1); };
+        const venda = ads.filter(function (a) { return a.resultados > 0; }).sort(function (a, b) { return b.resultados - a.resultados; }).slice(0, 3);
+        if (venda.length) linhas.push("- anúncios com mais " + nomeResultado(ctx.ads.tipo) + ": " + venda.map(function (a) { return cod(a) + " (" + a.resultados + ")"; }).join(", "));
+        const receita = ads.filter(function (a) { return a.receita > 0; }).sort(function (a, b) { return b.receita - a.receita; }).slice(0, 3);
+        if (receita.length) linhas.push("- anúncios que mais venderam em reais: " + receita.map(function (a) { return cod(a) + " (" + brl(a.receita) + ")"; }).join(", "));
+        const gancho = ads.filter(function (a) { return a.taxa_gancho != null; }).sort(function (a, b) { return b.taxa_gancho - a.taxa_gancho; }).slice(0, 3);
+        if (gancho.length) linhas.push("- anúncios com melhor gancho: " + gancho.map(function (a) { return cod(a) + " (" + numTxt(a.taxa_gancho) + "%)"; }).join(", "));
+    }
+    return linhas.length ? "\n\nCAMPEÕES DE CADA CRITÉRIO (olhe todos, não só o engajamento; um post pode ser fraco em curtidas e campeão de compartilhamento):\n" + linhas.join("\n") : "";
 }
 function ordemDe(ctx) { return { posts: (ctx.posts || []).map(function (p) { return p.id; }), ads: ((ctx.ads && ctx.ads.lista) || []).map(function (a) { return a.id; }) }; }
 function aplicarOrdem(ctx, ordem) {
@@ -463,45 +510,19 @@ function vozEGanchos(met, comentarios) {
     };
 }
 
-// ---------- melhores dias e horarios para postar (mediana do engajamento, so com 3 posts ou mais) ----------
-const NOME_DIA = { domingo: "domingo", segunda: "segunda", terca: "terça", quarta: "quarta", quinta: "quinta", sexta: "sexta", sabado: "sábado" };
-function medianaNum(v) { const a = v.filter(function (x) { return x > 0; }).sort(function (x, y) { return x - y; }); if (!a.length) return 0; const m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
-function melhoresHorarios(posts) {
-    const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", weekday: "short", hour: "numeric", hour12: false });
-    const SEMANA = { Sun: "domingo", Mon: "segunda", Tue: "terca", Wed: "quarta", Thu: "quinta", Fri: "sexta", Sat: "sabado" };
-    const porDia = {}, porFaixa = {};
-    (posts || []).filter(function (p) { return p.data && p.alcance > 0 && !p.pouco_alcance && p.indice > 0; }).forEach(function (p) {
-        const partes = fmt.formatToParts(new Date(p.data));
-        const dia = SEMANA[(partes.find(function (x) { return x.type === "weekday"; }) || {}).value], h = Number((partes.find(function (x) { return x.type === "hour"; }) || {}).value) % 24;
-        const faixa = h < 6 ? "madrugada" : h < 12 ? "manhã" : h < 18 ? "tarde" : "noite";
-        if (dia) (porDia[dia] = porDia[dia] || []).push(p.indice);
-        (porFaixa[faixa] = porFaixa[faixa] || []).push(p.indice);
-    });
-    function lista(o) { return Object.keys(o).filter(function (k) { return o[k].length >= 3; }).map(function (k) { return { k: k, n: o[k].length, med: arred(medianaNum(o[k]), 2) }; }).sort(function (a, b) { return b.med - a.med; }); }
-    return { dias: lista(porDia), faixas: lista(porFaixa) };
-}
-function textoHorarios(h) {
-    if (!h || (!(h.dias || []).length && !(h.faixas || []).length)) return "";
-    const f = function (x) { return String(x).replace(".", ","); };
-    return "MELHORES DIAS E HORÁRIOS PARA POSTAR NESTA CONTA (mediana do engajamento dos posts, do melhor para o pior): " +
-        (h.dias || []).map(function (d) { return (NOME_DIA[d.k] || d.k) + " " + f(d.med) + "x (" + d.n + " posts)"; }).join(", ") +
-        ((h.faixas || []).length ? " | horários: " + h.faixas.map(function (d) { return d.k + " " + f(d.med) + "x (" + d.n + " posts)"; }).join(", ") : "");
-}
-
 // ---------- contexto de uma loja (lido de novo a cada etapa) ----------
 async function carregar(userId) {
     const id = encodeURIComponent(userId);
     const desde = encodeURIComponent(new Date(Date.now() - 60 * DIA_MS).toISOString());
-    const [contas, lojas, projetos, gostei, conversas, semana] = await Promise.all([
-        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job,memoria,referencias"),
-        banco("lojas?user_id=eq." + id + "&select=nome,nicho,site,produtos_dona,produtos_dona_em,produtos_admin,publico_admin,referencias").catch(function () { return []; }),
+    const [contas, lojas, projetos, gostei, conversas] = await Promise.all([
+        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job,memoria"),
+        banco("lojas?user_id=eq." + id + "&select=nome,nicho,site,produtos_dona,produtos_dona_em,produtos_admin,publico_admin").catch(function () { return []; }),
         banco("projetos?user_id=eq." + id + "&select=id,nome,form,rodadas,criado_em&order=criado_em.desc&limit=6").catch(function () { return []; }),
         banco("gostei?user_id=eq." + id + "&criado_em=gte." + desde + "&select=tipo,titulo,conteudo,criado_em&order=criado_em.desc&limit=30").catch(function () { return []; }),
-        banco("conversas?user_id=eq." + id + "&criado_em=gte." + desde + "&select=area,pedido,criado_em&order=criado_em.desc&limit=15").catch(function () { return []; }),
-        banco("semana?user_id=eq." + id + "&dia=gte." + diaSP(new Date(Date.now() - 7 * DIA_MS)) + "&select=titulo,dia,feito").catch(function () { return []; })
+        banco("conversas?user_id=eq." + id + "&criado_em=gte." + desde + "&select=area,pedido,criado_em&order=criado_em.desc&limit=15").catch(function () { return []; })
     ]);
     const conta = (contas && contas[0]) || {};
-    return { userId: userId, conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, gostei: gostei || [], conversas: conversas || [], semana: semana || [] };
+    return { userId: userId, conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, gostei: gostei || [], conversas: conversas || [] };
 }
 // comMeta: consulta a Meta (so na primeira etapa); nas outras usa o que ja foi guardado
 async function preparar(ctx, comMeta) {
@@ -523,12 +544,6 @@ async function preparar(ctx, comMeta) {
     ctx.ads = anunciosDaLoja(met);
     ctx.demografia = textoDemografia(cache);
     ctx.sobreLoja = montarSobreLoja(ctx.loja, ctx.projetos, met);
-    ctx.horarios = melhoresHorarios(postsTodos);
-    // lojas de referencia: os melhores posts dos perfis que a dona admira (1 vez por semana)
-    const refs = ctx.loja.referencias || [], ref = ctx.conta.referencias;
-    if (comMeta && refs.length && (!ref || !ref.em || Date.now() - new Date(ref.em).getTime() > REF_MS)) {
-        ctx.conta.referencias = await atualizarReferencias(ctx.userId, refs).catch(function () { return ref; });
-    }
     return ctx;
 }
 // codigos P1/A1 para achar o video que inspirou cada ideia (guardado com a etapa, porque os numeros mudam entre as etapas)
@@ -547,8 +562,20 @@ function dadosEmTexto(ctx, nPosts, nAds, nCom) {
     const ads = ctx.ads;
     return "\n\nPOSTS DA LOJA (do melhor para o pior):\n" + (ctx.posts.slice(0, nPosts).map(linhaPost).join("\n") || "nenhum") +
         (ads ? "\n\nANÚNCIOS (do que mais deu resultado para o que menos deu):\n" + ads.lista.slice(0, nAds).map(function (a, i) { return linhaAnuncio(ads.tipo, a, i); }).join("\n") : "") +
-        (ctx.comentarios.length ? "\n\nCOMENTÁRIOS REAIS DAS SEGUIDORAS:\n" + ctx.comentarios.slice(0, nCom).map(function (c) { return "- " + c; }).join("\n") : "");
+        (ctx.comentarios.length ? "\n\nCOMENTÁRIOS REAIS DAS SEGUIDORAS:\n" + ctx.comentarios.slice(0, nCom).map(function (c) { return "- " + c; }).join("\n") : "") +
+        textoCampeoes(ctx);
 }
+// as oportunidades do estrategista, em texto para os especialistas e o curador
+function textoOportunidades(ops) {
+    ops = (ops || []).filter(function (o) { return o && o.titulo; });
+    if (!ops.length) return "";
+    return "\n\nOPORTUNIDADES CRUZADAS PELO ESTRATEGISTA (orgânico + anúncios + público; a número 1 é a mais forte):\n" + ops.slice(0, 10).map(function (o, i) {
+        return (i + 1) + ") " + o.titulo + (o.peca ? " | peça: " + o.peca : "") + (o.formato && o.formato !== "qualquer" ? " | formato: " + o.formato : "") +
+            (o.prova_organico ? " | no orgânico: " + o.prova_organico : "") + (o.prova_anuncio ? " | nos anúncios: " + o.prova_anuncio : "") + (o.prova_publico ? " | no público: " + o.prova_publico : "") +
+            ((o.codigos || []).length ? " | códigos: " + o.codigos.join(", ") : "");
+    }).join("\n");
+}
+function oportunidadesDe(ctx, p) { return (p && p.dir && p.dir.oportunidades) || (ctx.dossie && ctx.dossie.oportunidades) || []; }
 
 // ---------- memoria da loja (IA que aprende com o proprio resultado) ----------
 const SUGERIDAS_MS = 35 * DIA_MS;
@@ -694,7 +721,7 @@ async function pedidosEtapa1(ctx) {
     if (posts.length) pedidos.push({
         chave: "org", nome: "Agente Organico", esquema: ESQ_ORGANICO,
         pedido: "Você é o AGENTE ORGÂNICO. Estude os posts do Instagram desta loja nos últimos 90 dias, ordenados do melhor para o pior pelo índice (com peso maior para os últimos 30 dias). Descubra o que os posts acima da média têm em comum (gancho, formato, assunto, tamanho, fala) e o que os abaixo da média fazem diferente. Em ganchos_que_funcionam, traga os ganchos reais dos melhores posts (da legenda ou da fala), reescritos de forma curta. Em formatos_mae, os formatos que a loja deve repetir com variação (80% do conteúdo). Em resumo, 2 frases para a dona da loja.\n\n" +
-            ctx.sobreLoja + "\nTOTAL DE POSTS NOS 90 DIAS: " + ctx.postsTodos.length + " | taxa média de engajamento da conta: " + ((met.organico && met.organico.taxa_media) || 0) + "%\nPOSTS:\n" + posts.map(linhaPost).join("\n")
+            ctx.sobreLoja + "\nTOTAL DE POSTS NOS 90 DIAS: " + ctx.postsTodos.length + " | taxa média de engajamento da conta: " + ((met.organico && met.organico.taxa_media) || 0) + "%\nPOSTS:\n" + posts.map(linhaPost).join("\n") + textoCampeoes(ctx)
     });
     if (ads) {
         const comTexto = ads.lista.filter(function (a) { return a.texto || a.transcricao; }).length;
@@ -766,6 +793,8 @@ function regrasDasIdeias(ctx, anteriores) {
     const hoje = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
     const datas = datasDoVarejo(new Date());
     return "\n\nCOMO USAR OS DADOS DESTA LOJA\n" +
+        "- COMECE PELAS OPORTUNIDADES CRUZADAS: pelo menos 4 das 6 ideias partem de uma delas (diga o número em oportunidade). Elas juntam o formato que prende no orgânico, a peça ou o argumento que vende nos anúncios e a dúvida ou a dor do público. Uma boa ideia usa as três: o jeito de gravar que já prendeu aqui, com a peça que já vende, respondendo ao que a cliente pergunta.\n" +
+        "- Olhe os CAMPEÕES DE CADA CRITÉRIO, não só o engajamento: o mais visto mostra o que chega a gente nova, o mais compartilhado o que a cliente manda para a amiga, o mais salvo o que ela quer comprar depois, o melhor gancho a abertura que segura.\n" +
         "- Regra 80/20: a maior parte das ideias repete, com peça e situação novas, os FORMATOS-MÃE que já provaram resultado nesta conta; o resto testa um formato novo. Repetir o que funcionou com variação é o que dá constância.\n" +
         "- REFAZER OS CAMPEÕES: pelo menos 2 das 6 ideias refazem um campeão desta conta (tipo refazer_campeao): o mesmo formato de um post ou anúncio que ficou bem acima da média, com peça, situação ou ângulo novos, e o código dele em inspirado_em. Vale também o anúncio que mais vendeu virando post orgânico, ou o post que mais engajou virando anúncio (diga isso no por_que).\n" +
         "- Se o MAPA DE PÚBLICO trouxer perguntas_clientes, pelo menos 1 ideia responde a uma dessas dúvidas e diz quantas clientes perguntaram (exemplo: 5 clientes perguntaram se veste 46, então é prova real no corpo).\n" +
@@ -779,13 +808,15 @@ function regrasDasIdeias(ctx, anteriores) {
         "- Antes e depois só do look. Fale da peça e da situação, não do corpo da cliente (a calça que não marca, e não você que tem barriga), porque a Meta reprova anúncio que aponta característica pessoal e porque assim a cliente se sente bem.\n" +
         "- Tudo gravável só com o celular pela dona ou pela equipe. Nos passos, diga onde fica o celular (apoiado na prateleira na altura do peito, de frente para o espelho...) e em que ponto parar e trocar de roupa; a fala vem em blocos curtos, para gravar em partes e juntar depois, sem precisar decorar tudo de uma vez.\n" +
         "- Escreva para a dona entender de primeira: cada passo com até 12 palavras, dizendo o que aparece; por_que e metrica com uma frase curta cada.\n" +
+        "- Teste da ideia fraca: se der para trocar o nome da loja e a ideia servir para qualquer outra loja, ela é fraca. Reescreva até ela só fazer sentido aqui (a peça que vende aqui, a dúvida que as clientes daqui fazem, o formato que já deu certo aqui).\n" +
+        "- Em por_que, junte as provas numa frase simples (exemplo: o provador em frente ao espelho foi o seu post mais salvo, o vestido tricô é o anúncio que mais vende e 6 clientes perguntaram se veste 46). Use os números que a dona vê no app (visualizações, curtidas, comentários, salvamentos, compartilhamentos, vendas), e não o índice em vezes a média nem porcentagens de gancho.\n" +
         "- Entregue 6 ideias diferentes entre si (peças, situações e ganchos distintos). Cada gancho começa de um jeito diferente: nunca comece dois com as mesmas palavras.\n" +
         "- Em por_que e em todo texto que a dona lê, descreva o post ou o anúncio (o Reels do vestido azul de 18/09); o código P ou A vai só em inspirado_em." +
         (anteriores.length ? "\n- Estas ideias já foram sugeridas; traga outras: " + anteriores.slice(0, 40).join(" | ") : "");
 }
 function contextoDasIdeias(ctx, p) {
     const pub = p.pub || ctx.dossie.publico;
-    return textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + textoReferencias(ctx.conta && ctx.conta.referencias) + "\n\n" + ctx.sobreLoja +
+    return textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
         "\nDADOS DE SEGUIDORES: " + (ctx.demografia || "não disponível") +
         "\nMAPA DE PÚBLICO: " + resumoRel(pub) +
         "\nRELATÓRIO ORGÂNICO (com os formatos-mãe): " + resumoRel(p.org) +
@@ -809,12 +840,12 @@ function pedidoDiretor(ctx, p) {
             "- resumo_loja: 2 ou 3 frases curtas para a dona ler no celular, sem jargão: o que mais tem dado certo e o que gravar a seguir.\n" +
             "- por_metodo: para cada um dos 5 métodos abaixo, 1 ou 2 frases de como aplicar nesta loja com base nos dados.\n" +
             "- nicho: o nicho desta loja.\n" +
+            "- oportunidades: o seu trabalho mais importante. CRUZE as três fontes: (1) no orgânico, o formato, o gancho e o assunto que mais prendem, olhando os CAMPEÕES DE CADA CRITÉRIO (visto, compartilhado, salvo, comentado, tempo assistido, gancho) e não só o engajamento; (2) nos anúncios, a peça, o argumento e a oferta que mais vendem; (3) no público, as dúvidas dos comentários, as dores, as objeções e as situações do dia a dia. Cada oportunidade junta pelo menos 2 fontes, de preferência as 3, sempre com o número que prova. Procure também as lacunas: peça que vende nos anúncios e nunca apareceu num formato que prende no orgânico; formato campeão do orgânico que nunca virou anúncio; dúvida frequente que nenhum vídeo respondeu ainda. Nada de oportunidade genérica que serviria para qualquer loja.\n" +
             "- Se vier O QUE O TIME JÁ APRENDEU COM ESTA LOJA, isso vale mais que as leituras gerais: coloque no texto os aprendizados fortes e o gosto da dona.\n\n" + METODOS_RESUMO + textoMemoria(p.mem || ctx.memoria) + "\n\n" + ctx.sobreLoja +
-            "\nRELATÓRIO ORGÂNICO: " + resumoRel(p.org) + "\nRELATÓRIO DE ANÚNCIOS: " + resumoRel(p.ads) + "\nMAPA DE PÚBLICO: " + resumoRel(p.pub || ctx.dossie.publico)
+            "\nRELATÓRIO ORGÂNICO: " + resumoRel(p.org) + "\nRELATÓRIO DE ANÚNCIOS: " + resumoRel(p.ads) + "\nMAPA DE PÚBLICO: " + resumoRel(p.pub || ctx.dossie.publico) +
+            dadosEmTexto(ctx, 20, 12, 30),
+        max: 16000
     };
-}
-function pedidosEtapa2(ctx, p) {
-    return [pedidoDiretor(ctx, p)].concat(pedidosEspecialistas(ctx, p, titulosAnteriores(ctx)));
 }
 function titulosAnteriores(ctx) {
     const i = ctx.dossie.ideias || {};
@@ -834,14 +865,15 @@ function pedidoCurador(ctx, p) {
     return {
         chave: "cur", nome: "Curador", esquema: ESQ_CURADOR,
         pedido: "Você é o CURADOR do time. Os especialistas escreveram opções de vídeos curtos (C), narrados (N) e provador (V) para esta loja. Escolha as melhores para esta semana: 4 curtos, 3 narrados e 3 provadores, em ordem de prioridade dentro de cada formato. Critérios, nesta ordem:\n" +
-            "1. apoiada num dado real desta loja (post ou anúncio que funcionou, comentário, dor do público, produto do momento, data próxima);\n" +
-            "2. primeiro segundo forte e fácil de entender sem som;\n" +
-            "3. executável só com o celular;\n" +
-            "4. diferentes entre si: sem duas com o mesmo tema, peça ou gancho;\n" +
-            "5. sem preço, promoção ou número que não esteja nos dados;\n" +
-            "6. de acordo com o que o time já aprendeu com esta loja e com o gosto da dona, quando houver.\n" +
-            "Depois ordene as que sobraram em reserva, da melhor para a pior, deixando de fora as fracas ou repetidas. Em resumo, 2 frases para a dona: por onde começar esta semana e por quê. Por fim, monte de 3 a 4 quadros fixos da semana (um formato que se repete no mesmo dia, para a dona criar rotina), nos melhores dias para postar desta conta.\n" +
-            textoHorarios(ctx.horarios) + "\n\n" +
+            "1. cruza as fontes desta loja: parte de uma OPORTUNIDADE CRUZADA e junta o formato que prende no orgânico, a peça ou argumento que vende nos anúncios e a dúvida ou dor do público (quanto mais fontes, melhor);\n" +
+            "2. só faz sentido nesta loja: descarte a ideia que serviria para qualquer loja trocando o nome da peça;\n" +
+            "3. primeiro segundo forte e fácil de entender sem som;\n" +
+            "4. executável só com o celular;\n" +
+            "5. diferentes entre si: sem duas com o mesmo tema, peça ou gancho;\n" +
+            "6. sem preço, promoção ou número que não esteja nos dados;\n" +
+            "7. de acordo com o que o time já aprendeu com esta loja e com o gosto da dona, quando houver.\n" +
+            "Depois ordene as que sobraram em reserva, da melhor para a pior, deixando de fora as fracas ou repetidas. Em resumo, 2 frases para a dona: por onde começar esta semana e por quê.\n" +
+            textoOportunidades(oportunidadesDe(ctx, p)) + "\n\n" +
             ctx.sobreLoja + "\nMAPA DE PÚBLICO (resumo): " + (((p.pub || ctx.dossie.publico) || {}).resumo || "não disponível") + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) +
             "\n\nOPÇÕES:\n" + cands.map(function (c) { return c.codigo + ") " + JSON.stringify(c.ideia); }).join("\n")
     };
@@ -886,23 +918,31 @@ function montarIdeias(p, mapa) {
     // ordem da tela: curtos, narrados e provador
     const ordem = { curto: 0, narrado: 1, provador: 2 };
     const lista = principais.map(ideia).sort(function (a, b) { return ordem[a.formato] - ordem[b.formato]; });
-    return { resumo: cur.resumo || "", lista: lista, reserva: reserva.map(ideia), quadros: (cur.quadros || []).slice(0, 4) };
+    return { resumo: cur.resumo || "", lista: lista, reserva: reserva.map(ideia) };
 }
 
-// as ideias da analise anterior que a dona marcou com Gostei ou colocou na semana continuam na lista
+// as ideias da analise anterior que a dona marcou com Gostei continuam na lista
 function ideiasGuardadas(ctx, antIdeias, novas) {
     const guardar = {}, ja = {};
     (ctx.gostei || []).forEach(function (g) { if (g.tipo === "ideia" && g.titulo) guardar[g.titulo] = 1; });
-    (ctx.semana || []).forEach(function (s) { if (s.titulo) guardar[s.titulo] = 1; });
     (novas || []).forEach(function (i) { ja[i.titulo] = 1; });
     return ((antIdeias && antIdeias.lista) || []).filter(function (i) { return guardar[i.titulo] && !ja[i.titulo]; })
         .map(function (i) { const c = Object.assign({}, i, { guardada: true }); delete c.nova; return c; });
 }
 
 // ---------- dossie final ----------
+// troca os codigos P1/A1 pela descricao do post em todo texto que a dona le (relatorios, resumo, oportunidades)
+function semCodigosEmTudo(v, mapa) {
+    if (typeof v === "string") return semCodigos(v, mapa);
+    if (Array.isArray(v)) return v.map(function (x) { return semCodigosEmTudo(x, mapa); });
+    if (v && typeof v === "object") { const o = {}; Object.keys(v).forEach(function (k) { o[k] = k === "codigos" ? v[k] : semCodigosEmTudo(v[k], mapa); }); return o; }
+    return v;
+}
 async function salvarDossie(ctx, p, motivo, mapa, mapaMem) {
     const met = ctx.met, dossieAnt = ctx.dossie, posts = ctx.posts, ads = ctx.ads;
-    const dir = p.dir || {};
+    const limpo = {};
+    ["dir", "org", "ads", "pub"].forEach(function (k) { if (p[k]) limpo[k] = semCodigosEmTudo(p[k], mapa); });
+    const dir = limpo.dir || {};
     const ideias = montarIdeias(p, mapa);
     const antIdeias = dossieAnt.ideias || {};
     const pubNovo = !!p.pub;
@@ -911,15 +951,15 @@ async function salvarDossie(ctx, p, motivo, mapa, mapaMem) {
         assinatura: met.assinatura || assinaturaDe(met), modelo: MODELO,
         texto: dir.texto || dossieAnt.texto, resumo_loja: dir.resumo_loja || dossieAnt.resumo_loja, por_metodo: dir.por_metodo || dossieAnt.por_metodo, nicho: dir.nicho || dossieAnt.nicho,
         ...vozEGanchos(met, ctx.comentarios),
-        organico: p.org ? { relatorio: p.org, total_posts: ctx.postsTodos.length, videos: posts.filter(function (x) { return x.transcricao; }).map(function (x) { return { id: x.id, link: x.link, legenda: corta(x.legenda, 80), transcricao: x.transcricao }; }) } : null,
-        anuncios: ads ? { relatorio: p.ads, tipo_resultado: ads.tipo, total: ads.lista.length, com_texto: ads.lista.filter(function (a) { return a.texto || a.transcricao; }).length, anuncios: ads.lista.filter(function (a) { return a.transcricao; }).map(function (a) { return { id: a.id, nome: a.nome, transcricao: a.transcricao }; }) } : null,
-        ideias: ideias.lista.length ? Object.assign({ gerado_em: new Date().toISOString(), resumo: ideias.resumo, lista: ideias.lista.concat(ideiasGuardadas(ctx, antIdeias, ideias.lista)).slice(0, 30), reserva: ideias.reserva, quadros: ideias.quadros && ideias.quadros.length ? ideias.quadros : (antIdeias.quadros || []) }, antIdeias.levas_dia ? { levas_dia: antIdeias.levas_dia, levas: antIdeias.levas } : {}) : (antIdeias.lista ? antIdeias : null),
-        publico: p.pub || dossieAnt.publico || null,
+        oportunidades: (dir.oportunidades || dossieAnt.oportunidades || []).map(function (o) { const c = Object.assign({}, o); delete c.codigos; return c; }),
+        organico: p.org ? { relatorio: limpo.org, total_posts: ctx.postsTodos.length, videos: posts.filter(function (x) { return x.transcricao; }).map(function (x) { return { id: x.id, link: x.link, legenda: corta(x.legenda, 80), transcricao: x.transcricao }; }) } : null,
+        anuncios: ads ? { relatorio: limpo.ads || null, tipo_resultado: ads.tipo, total: ads.lista.length, com_texto: ads.lista.filter(function (a) { return a.texto || a.transcricao; }).length, anuncios: ads.lista.filter(function (a) { return a.transcricao; }).map(function (a) { return { id: a.id, nome: a.nome, transcricao: a.transcricao }; }) } : null,
+        ideias: ideias.lista.length ? Object.assign({ gerado_em: new Date().toISOString(), resumo: ideias.resumo, lista: ideias.lista.concat(ideiasGuardadas(ctx, antIdeias, ideias.lista)).slice(0, 30), reserva: ideias.reserva }, antIdeias.levas_dia ? { levas_dia: antIdeias.levas_dia, levas: antIdeias.levas } : {}) : (antIdeias.lista ? antIdeias : null),
+        publico: limpo.pub || dossieAnt.publico || null,
         publico_em: pubNovo ? new Date().toISOString() : (dossieAnt.publico_em || null),
         publico_admin_usado: pubNovo ? (ctx.loja.publico_admin || "") : (dossieAnt.publico_admin_usado || ""),
         publico_fonte: ctx.comentarios.length ? "comentarios" : "legendas",
         demografia: ctx.cacheMeta && ctx.cacheMeta.demografia ? ctx.demografia : "",
-        horarios: ctx.horarios || null,
         meta: ctx.cacheMeta ? { em: ctx.cacheMeta.em, erro: ctx.cacheMeta.erro, comentarios: ctx.comentarios.length } : null
     };
     const memoria = memoriaNova(ctx, p, mapaMem, ideias.lista);
@@ -943,7 +983,9 @@ function salvarJob(userId, job) {
 }
 async function pedidosDaEtapa(ctx, job) {
     if (job.etapa === 1) { const ped = await pedidosEtapa1(ctx); if (ctx.mapaMem && !job.parciais.mem) job.mapaMem = ctx.mapaMem; return ped; }
-    if (job.etapa === 2) { if (!job.mapa) job.mapa = mapaDeCodigos(ctx); return pedidosEtapa2(ctx, job.parciais); }
+    if (!job.mapa) job.mapa = mapaDeCodigos(ctx);
+    if (job.etapa === 2) return [pedidoDiretor(ctx, job.parciais)];
+    if (job.etapa === 3) return pedidosEspecialistas(ctx, job.parciais, titulosAnteriores(ctx));
     return candidatas(job.parciais).length ? [pedidoCurador(ctx, job.parciais)] : [];
 }
 // roda na hora os pedidos que faltam (modo "agora", ou o que falhou no lote)
@@ -1020,7 +1062,7 @@ async function avancarEtapa(ctx, job) {
     }
     // prepara a proxima etapa (ou a primeira); so o que ainda nao tem resposta
     await prepararDoJob(ctx, job);
-    if (job.etapa > 3) { await salvarDossie(ctx, job.parciais, job.motivo, job.mapa, job.mapaMem); return { status: "pronta" }; }
+    if (job.etapa > 4) { await salvarDossie(ctx, job.parciais, job.motivo, job.mapa, job.mapaMem); return { status: "pronta" }; }
     const pedidos = (await pedidosDaEtapa(ctx, job)).filter(function (p) { return !job.parciais[p.chave]; });
     if (!pedidos.length) { job.etapa++; return avancarEtapa(ctx, job); }
     if (job.modo === "lote") {
@@ -1069,7 +1111,7 @@ async function continuarAnalise(userId, temTempo) {
     return r;
 }
 
-// Analise completa na hora (botao do admin e primeira analise): roda as 3 etapas em sequencia
+// Analise completa na hora (botao do admin e primeira analise): roda as 4 etapas em sequencia
 async function analisarLoja(userId, motivo) {
     try {
         await iniciarAnalise(userId, "agora", motivo || "manual");
@@ -1105,7 +1147,7 @@ async function gerarMaisIdeias(userId) {
     reserva = reserva.filter(function (x) { return novas.indexOf(x) < 0; });
     if (novas.length < 3) {
         await preparar(ctx, false);
-        const p = { org: dossie.organico && dossie.organico.relatorio, ads: dossie.anuncios && dossie.anuncios.relatorio, pub: dossie.publico };
+        const p = { org: dossie.organico && dossie.organico.relatorio, ads: dossie.anuncios && dossie.anuncios.relatorio, pub: dossie.publico, dir: { oportunidades: dossie.oportunidades || [] } };
         await rodarAgora(ctx, pedidosEspecialistas(ctx, p, titulosAnteriores(ctx)), p, Date.now() + 240000);
         if (!candidatas(p).length) throw new ErroIdeias(502, "Não consegui gerar ideias agora. Tente de novo em alguns minutos.");
         await rodarAgora(ctx, [pedidoCurador(ctx, p)], p, Date.now() + 90000);
@@ -1128,7 +1170,6 @@ async function gerarMaisIdeias(userId) {
             const fi = fresco.ideias || {};
             ideias.lista = novas.map(function (i) { return Object.assign({}, i, { nova: true }); }).concat(fi.lista || []).slice(0, 60);
             ideias.reserva = fi.reserva || [];
-            ideias.quadros = fi.quadros || ideias.quadros;
             ideias.resumo = fi.resumo || ideias.resumo;
         }
     }
@@ -1180,6 +1221,6 @@ function entraNoLote(c, agora, acessoEm, ativaDesde) {
 module.exports = {
     analisarLoja, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO,
     conversa: { semCodigos, textoDaLoja, espera, FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
-    _teste: { pedidoMemoria, memoriaNova, pedidosEspecialistas, pedidoCurador, montarIdeias, mapaDeCodigos, rodarAgora },
+    _teste: { pedidoMemoria, memoriaNova, pedidoDiretor, pedidosEspecialistas, pedidoCurador, montarIdeias, mapaDeCodigos, rodarAgora, textoCampeoes, postsDaLoja, semCodigosEmTudo },
     _interno: { vozEGanchos, primeiraFrase, postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, datasDoVarejo, montarIdeias, candidatas, ESQ_DIRETOR, ESQ_ESPECIALISTA, ESQ_CURADOR, SISTEMA_TIME }
 };
