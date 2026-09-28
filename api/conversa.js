@@ -47,7 +47,7 @@ async function conversarIdeias(uid, pedido, historico) {
         "- Dúvida ou conversa: responda em até 3 frases e deixe a lista de ideias vazia.\n" +
         "- O pedido dela vale mais que as regras gerais, desde que não invente preço, produto, depoimento ou número.\n\n" +
         "COMO É CADA FORMATO\n" + T.FORMATOS_TEXTO() +
-        T.regrasDasIdeias(ctx, []).replace(/\n- Entregue 6 ideias[^\n]*/, "") + T.contextoDasIdeias(ctx, p) +
+        T.regrasDasIdeias(ctx, T.titulosAnteriores(ctx)) + T.contextoDasIdeias(ctx, p) +
         (naTela.length ? "\n\nIDEIAS QUE JÁ ESTÃO NA TELA DELA:\n" + naTela.map(function (x, i) { return (i + 1) + ") " + (x.formato || "") + " | " + x.titulo + (x.gancho ? " | gancho: " + T.corta(x.gancho, 160) : ""); }).join("\n") : "") +
         historicoEmTexto(historico) + "\n\nPEDIDO DA DONA AGORA: " + pedido;
     const r = await T.perguntar(uid, { chave: "chat_ideias", nome: "Chat de ideias", esquema: ESQ_IDEIAS, pedido: texto, max: 12000 });
@@ -57,7 +57,7 @@ async function conversarIdeias(uid, pedido, historico) {
         ["titulo", "gancho", "texto_na_tela", "fala", "peca", "por_que", "metrica"].forEach(function (k) { x[k] = T.semCodigos(x[k], mapa); });
         x.passos = (x.passos || []).map(function (s) { return T.semCodigos(s, mapa); });
         const f = FORMATOS.indexOf(x.formato) > -1 ? x.formato : "curto";
-        return { titulo: x.titulo, formato: f, formatos: [f === "curto" ? "rápido com transições" : f], gancho: x.gancho, como_fazer: x.gancho, passos: x.passos || [], texto_na_tela: x.texto_na_tela || "", fala: x.fala || "", stories: x.stories || [], duracao_s: x.duracao_s || null, peca: x.peca || "", inspirado: insp || null, por_que: x.por_que, metrica: x.metrica, funil: x.funil, metodo: x.metodo, origem: "conversa" };
+        return { titulo: x.titulo, formato: f, formatos: [f === "curto" ? "rápido com transições" : f], gancho: x.gancho, como_fazer: x.gancho, passos: x.passos || [], texto_na_tela: x.texto_na_tela || "", fala: x.fala || "", stories: x.stories || [], duracao_s: x.duracao_s || null, peca: x.peca || "", inspirado: insp || null, por_que: x.por_que, metrica: x.metrica, funil: x.funil, metodo: x.metodo, mecanica: x.mecanica || "", origem: "conversa" };
     });
     // as ideias do chat entram no topo da tela de ideias, marcadas como novas
     if (ideias.length) {

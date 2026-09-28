@@ -6,6 +6,7 @@
 //    - melhores posts: comentarios reais das seguidoras
 //    - anuncios: capa, texto e titulo do criativo e a fala do video
 //    - publico: idade, genero e cidades de quem segue (1 vez por semana)
+//    - olhos: como e o video dos campeoes de cada criterio e de 2 fracos (api/_olhos.js, uma vez so)
 //  Regras para a Meta nao estranhar:
 //    - so leitura: so consulta (GET), nunca publica, responde ou altera nada
 //    - poucas consultas: pede so o que e novo e guarda em contas_meta.meta
@@ -16,6 +17,7 @@
 // =====================================================================
 
 const { banco, descriptografar } = require("./_seguranca.js");
+const olhos = require("./_olhos.js");
 
 const GRAPH = "https://graph.facebook.com/v23.0";
 const DIA_MS = 24 * 3600 * 1000;
@@ -29,6 +31,7 @@ const DEMOGRAFIA_MS = 7 * DIA_MS;
 const REELS_RECENTE_MS = 14 * DIA_MS;  // tempo assistido ainda muda: atualiza 1 vez por dia ate 14 dias
 const NOVA_TENTATIVA_MS = 3 * DIA_MS;  // video que nao deu para transcrever: tenta de novo depois
 const MAX_FALAS_POSTS = 3, MAX_FALAS_ANUNCIOS = 2, ESPERA_FALAS_MS = 60000;
+const MAX_OLHOS_POSTS = 3, MAX_OLHOS_ANUNCIOS = 2;   // videos descritos por rodada (cada video e descrito uma vez so)
 const LIMITE_BYTES = 24 * 1024 * 1024;
 
 // ---------- pausa automatica ----------
@@ -133,7 +136,7 @@ async function transcrever(url) {
 // ---------- o que falta de uma loja ----------
 // met = contas_meta.metricas (numeros do Reportei); anterior = contas_meta.meta (o que ja veio da Meta)
 // Devolve o cache atualizado. Se a Meta nao estiver conectada ou estiver pausada, devolve o anterior.
-async function enriquecerLoja(met, anterior) {
+async function enriquecerLoja(met, anterior, userId) {
     const cache = { em: (anterior && anterior.em) || null, erro: (anterior && anterior.erro) || null, sem_pulo: !!(anterior && anterior.sem_pulo), posts: Object.assign({}, anterior && anterior.posts), anuncios: Object.assign({}, anterior && anterior.anuncios), ig_id: (anterior && anterior.ig_id) || "", demografia: (anterior && anterior.demografia) || null };
     const con = await conexao();
     if (!con || con.pausada) return { cache: cache, pendentes: [] };
@@ -316,6 +319,42 @@ async function enriquecerLoja(met, anterior) {
             })());
         });
     }
+    // 5) olhos: como e o video dos campeoes de cada criterio (visto, compartilhado, salvo, engajamento, gancho) e de 2 fracos, para comparar
+    if (Date.now() >= pausadoAte && olhos.disponivel()) {
+        const faltaOlhar = function (c) { return !(c && c.visual) && velho(c && c.olhos_erro_em, NOVA_TENTATIVA_MS); };
+        const videos = sem.ig ? [] : posts.filter(function (p) { return (p.tipo === "Reels" || p.tipo === "Vídeo") && num(p.alcance) > 0; });
+        const pulo = function (p) { const c = cache.posts[p.id] || {}; return c.pulo_pct == null ? -1 : 100 - c.pulo_pct; };
+        const criterios = [function (p) { return num(p.indice); }, function (p) { return num(p.visualizacoes); }, function (p) { return num(p.compartilhamentos); }, function (p) { return num(p.salvamentos); }, pulo];
+        const rankings = criterios.map(function (f) { return videos.slice().sort(function (a, b) { return f(b) - f(a); }); });
+        const ordem = [];
+        for (let i = 0; i < 3; i++) rankings.forEach(function (r) { if (r[i] && ordem.indexOf(r[i]) < 0) ordem.push(r[i]); });
+        videos.slice().sort(function (a, b) { return num(a.indice) - num(b.indice); }).slice(0, 2).forEach(function (p) { if (ordem.indexOf(p) < 0) ordem.push(p); });
+        const olharPosts = ordem.filter(function (p) { return faltaOlhar(cache.posts[p.id]); }).slice(0, MAX_OLHOS_POSTS);
+        const olharAds = sem.ads ? [] : ads.filter(function (a) { const c = cache.anuncios[a.id] || {}; const doPost = c.ig_media_id && cache.posts[c.ig_media_id]; return (c.ig_media_id || c.video_id) && faltaOlhar(c) && !(doPost && doPost.visual); })
+            .sort(function (a, b) { return num(b.resultados) - num(a.resultados) || num(b.gasto) - num(a.gasto); }).slice(0, MAX_OLHOS_ANUNCIOS);
+        olharPosts.forEach(function (p) {
+            pendentes.push((async function () {
+                const alvo = post(p.id);
+                try {
+                    const x = await g("/" + p.id, { fields: "media_url" }, token);
+                    if (!x.media_url) throw new Error("sem link do video");
+                    alvo.visual = await olhos.olharVideo(x.media_url, userId, { legenda: p.legenda, fala: alvo.transcricao });
+                } catch (e) { alvo.olhos_erro_em = new Date().toISOString(); console.error("[meta] olhos do post " + p.id + ": " + (e && e.message)); }
+            })());
+        });
+        olharAds.forEach(function (a) {
+            pendentes.push((async function () {
+                const alvo = cache.anuncios[a.id];
+                try {
+                    let url = "";
+                    if (alvo.ig_media_id) url = (await g("/" + alvo.ig_media_id, { fields: "media_url,media_type" }, token)).media_url || "";
+                    if (!url && alvo.video_id) url = (await g("/" + alvo.video_id, { fields: "source" }, token)).source || "";
+                    if (!url) throw new Error("sem link do video");
+                    alvo.visual = await olhos.olharVideo(url, userId, { legenda: alvo.texto || a.nome, fala: alvo.transcricao });
+                } catch (e) { alvo.olhos_erro_em = new Date().toISOString(); console.error("[meta] olhos do anuncio " + a.id + ": " + (e && e.message)); }
+            })());
+        });
+    }
     return { cache: cache, pendentes: pendentes };
 }
 
@@ -338,6 +377,7 @@ function aplicarMeta(met, cache) {
         if (c.tempo_medio_s) p.tempo_medio_s = c.tempo_medio_s;
         if (c.pulo_pct != null) p.retencao_3s = Math.round((100 - c.pulo_pct) * 10) / 10;
         if (c.transcricao) p.transcricao = c.transcricao;
+        if (c.visual) p.visual = c.visual;
     });
     ["p7", "p30", "p90", "mes", "mes_ant"].forEach(function (per) {
         ((met.anuncios && met.anuncios[per] && met.anuncios[per].anuncios) || []).forEach(function (a) {
@@ -350,6 +390,8 @@ function aplicarMeta(met, cache) {
             if (c.ig_media_id && porId[c.ig_media_id]) a.post_id = c.ig_media_id;
             const fala = c.transcricao || (c.ig_media_id && cp[c.ig_media_id] && cp[c.ig_media_id].transcricao);
             if (fala) a.transcricao = fala;
+            const visual = c.visual || (c.ig_media_id && cp[c.ig_media_id] && cp[c.ig_media_id].visual);
+            if (visual) a.visual = visual;
         });
     });
     return met;

@@ -16,10 +16,12 @@
       "maxDuration": 120
     },
     "api/connect.js": {
-      "maxDuration": 300
+      "maxDuration": 300,
+      "includeFiles": "node_modules/ffmpeg-static/ffmpeg"
     },
     "api/atualizar.js": {
-      "maxDuration": 300
+      "maxDuration": 300,
+      "includeFiles": "node_modules/ffmpeg-static/ffmpeg"
     },
     "api/lojas.js": {
       "maxDuration": 60

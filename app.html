@@ -507,9 +507,32 @@ function textoRoteiro(s){
   t+=(s.formato==="curto"?"PRIMEIRO SEGUNDO\n":"GANCHO\n")+s.gancho+"\n\n";
   if((s.aberturas_extras||[]).length)t+="OUTRAS ABERTURAS PARA TESTAR\n- "+s.aberturas_extras.join("\n- ")+"\n\n";
   t+="COMO GRAVAR\n"+s.cenas.map(function(c,i){return (i+1)+". "+(c.fala?"Fala: "+c.fala+"\n   ":"")+"Na tela: "+c.na_tela+(c.texto_tela?"\n   Texto por cima: "+c.texto_tela:"");}).join("\n")+"\n\n";
+  if((s.stories||[]).length)t+="NOS STORIES\n"+s.stories.map(function(x,i){return (i+1)+". "+x;}).join("\n")+"\n\n";
   if(s.texto_capa)t+="TEXTO DA CAPA\n"+s.texto_capa+"\n\n";
   if(s.legenda)t+="LEGENDA\n"+s.legenda+((s.hashtags||[]).length?"\n\n"+s.hashtags.join(" "):"")+"\n";
   return t;
+}
+// video grande (o do celular passa de 4 MB): o proprio aparelho tira o audio (mono, 16 kHz)
+// e manda em partes de 80 segundos, ate 5 minutos; cada parte cabe no limite de envio do servidor
+async function audioEmPartes(file){
+  var AC=window.AudioContext||window.webkitAudioContext,OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+  if(!AC||!OAC)throw new Error("sem audio");
+  var buf=await file.arrayBuffer(),ctx=new AC();
+  var dec=await new Promise(function(ok,falha){try{var p=ctx.decodeAudioData(buf,ok,falha);if(p&&p.then)p.then(ok,falha);}catch(e){falha(e);}});
+  try{ctx.close();}catch(e){}
+  var taxa=16000,total=Math.min(dec.duration,300),n=Math.ceil(total*taxa);
+  var off=new OAC(1,n,taxa),src=off.createBufferSource();src.buffer=dec;src.connect(off.destination);src.start(0);
+  var out=await new Promise(function(ok,falha){off.oncomplete=function(e){ok(e.renderedBuffer);};var p=off.startRendering();if(p&&p.then)p.then(ok,falha);});
+  var dados=out.getChannelData(0),parte=80*taxa,partes=[];
+  for(var ini=0;ini<dados.length;ini+=parte)partes.push(wav16(dados.subarray(ini,Math.min(dados.length,ini+parte)),taxa));
+  return partes;
+}
+function wav16(d,taxa){
+  var ab=new ArrayBuffer(44+d.length*2),v=new DataView(ab);
+  function s(o,x){for(var i=0;i<x.length;i++)v.setUint8(o+i,x.charCodeAt(i));}
+  s(0,"RIFF");v.setUint32(4,36+d.length*2,true);s(8,"WAVE");s(12,"fmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,taxa,true);v.setUint32(28,taxa*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);s(36,"data");v.setUint32(40,d.length*2,true);
+  for(var i=0;i<d.length;i++){var x=Math.max(-1,Math.min(1,d[i]));v.setInt16(44+i*2,x<0?x*0x8000:x*0x7fff,true);}
+  return new Blob([ab],{type:"audio/wav"});
 }
 // fotos de celular passam de 4 MB: reduz para 1600 px antes de enviar
 function reduzirImagem(arq,max,q){
@@ -590,6 +613,8 @@ function App(){
   var sCm2=useState(null),copiaManual=sCm2[0],setCopiaManual=sCm2[1];
   var sCp=useState(true),carregandoProjetos=sCp[0],setCarregandoProjetos=sCp[1];
   var sCc=useState(true),carregandoConta=sCc[0],setCarregandoConta=sCc[1];
+  var sEp=useState(false),erroProjetos=sEp[0],setErroProjetos=sEp[1];
+  var sEc=useState(false),erroConta=sEc[0],setErroConta=sEc[1];
   var sIn=useState(null),pedidoInstalar=sIn[0],setPedidoInstalar=sIn[1];
   var produtoRef=useRef(null),vendaRef=useRef(null),ajusteRef=useRef(null),chatRef=useRef(""),esperandoRef=useRef(null);
   var sFt=useState("narrado"),formatoRot=sFt[0],setFormatoRot=sFt[1];
@@ -682,11 +707,13 @@ function App(){
   async function carregarProjetos(){
     try{
       var r=await supaClient.from("projetos").select("*").order("criado_em",{ascending:false});
+      if(r.error)throw r.error;
       if(r.data&&r.data.length>0){
         var ps=r.data.map(mapearProjeto);
         setProjects(ps);
       }
-    }catch(e){}
+      setErroProjetos(false);
+    }catch(e){setErroProjetos(true);}
     setCarregandoProjetos(false);
   }
   function mapearProjeto(p){
@@ -781,20 +808,26 @@ function App(){
   var NOME_FORMATO={curto:"Vídeo curto",narrado:"Vídeo narrado",provador:"Provador"};
   function ideiaNarrada(x){var f=formatoIdeia(x);return f==="narrado"||f==="provador";}
   // transforma uma ideia narrada em roteiro: vira a referencia e ja escolhe o metodo
+  // a ideia inteira (com a prova e o post que inspirou) vai para o servidor e fica guardada no projeto
+  function ideiaCompacta(x){var i=x.inspirado;return {titulo:x.titulo,formato:formatoIdeia(x),gancho:x.gancho||x.como_fazer||"",passos:(x.passos||[]).slice(0,10),texto_na_tela:x.texto_na_tela||"",fala:x.fala||"",stories:(x.stories||[]).slice(0,6),peca:x.peca||"",por_que:x.por_que||"",metrica:x.metrica||"",mecanica:x.mecanica||"",inspirado:i?{tipo:i.tipo,link:i.link||"",legenda:i.legenda||""}:null};}
   function ideiaParaRoteiro(ideia){
-    setReferencia({chave:"ideia:"+ideia.titulo,titulo:ideia.titulo,texto:"IDEIA DE CONTEÚDO escolhida pela loja ("+(NOME_FORMATO[formatoIdeia(ideia)]||"vídeo")+"; escreva os roteiros a partir dela): "+ideia.titulo+" | primeiro segundo: "+(ideia.gancho||ideia.como_fazer||ideia.como_gravar||"-")+((ideia.passos||[]).length?" | cenas: "+ideia.passos.join(" / "):"")+(ideia.fala?" | pontos da fala: "+ideia.fala:"")+(ideia.peca?" | peça: "+ideia.peca:"")+" | por que funciona nesta loja: "+(ideia.por_que||"-")});
-    var fIdeia=formatoIdeia(ideia)==="curto"?"curto":"narrado";setFormatoRot(fIdeia);
-    if(ideia.metodo)setMetodoSel(fIdeia==="curto"?"fftopo":ideia.metodo);
+    setReferencia({chave:"ideia:"+ideia.titulo,titulo:ideia.titulo,ideia:ideiaCompacta(ideia),texto:"IDEIA DE CONTEÚDO escolhida pela loja ("+(NOME_FORMATO[formatoIdeia(ideia)]||"vídeo")+"; escreva os roteiros a partir dela): "+ideia.titulo+" | primeiro segundo: "+(ideia.gancho||ideia.como_fazer||ideia.como_gravar||"-")+((ideia.passos||[]).length?" | cenas: "+ideia.passos.join(" / "):"")+(ideia.fala?" | pontos da fala: "+ideia.fala:"")+(ideia.peca?" | peça: "+ideia.peca:"")+" | por que funciona nesta loja: "+(ideia.por_que||"-")});
+    var fIdeia=formatoIdeia(ideia);setFormatoRot(fIdeia);
+    setMetodoSel(fIdeia==="curto"?"fftopo":fIdeia==="provador"?(ideia.metodo||"fffundo"):(ideia.metodo||"ffmeio"));
     setVideoSel(null);setActiveProject(null);setView("briefing");
     showToast("Ideia escolhida. Confira o objetivo e gere os roteiros.");
   }
-  async function carregarContaMeta(){try{var r=await supaClient.from("contas_meta").select(CAMPOS_CONTA).eq("user_id",currentUser.id).maybeSingle();if(r&&r.error)r=await supaClient.from("contas_meta").select("ig_username,ad_account_nome,dossie,atualizado_em").eq("user_id",currentUser.id).maybeSingle();if(r&&!r.error&&r.data){setContaMeta(r.data);var d=r.data.dossie||{};CONTA_AGENTE=contaDoDossie(d);}}catch(e){}setCarregandoConta(false);}
+  async function carregarContaMeta(){try{var r=await supaClient.from("contas_meta").select(CAMPOS_CONTA).eq("user_id",currentUser.id).maybeSingle();if(r&&r.error)r=await supaClient.from("contas_meta").select("ig_username,ad_account_nome,dossie,atualizado_em").eq("user_id",currentUser.id).maybeSingle();if(r&&r.error)throw r.error;setErroConta(false);if(r&&r.data){setContaMeta(r.data);var d=r.data.dossie||{};CONTA_AGENTE=contaDoDossie(d);}}catch(e){setErroConta(true);}setCarregandoConta(false);}
+  // sem internet na hora de abrir: avisa e deixa tentar de novo (os dados continuam guardados)
+  function erroCarga(tentar){return ce("div",{className:"emp",role:"alert"},ce("div",{className:"emp-ic"},"📶"),ce("div",{className:"emp-h"},"Não consegui carregar"),ce("div",{className:"emp-p",style:{marginBottom:16}},"Confira a internet. Seus roteiros e dados continuam guardados."),ce("button",{className:"btn-pri",style:{maxWidth:260,margin:"0 auto"},onClick:tentar},"Tentar de novo"));}
+  function tentarConta(){setErroConta(false);setCarregandoConta(true);carregarContaMeta();}
   // referencia = lista de ate 3 videos (ou uma ideia); vazia vira null
   var MAX_REFS=3;
   function setReferencia(lista){
     if(lista&&!Array.isArray(lista))lista=[lista];
     if(lista&&!lista.length)lista=null;
-    REFERENCIA_ATUAL=lista?lista.map(function(r,i){return (lista.length>1?"VIDEO "+(i+1)+": ":"")+r.texto;}).join("\n"):"";
+    var videos=(lista||[]).filter(function(r){return !r.ideia;});
+    REFERENCIA_ATUAL=videos.length?videos.map(function(r,i){return (videos.length>1?"VIDEO "+(i+1)+": ":"")+r.texto;}).join("\n"):"";
     setReferenciaSt(lista);
   }
   function titulosRef(){return (referencia||[]).map(function(r){return r.titulo;}).join(" + ");}
@@ -903,6 +936,8 @@ function App(){
     if(somenteLeitura())return;
     setGenerating(true);
     var proj=o.proj||(o.origem==="results"?activeProject:null),ff=o.ff||(proj&&proj.form)||{};
+    var ideiaRef=((referencia||[]).filter(function(r){return r.ideia;})[0]||{}).ideia;
+    if(!proj&&ideiaRef)ff=Object.assign({},ff,{ideia:ideiaRef});
     try{
       if(!proj){
         var nome=String(ff.produto||"").replace(/\[[^\]]*\]/g,"").replace(/\s+/g," ").trim().substring(0,40)||(referencia?titulosRef().substring(0,40):"")||"Novo roteiro";
@@ -917,7 +952,7 @@ function App(){
       var comMarca=Object.assign({},proj,{rodadas:(proj.rodadas||[]).concat([marca])});
       setProjects(function(prev){return prev.map(function(x){return x.id===comMarca.id?comMarca:x;});});
       setActiveProject(comMarca);setView("results");setActiveTab("roteiros");setVarResults({});
-      var corpo={projeto_id:proj.id,metodo:metodo,formato:formato,quantos:quantos,renomear:o.origem!=="results",contexto:contextoRoteiro(ff,proj.rodadas||[],metodo),imagens:(o.imgs||[]).map(function(im){return {media_type:im.source.media_type,data:im.source.data};})};
+      var corpo={projeto_id:proj.id,ideia:ff.ideia||null,metodo:metodo,formato:formato,quantos:quantos,renomear:o.origem!=="results",contexto:contextoRoteiro(ff,proj.rodadas||[],metodo),imagens:(o.imgs||[]).map(function(im){return {media_type:im.source.media_type,data:im.source.data};})};
       var tk=await tokenAtual(),pid=proj.id;
       setGenerating(false);
       fetch("/api/roteiros",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tk},body:JSON.stringify(corpo)})
@@ -974,6 +1009,7 @@ function App(){
       bl(curto?"Primeiro segundo":"Gancho","",ce("div",{className:"sc-bl-txt",style:{fontWeight:700}},s.gancho)),
       (s.aberturas_extras||[]).length?bl("Outras aberturas para testar","",ce("div",{className:"sc-bl-txt"},s.aberturas_extras.map(function(a,i){return ce("div",{key:i,style:{marginBottom:4}},(i+2)+". "+a);}),ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:4}},"Grave as 3 aberturas e veja qual segura mais gente nos 3 primeiros segundos."))):null,
       bl("Como gravar","b",ce("ol",{className:"cenas"},s.cenas.map(function(c,i){return ce("li",{key:i,className:"cena"},c.fala?ce("div",{className:"cena-f"},"\u201C"+c.fala+"\u201D"):null,c.na_tela?ce("div",{className:"cena-t"},ce("b",null,"Na tela: "),c.na_tela):null,c.texto_tela?ce("div",{className:"cena-t"},ce("b",null,"Texto por cima: "),c.texto_tela):null);}))),
+      (s.stories||[]).length?bl("Nos stories, depois do Reels","b",ce("ol",{className:"cenas"},s.stories.map(function(x,i){return ce("li",{key:i,className:"cena"},ce("div",{className:"cena-t"},x));}))):null,
       s.texto_capa?bl("Texto da capa","c",ce("div",{className:"sc-bl-txt",style:{fontWeight:700}},s.texto_capa)):null,
       s.legenda?bl("Legenda do post","c",ce("div",{className:"sc-bl-txt"},ce("div",{style:{whiteSpace:"pre-wrap"}},s.legenda),(s.hashtags||[]).length?ce("div",{style:{marginTop:6,color:"var(--ac2)"}},s.hashtags.join(" ")):null,ce("div",{style:{marginTop:8}},ce("button",{className:"cbtn",onClick:function(e){e.stopPropagation();copiarOuMostrar("Legenda",leg,function(){showToast("Legenda copiada!");});}},"Copiar legenda")))):null);
   }
@@ -1070,19 +1106,24 @@ function App(){
   function renameProject(id,e){if(somenteLeitura()){if(e)e.stopPropagation();return;}if(e)e.stopPropagation();var p=projects.find(function(x){return x.id===id;});var novo=window.prompt("Novo nome do projeto:",(p&&p.name)||"");if(!novo||!novo.trim())return;novo=novo.trim().substring(0,60);supaClient.from("projetos").update({nome:novo}).eq("id",id).then(function(r){if(r&&r.error){showToast("Não consegui renomear. Confira a internet e tente de novo.","err");return;}setProjects(function(prev){return prev.map(function(x){return x.id===id?Object.assign({},x,{name:novo}):x;});});if(activeProject&&activeProject.id===id)setActiveProject(Object.assign({},activeProject,{name:novo}));showToast("Projeto renomeado.");},function(){showToast("Não consegui renomear. Confira a internet e tente de novo.","err");});}
   async function transcreverArquivo(file){
     if(!file)return;
-    if(file.size>4*1024*1024){showToast("Arquivo muito grande (até 4 MB). Use um trecho curto ou só o áudio.","err");return;}
+    if(file.size>400*1024*1024){showToast("Esse vídeo é grande demais. Escolha um de até 5 minutos.","err");return;}
     setLendoVideo(true);
     try{
-      var b64=await toB64(file);
-      var res=await fetch("/api/transcribe",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({fileB64:b64,mediaType:file.type||"video/mp4",filename:file.name||"audio.mp4"})});
-      var data=await res.json();
-      if(!res.ok||data.error)throw new Error(data.error||("Erro "+res.status));
-      var txt=(data.text||"").trim();
+      // ate 3 MB vai direto; maior, o celular tira so o audio e manda em partes
+      var partes=file.size<=3*1024*1024?[file]:await audioEmPartes(file),txt="";
+      for(var i=0;i<partes.length;i++){
+        var pt=partes[i],b64=await toB64(pt);
+        var res=await fetch("/api/transcribe",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({fileB64:b64,mediaType:pt.type||file.type||"video/mp4",filename:pt===file?(file.name||"audio.mp4"):"parte"+(i+1)+".wav"})});
+        var data=await res.json();
+        if(!res.ok||data.error)throw new Error(data.error||("Erro "+res.status));
+        txt+=(txt?" ":"")+(data.text||"").trim();
+      }
+      txt=txt.trim();
       if(!txt)throw new Error("nao consegui transcrever");
       setForm(function(f){return Object.assign({},f,{produto:(f.produto?f.produto+"\n\n":"")+"[Transcrição do vídeo] "+txt});});
       setInputModes(function(p){return Object.assign({},p,{texto:true});});
       showToast("Vídeo transcrito e adicionado na descrição!");
-    }catch(e){showToast("Não consegui transcrever. Tente um arquivo menor ou só o áudio.","err");}
+    }catch(e){showToast(/sem audio|decode|EncodingError/i.test(String(e&&(e.message||e.name)))?"Não consegui ler o áudio desse vídeo. Tente outro arquivo.":"Não consegui transcrever. Tente de novo.","err");}
     setLendoVideo(false);
   }
   async function gerarCriativo(s,estilo){
@@ -1402,6 +1443,7 @@ function App(){
   function renderIdeias(){
     var dl=dadosLoja(contaMeta),id=(dl&&dl.dossie&&dl.dossie.ideias)||null,lista=(id&&id.lista)||[];
     if(!lista.length&&carregandoConta)return esqueleto(4);
+    if(!lista.length&&erroConta&&!contaMeta)return ce("div",{className:"content"},erroCarga(tentarConta));
     if(!lista.length)return ce("div",{className:"content"},ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"\uD83D\uDCA1"),ce("div",{className:"emp-h"},"Suas ideias estão a caminho"),ce("div",{className:"emp-p"},"Assim que o Instagram e os anúncios forem conectados, o time de agentes estuda a sua conta e sugere cerca de 15 ideias de conteúdo. Elas se renovam sozinhas quando entram vídeos novos.")));
     function passa(x,f){return f==="todas"||formatoIdeia(x)===f;}
     var ops=[{id:"todas",lb:"Todas"},{id:"curto",lb:"Vídeos curtos"},{id:"narrado",lb:"Vídeos narrados"},{id:"provador",lb:"Provador"}];
@@ -1462,6 +1504,8 @@ function App(){
       recadoBanner(null),
       temDados||carregandoConta
         ?null
+        :erroConta&&!contaMeta
+        ?ce("div",{className:"nota",role:"alert",style:{marginBottom:18,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}},ce("span",{style:{flex:1,minWidth:180}},ce("b",null,"Não consegui carregar seus números. "),"Confira a internet."),ce("button",{className:"chip on",style:{minHeight:44},onClick:tentarConta},"Tentar de novo"))
         :ce("div",{className:"nota",style:{marginBottom:18}},ce("b",null,"Seus números aparecem aqui "),"assim que o Instagram e os anúncios da loja forem conectados. A equipe do MCP Studio cuida disso para você."),
       melhores?ce("div",{style:{marginBottom:22}},melhores):null,
       gravar
@@ -1474,6 +1518,7 @@ function App(){
     var dl=dadosLoja(contaMeta);
     var d=(dl&&dl.dossie)||{};
     if(!dl&&carregandoConta)return esqueleto(2,220);
+    if(!dl&&erroConta&&!contaMeta)return ce("div",{className:"content"},erroCarga(tentarConta));
     if(!dl||(!(dl.posts||[]).length&&!dl.ads&&!d.texto))return ce("div",{className:"content"},ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"📊"),ce("div",{className:"emp-h"},contaMeta?"Seus números estão a caminho":"Sua conta ainda não foi conectada"),ce("div",{className:"emp-p"},contaMeta?"Sua conta já foi conectada. Assim que os dados do Instagram e dos anúncios chegarem, seus vídeos aparecem aqui.":"A equipe do MCP Studio vai conectar seu Instagram e sua conta de anúncios. Depois disso seus vídeos aparecem aqui, atualizados todo dia.")));
     var abas=[].concat((dl.posts||[]).length?[{id:"organico",lb:"Orgânicos",ic:"ig"}]:[],dl.ads?[{id:"anuncios",lb:"Anúncios",ic:"ads"}]:[],(d.texto||d.publico)?[{id:"descobertas",lb:"Descobertas",ic:null}]:[]);
     var aba=abas.some(function(a){return a.id===videosTab;})?videosTab:abas[0].id;
@@ -1647,6 +1692,8 @@ function App(){
       recadoBanner(null),
       !projects.length&&carregandoProjetos
         ?ce("div",{role:"status","aria-label":"Carregando seus roteiros"},[0,1,2].map(function(i){return ce("div",{key:i,className:"esqueleto",style:{height:84,marginBottom:10}});}))
+        :!projects.length&&erroProjetos
+        ?erroCarga(function(){setErroProjetos(false);setCarregandoProjetos(true);carregarProjetos();})
         :!projects.length
         ?ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"📂"),ce("div",{className:"emp-h"},"Nenhum roteiro ainda"),ce("div",{className:"emp-p",style:{marginBottom:16}},"Crie o primeiro: escolha um vídeo que deu certo ou descreva a peça."),ce("button",{className:"btn-pri",style:{maxWidth:260},onClick:function(){irPara("briefing");}},"Novo roteiro"))
         :ce("div",null,
@@ -1852,7 +1899,7 @@ function App(){
           blocoReferencias(),
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"Tipo de vídeo"),
-            ce("div",{className:"obj-g"},[{id:"narrado",ic:"🗣️",lb:"Narrado",ds:"Você fala para a câmera, mostrando a peça."},{id:"curto",ic:"⚡",lb:"Curto, sem fala",ds:"De 7 a 15 segundos, cortes rápidos e texto na tela. Leva a loja a quem ainda não conhece."}].map(function(o){return ce("div",{key:o.id,className:"obj-o"+(formatoRot===o.id?" on":""),role:"button",tabIndex:0,"aria-pressed":formatoRot===o.id,onClick:function(){setFormatoRot(o.id);if(o.id==="curto")setMetodoSel("fftopo");}},ce("div",{className:"obj-ic"},o.ic),ce("div",null,ce("div",{className:"obj-lbl"},o.lb),ce("div",{className:"obj-ds"},o.ds)));}))
+            ce("div",{className:"obj-g"},[{id:"narrado",ic:"🗣️",lb:"Narrado",ds:"Você fala para a câmera, mostrando a peça."},{id:"curto",ic:"⚡",lb:"Curto, sem fala",ds:"De 7 a 15 segundos, cortes rápidos e texto na tela. Leva a loja a quem ainda não conhece."},{id:"provador",ic:"🪞",lb:"Provador",ds:"A peça provada no corpo, frente e costas, com stories. Para quem já quer comprar."}].map(function(o){return ce("div",{key:o.id,className:"obj-o"+(formatoRot===o.id?" on":""),role:"button",tabIndex:0,"aria-pressed":formatoRot===o.id,onClick:function(){setFormatoRot(o.id);if(o.id==="curto")setMetodoSel("fftopo");if(o.id==="provador")setMetodoSel("fffundo");}},ce("div",{className:"obj-ic"},o.ic),ce("div",null,ce("div",{className:"obj-lbl"},o.lb),ce("div",{className:"obj-ds"},o.ds)));}))
           ),
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"01 - Qual o objetivo do vídeo?"),
@@ -1861,7 +1908,7 @@ function App(){
           ),
           ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"02 - Qual peça ou produto?"),
-            ce("div",{style:{margin:"0 0 14px"}},ce("label",{style:{display:"inline-flex",alignItems:"center",gap:8,cursor:lendoVideo?"wait":"pointer",border:"1px dashed var(--boh)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"var(--ac2)",background:"var(--sur2)"}},ce("input",{type:"file",accept:"video/*,audio/*",style:{display:"none"},disabled:lendoVideo,onChange:function(e){if(e.target.files&&e.target.files[0]){transcreverArquivo(e.target.files[0]);e.target.value="";}}}),lendoVideo?"Transcrevendo...":"Tem um vídeo ou áudio curto? Envie e a IA transcreve")),
+            ce("div",{style:{margin:"0 0 14px"}},ce("label",{style:{display:"inline-flex",alignItems:"center",gap:8,cursor:lendoVideo?"wait":"pointer",border:"1px dashed var(--boh)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"var(--ac2)",background:"var(--sur2)"}},ce("input",{type:"file",accept:"video/*,audio/*",style:{display:"none"},disabled:lendoVideo,onChange:function(e){if(e.target.files&&e.target.files[0]){transcreverArquivo(e.target.files[0]);e.target.value="";}}}),lendoVideo?"Transcrevendo... (vídeo longo leva até 1 minuto)":"Tem um vídeo ou áudio (até 5 minutos)? Envie e a IA transcreve")),
             ce("div",{className:"fi"},ce("label",null,"Sobre a peça"+(referencia?" (opcional)":"")),ce(CampoTexto,{placeholder:"Ex.: calça pantalona de alfaiataria, R$ 129,90, tecido que não amassa, do 36 ao 46, cores preta e bege.",value:form.produto,refValor:produtoRef,onChange:function(x){setForm(function(f){return Object.assign({},f,{produto:x});});}})),
             ce("div",{className:"chips",style:{marginBottom:12}},[{id:"url",ic:"Colar um link"},{id:"imagem",ic:"Enviar fotos"}].map(function(m){return ce("button",{key:m.id,className:"chip"+(inputModes[m.id]?" on":""),onClick:function(){togMode(m.id);}},(inputModes[m.id]?"\u2713 ":"+ ")+m.ic);})),
             inputModes.url&&ce("div",{className:"fi"},ce("label",null,"Link da peça no site ou de um post do Instagram"),ce("input",{placeholder:"https://seusite.com.br ou https://instagram.com/p/...",value:form.url,onChange:function(e){setForm(function(f){return Object.assign({},f,{url:e.target.value});});}}),(form.url&&(form.url.indexOf("instagram.com")>-1||form.url.indexOf("instagr.am")>-1))&&ce("div",{style:{fontSize:11,color:"var(--ok)",marginTop:4}},"\u2713 Post do Instagram: a IA vai analisar a peça, o público, o tom e os argumentos")),

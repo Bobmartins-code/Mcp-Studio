@@ -14,8 +14,12 @@
 //    3. Conferencia automatica (travessao, "nao e X, e Y", palavras de IA,
 //       numero que nao esta nos dados, gancho longo) e revisor em todas as
 //       rodadas, com a lista do que a conferencia achou.
-//  Os dados da loja (dossie, voz, ganchos, duvidas do publico, memoria do
-//  time e produtos do momento) sao montados aqui, direto do banco.
+//  Os dados da loja (dossie, oportunidades cruzadas, voz, ganchos, duvidas do
+//  publico, memoria do time e produtos do momento) sao montados aqui, direto do banco.
+//  Roteiro que vem de uma IDEIA: a ideia inteira chega com as provas e o post que a
+//  inspirou (numeros, fala e como e o video), e os 3 roteiros sao 3 jeitos de gravar
+//  essa mesma ideia (mesmo formato, peca e prova; muda o comeco e a ordem das cenas).
+//  Formatos: narrado, curto (sem fala) e provador (com stories).
 // =====================================================================
 
 const crypto = require("crypto");
@@ -23,6 +27,7 @@ const { banco, acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
 const { diaSP } = require("./_coleta.js");
 const { SISTEMA: AGENTE } = require("./_agente-mcp.js");
 const { conversa: T } = require("./_time-agentes.js");
+const { aplicarMeta } = require("./_meta-leitura.js");
 const { registrarFalha } = require("./_uso-ia.js");
 
 const ROTEIRISTA = "claude-opus-5-5", AJUDANTE = "claude-sonnet-5";
@@ -42,6 +47,23 @@ const ESTRUTURAS = [
     "história: algo que aconteceu na loja ou com uma cliente, contado como conversa (só com fatos dos dados)",
     "experiência de quem faz: o que a dona aprendeu vendendo, com a lição concreta"
 ];
+const ESTRUTURAS_CURTO = [
+    "revelação: abre num close que desperta curiosidade (tecido, etiqueta, caimento) e abre para o look inteiro",
+    "sequência: a mesma ação repetida no mesmo enquadramento, cada corte mostrando algo novo da peça",
+    "começa pelo resultado: abre no momento mais bonito do look pronto e volta para mostrar como chegou nele"
+];
+const ESTRUTURAS_PROVADOR = [
+    "prova completa: frente, costas, lateral e movimento, com o tamanho e o caimento falados",
+    "dúvida respondida: abre com a dúvida mais pedida pelas clientes e responde provando no corpo",
+    "comparação: dois tamanhos, duas cores ou dois jeitos de usar, lado a lado, com o que muda em cada um"
+];
+const ESTRUTURAS_POR_FORMATO = { narrado: ESTRUTURAS, curto: ESTRUTURAS_CURTO, provador: ESTRUTURAS_PROVADOR };
+// roteiro a partir de uma ideia: 3 jeitos de gravar a mesma ideia
+const JEITOS = {
+    curto: ["fiel à ideia: siga os passos da ideia na ordem, deixando o primeiro segundo ainda mais forte", "começa pelo resultado: abre no momento mais bonito da ideia e volta para mostrar como chegou nele", "começa pelo detalhe: abre num close que desperta curiosidade e abre para a ideia inteira"],
+    narrado: ["fiel à ideia: siga a ideia na ordem, com o argumento principal nas primeiras frases", "começa pela cliente: abre na dúvida ou na situação dela e a peça da ideia resolve", "demonstração: mostra na prática enquanto fala, provando o que a ideia promete"],
+    provador: ["fiel à ideia: frente, costas, lateral e movimento, na ordem da ideia", "começa pela dúvida: abre com a dúvida mais pedida e responde provando no corpo", "comparação: dois tamanhos, duas cores ou dois jeitos de usar, lado a lado"]
+};
 const FECHAMENTOS = [
     "a conclusão da dona e um convite direto para o destino",
     "um convite leve, amarrado a um benefício concreto da peça",
@@ -69,6 +91,7 @@ const ESQ_ROTEIRO = T.objeto({
             texto_tela: txt("Texto escrito por cima do vídeo nesta cena, curto (até 6 palavras), ou vazio.")
         })
     },
+    stories: lst("Só no provador: de 3 a 5 stories que continuam o Reels (o look, a sensação, o detalhe, uma enquete ou caixinha e o convite para o direct). Nos outros formatos, lista vazia."),
     texto_capa: txt("Texto da capa do Reels, até 6 palavras."),
     legenda: txt("Legenda do post, de 1 a 3 frases, no jeito da dona, terminando com o convite."),
     hashtags: lst("De 3 a 5 hashtags específicas do nicho e da cidade, sem o símbolo repetido e sem hashtag genérica como #instagood."),
@@ -90,6 +113,8 @@ function dadosDaLoja(dossie, memoria, loja, metodo) {
     const d = dossie || {}, p = [], pub = d.publico || {}, g = d.ganchos || {}, v = d.voz || {};
     if (d.texto) p.push("DOSSIÊ DA CONTA (o time de agentes, com os números reais dos últimos 90 dias do Instagram e dos anúncios desta loja; é a fonte mais importante para decidir assunto, gancho e argumento): " + d.texto);
     if (d.por_metodo && d.por_metodo[metodo]) p.push("ORIENTAÇÃO DO TIME PARA ESTE MÉTODO NESTA CONTA: " + d.por_metodo[metodo]);
+    const ops = T.textoOportunidades(d.oportunidades);
+    if (ops) p.push(ops.trim());
     if ((v.falas || []).length) p.push("VOZ DA LOJA (falas reais da dona nos vídeos que mais deram certo; estude como ela abre, desenvolve e fecha, e escreva nesse jeito, sem copiar as frases): " + v.falas.map(function (t, i) { return "[" + (i + 1) + "] " + t; }).join(" "));
     if ((v.comentarios || []).length) p.push("COMENTÁRIOS REAIS DAS CLIENTES (use as palavras delas): " + v.comentarios.slice(0, 12).map(aspas).join(" | "));
     const duvidas = [].concat(pub.objecoes || [], pub.motivos_nao_compra || []).slice(0, 10);
@@ -107,10 +132,48 @@ function dadosDaLoja(dossie, memoria, loja, metodo) {
     if (lj) p.push(lj);
     return p.join("\n\n");
 }
+// ---------- ideia escolhida (vem do app; tudo cortado antes de ir para a IA) ----------
+const FORMATOS = ["curto", "narrado", "provador"];
+function limparIdeia(i) {
+    if (!i || typeof i !== "object" || !i.titulo) return null;
+    const lista = function (v, n, m) { return (Array.isArray(v) ? v : []).slice(0, n).map(function (x) { return corta(x, m); }).filter(Boolean); };
+    const insp = i.inspirado && typeof i.inspirado === "object" ? { tipo: i.inspirado.tipo === "anuncio" ? "anuncio" : "post", link: corta(i.inspirado.link, 300), legenda: corta(i.inspirado.legenda, 200) } : null;
+    return { titulo: corta(i.titulo, 200), formato: FORMATOS.indexOf(i.formato) > -1 ? i.formato : "narrado", gancho: corta(i.gancho, 400), passos: lista(i.passos, 10, 200), texto_na_tela: corta(i.texto_na_tela, 200), fala: corta(i.fala, 1200), stories: lista(i.stories, 6, 200), peca: corta(i.peca, 200), por_que: corta(i.por_que, 600), metrica: corta(i.metrica, 300), mecanica: corta(i.mecanica, 80), inspirado: insp };
+}
+function codigoDoLink(l) { const m = String(l || "").match(/\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/); return m ? m[1] : ""; }
+// o post ou anuncio que inspirou a ideia, com os numeros, a fala e como e o video
+function provaDoInspirador(conta, insp) {
+    if (!insp || !insp.link || !conta || !conta.metricas) return "";
+    const met = JSON.parse(JSON.stringify(conta.metricas));
+    aplicarMeta(met, conta.meta || null);
+    T.ligarPostsAosAnuncios(met);
+    const cod = codigoDoLink(insp.link);
+    if (!cod) return "";
+    const post = ((met.organico && met.organico.posts) || []).find(function (p) { return codigoDoLink(p.link) === cod; });
+    if (post) return T.linhaPost(Object.assign({}, post), 0).replace(/^P1\) /, "");
+    const ads = T.anunciosDaLoja(met);
+    const ad = ads && ads.lista.find(function (a) { return codigoDoLink(a.post_link) === cod; });
+    return ad ? T.linhaAnuncio(ads.tipo, ad, 0).replace(/^A1\) /, "ANÚNCIO: ") : "";
+}
+function textoDaIdeia(i, prova) {
+    if (!i) return "";
+    return "IDEIA ESCOLHIDA PELA DONA (a base dos roteiros; cada roteiro é um jeito de gravar ESTA ideia: mantenha o formato, a peça, a mecânica e a prova, e mude o começo, a ordem das cenas e o fechamento):\n" +
+        "título: " + i.titulo + " | formato: " + i.formato + (i.mecanica ? " | mecânica: " + i.mecanica : "") + (i.peca ? " | peça: " + i.peca : "") +
+        "\nprimeiro segundo: " + (i.gancho || "-") + (i.passos.length ? "\npassos: " + i.passos.join(" / ") : "") + (i.texto_na_tela ? "\ntexto na tela: " + i.texto_na_tela : "") +
+        (i.fala ? "\npontos da fala: " + i.fala : "") + (i.stories.length ? "\nstories: " + i.stories.join(" / ") : "") +
+        (i.por_que ? "\npor que funciona nesta loja (a prova): " + i.por_que : "") + (i.metrica ? "\ncomo saber se deu certo: " + i.metrica : "") +
+        (prova ? "\nPOST QUE INSPIROU A IDEIA: " + prova : (i.inspirado && i.inspirado.legenda ? "\ninspirada no " + (i.inspirado.tipo === "anuncio" ? "anúncio" : "post") + ": " + i.inspirado.legenda : ""));
+}
+// a ideia vai no comeco do pedido e vale mais que a lista geral de produtos da loja
+function ideiaNoTopo(ideia, prova) {
+    if (!ideia) return "";
+    return textoDaIdeia(ideia, prova) + "\nA peça dos roteiros é a da IDEIA ESCOLHIDA. Se o pedido da dona ou os produtos da loja citarem outras peças, elas são só contexto, a não ser que a dona peça outra peça de forma clara. A prova da ideia é para você, e não para a cliente: no vídeo, não fale de anúncio, de números da loja nem do que a loja postou antes.\n\n";
+}
 // tamanho calibrado pelo tempo que o publico desta conta assiste
 function tamanho(dossie, formato) {
     const t = Number(dossie && dossie.tempo_medio_conta) || 0;
     if (formato === "curto") return "DURAÇÃO: de 7 a 15 segundos, com cortes de 1 a 2 segundos.";
+    if (formato === "provador") return "DURAÇÃO: de 15 a 35 segundos no Reels, e os stories continuam depois.";
     if (!t) return "DURAÇÃO: de 25 a 45 segundos de fala.";
     const palavras = Math.max(20, Math.round(t * 2.6)), min = Math.max(15, Math.round(t * 1.6)), max = Math.min(45, Math.max(25, Math.round(t * 3)));
     return "DURAÇÃO CALIBRADA PARA ESTA CONTA: o público assiste em média " + String(t).replace(".", ",") + " segundos. O gancho e o argumento principal cabem nas primeiras " + palavras + " palavras da fala, e o vídeo inteiro fica entre " + min + " e " + max + " segundos.";
@@ -142,9 +205,13 @@ function semTravessao(v) {
 
 // ---------- pedidos para a IA ----------
 function regrasDoFormato(formato) {
-    if (formato !== "curto") return "FORMATO: vídeo narrado, a dona falando para a câmera. Em cenas, cada fala vem com o que aparece na imagem e o texto na tela, para ela gravar direto do celular e quem assiste sem som entender.";
-    return "FORMATO: VÍDEO CURTO SEM FALA, de topo de funil. " + ((T.ESPECIALISTAS.curto || {}).texto || "") +
-        "\nNeste formato: gancho = o que aparece e o texto no primeiro segundo; corpo = a sequência de tomadas em poucas palavras; cta = o texto final na tela; cenas = de 4 a 8 tomadas com fala vazia, o que aparece e o texto na tela; aberturas_extras = 2 outros primeiros segundos.";
+    if (formato === "provador") return "FORMATO: PROVADOR, a peça provada no corpo, no espelho ou no provador da loja, para quem já quer comprar e tem dúvida (vai vestir bem em mim?). Em cenas: frente, costas, lateral e movimento; close no tecido, na costura e no detalhe; a dona diz o tamanho que está usando e a altura dela (se não estiverem nos dados, escreva [seu tamanho] e [sua altura] para ela completar), o tecido, os tamanhos disponíveis e o preço só se estiverem nos dados; responde à objeção principal das clientes; fecha chamando para o direct com uma palavra. Em stories, de 3 a 5 stories que continuam o Reels: o look, a sensação (leve, confortável, veste bem), o detalhe, uma enquete ou caixinha e o convite para o direct. Diga onde fica o celular (apoiado de frente para o espelho, na altura do peito).";
+    if (formato !== "curto") return "FORMATO: vídeo narrado, a dona falando para a câmera. Em cenas, cada fala vem com o que aparece na imagem e o texto na tela, para ela gravar direto do celular e quem assiste sem som entender. Stories fica vazio.";
+    const esp = String((T.ESPECIALISTAS.curto || {}).texto || "");
+    const bom = esp.split("DE ONDE VEM A MECÂNICA")[0], proibido = (esp.match(/PROIBIDO[^\n]*/) || [""])[0];
+    return "FORMATO: VÍDEO CURTO SEM FALA, de topo de funil. " + bom + (proibido ? proibido + "\n" : "") +
+        "Se vier COMO É O VÍDEO do post que inspirou, repita o jeito de gravar dele (primeiro segundo, cenário, transição, ritmo) com a peça desta ideia." +
+        "\nNeste formato não há fala: o método vale só como intenção (chamar a atenção de quem ainda não conhece a loja). Gancho = o que aparece e o texto no primeiro segundo; corpo = a sequência de tomadas em poucas palavras; cta = o texto final na tela; cenas = de 4 a 8 tomadas com fala vazia, o que aparece e o texto na tela; aberturas_extras = 2 outros primeiros segundos; stories vazio.";
 }
 function pedidoRoteiro(base, k, total, estrutura, pergunta, jaUsados, fechamento) {
     return [
@@ -157,27 +224,30 @@ function pedidoRoteiro(base, k, total, estrutura, pergunta, jaUsados, fechamento
             (jaUsados.length ? " Ganchos que já existem neste projeto (comece de outro jeito): " + jaUsados.slice(-12).map(aspas).join(" | ") : "") }
     ];
 }
-function pedidoRevisor(r, achados, vozLoja, destino, formato) {
-    return "Você é o REVISOR do MCP Studio. Releia o roteiro abaixo antes de a dona receber. O objetivo é que ele soe como a própria dona falando, e não como texto de IA ou de anúncio.\n" +
-        "Passe por estes testes: 1) lido em voz alta, soa como uma pessoa conversando, com frases de tamanhos variados e contrações (pra, tá, né)? 2) se outra loja pudesse falar a mesma frase, troque por um detalhe concreto dos dados; 3) a dona falaria com essas palavras? 4) sem marcas de IA (molde 'não é X, é Y', três palavras em sequência, palavras de efeito vazias, travessão); 5) a venda aparece só no final, de leve; 6) nada de palavra em inglês além de Reels, stories, direct, close e POV.\n" +
-        (achados.length ? "A CONFERÊNCIA AUTOMÁTICA ACHOU E VOCÊ PRECISA CORRIGIR: " + achados.join("; ") + ".\n" : "") +
-        "Mantenha o que está bom, o mesmo assunto, a mesma estrutura, um tamanho parecido e o mesmo destino (" + destino + "). Use só fatos que já estão no roteiro ou nos dados. Ajuste as cenas, as aberturas extras, a capa e a legenda junto com o texto." +
-        (formato === "curto" ? " É um vídeo curto sem fala: as falas das cenas ficam vazias." : "") +
-        (vozLoja ? "\n" + vozLoja : "") + "\n\nROTEIRO: " + JSON.stringify(r);
+function pedidoRevisor(base, r, achados, destino, formato, temIdeia) {
+    return [
+        { type: "text", text: base, cache_control: { type: "ephemeral" } },
+        { type: "text", text: "AGORA VOCÊ É O REVISOR do MCP Studio. Releia o roteiro abaixo antes de a dona receber, usando os DADOS DESTA LOJA acima. O objetivo é que ele seja desta loja e soe como a própria dona, e não como texto de IA ou de anúncio.\n" +
+            "Confira nesta ordem e reescreva só o que falhar: " + (temIdeia ? "0) é fiel à IDEIA ESCOLHIDA (mesmo formato, peça, mecânica e prova)? " : "") + "1) se outra loja pudesse usar a mesma frase, troque por um detalhe concreto dos dados acima (a peça, a dúvida real das clientes, o número que prova); 2) algum preço, número, estoque ou promoção que não está nos dados? tire; 3) lido em voz alta, soa como uma pessoa conversando, com frases de tamanhos variados e contrações (pra, tá, né)? 4) a dona falaria com essas palavras? 5) sem marcas de IA (molde 'não é X, é Y', três palavras em sequência, palavras de efeito vazias, travessão); 6) a venda aparece só no final, de leve; 7) nada de palavra em inglês além de Reels, stories, direct, close e POV.\n" +
+            (achados.length ? "A CONFERÊNCIA AUTOMÁTICA ACHOU E VOCÊ PRECISA CORRIGIR: " + achados.join("; ") + ".\n" : "") +
+            "Mantenha o que está bom, a mesma estrutura, um tamanho parecido e o mesmo destino (" + destino + "). Ajuste as cenas, as aberturas extras, a capa, a legenda e os stories junto com o texto." +
+            (formato === "curto" ? " É um vídeo curto sem fala: as falas das cenas ficam vazias." : "") +
+            "\n\nROTEIRO: " + JSON.stringify(r) }
+    ];
 }
 async function fazerDirecao(uid, contexto, dados, metodo, imagens, prazo) {
-    const texto = "Antes de escrever os roteiros de Reels, monte a DIREÇÃO do conteúdo para o método " + METODOS[metodo].nome + ". Frases curtas e simples, específicas deste negócio.\n\n" + contexto + (dados ? "\n\n" + corta(dados, 6000) : "");
+    const texto = "Antes de escrever os roteiros de Reels, monte a DIREÇÃO do conteúdo para o método " + METODOS[metodo].nome + ". Frases curtas e simples, específicas deste negócio." + (/IDEIA ESCOLHIDA/.test(dados || "") ? " A direção sai da IDEIA ESCOLHIDA: o público, a mensagem e a chamada são os dela." : "") + "\n\n" + contexto + (dados ? "\n\n" + corta(dados, 14000) : "");
     const pedido = (imagens || []).length ? imagens.concat([{ type: "text", text: "As imagens acima são do produto. " + texto }]) : texto;
     return T.perguntar(uid, { nome: "Direcao do roteiro", esquema: ESQ_DIRECAO, pedido: pedido, max: 3000, modelo: AJUDANTE, effort: "low", sistema: AGENTE, prazo: prazo });
 }
 async function umRoteiro(uid, sistema, conteudo, aoComecar, prazo) {
     return T.perguntar(uid, { nome: "Roteiro", esquema: ESQ_ROTEIRO, pedido: conteudo, max: 12000, modelo: ROTEIRISTA, effort: "high", sistema: sistema, prazo: prazo }, aoComecar);
 }
-async function revisar(uid, r, achados, vozLoja, destino, formato, prazo) {
+async function revisar(uid, sistema, base, r, achados, destino, formato, temIdeia, prazo) {
     // sem tempo para revisar com calma, o roteiro sai como esta (a conferencia ja limpou o travessao)
     if (prazo && prazo - Date.now() < 45000) return r;
     try {
-        const n = await T.perguntar(uid, { nome: "Revisor", esquema: ESQ_ROTEIRO, pedido: pedidoRevisor(r, achados, vozLoja, destino, formato), max: 8000, modelo: ROTEIRISTA, effort: "medium", sistema: AGENTE, prazo: prazo });
+        const n = await T.perguntar(uid, { nome: "Revisor", esquema: ESQ_ROTEIRO, pedido: pedidoRevisor(base, r, achados, destino, formato, temIdeia), max: 8000, modelo: ROTEIRISTA, effort: "medium", sistema: sistema, prazo: prazo });
         return Object.assign({}, r, n, { revisado: true });
     } catch (e) { console.error("[roteiros] revisor: " + (e && e.message)); return r; }
 }
@@ -187,6 +257,7 @@ function limpar(r, formato) {
     // hashtag sem acento e sem espaco, do jeito que o Instagram agrupa
     r.hashtags = (r.hashtags || []).map(function (h) { return "#" + String(h).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/^#+/, "").replace(/\s+/g, "").toLowerCase(); }).filter(function (h) { return h.length > 1; }).slice(0, 5);
     r.cenas = (r.cenas || []).slice(0, 12).map(function (c) { return { fala: formato === "curto" ? "" : c.fala || "", na_tela: c.na_tela || "", texto_tela: c.texto_tela || "" }; });
+    r.stories = formato === "provador" ? (r.stories || []).filter(Boolean).slice(0, 6) : [];
     return r;
 }
 
@@ -216,10 +287,12 @@ function todosDoProjeto(rods) { const v = []; (rods || []).forEach(function (r) 
 
 // ---------- uma rodada inteira ----------
 async function gerarRodada(uid, proj, pedido, carregado) {
-    const metodo = METODOS[pedido.metodo] ? pedido.metodo : "fftopo", formato = pedido.formato === "curto" ? "curto" : "narrado";
+    const ideia = carregado.ideia || null;
+    const formato = ideia ? ideia.formato : (FORMATOS.indexOf(pedido.formato) > -1 ? pedido.formato : "narrado");
+    const metodo = METODOS[pedido.metodo] ? pedido.metodo : (formato === "provador" ? "fffundo" : "fftopo");
     const grava = gravador(proj.id, uid);
     const rods0 = proj.rodadas || [];
-    const dossie = carregado.dossie || {}, dados = dadosDaLoja(dossie, carregado.memoria, carregado.loja, metodo);
+    const dossie = carregado.dossie || {}, dados = dadosDaLoja(dossie, carregado.memoria, carregado.loja, metodo), ideiaTxt = ideiaNoTopo(ideia, carregado.prova);
     const destino = DESTINOS[(proj.form && proj.form.objetivo) || proj.objetivo] || DESTINOS.site;
     const contexto = "NEGÓCIO E PEDIDO DA DONA:\n" + corta(pedido.contexto, 12000) + "\nDESTINO DOS ROTEIROS: " + destino + ".";
     // a rodada aparece na hora como "escrevendo"
@@ -230,7 +303,7 @@ async function gerarRodada(uid, proj, pedido, carregado) {
     // 1. direcao (sem a dona preencher nada)
     let direcao = pedido.direcao || null;
     if (!direcao) {
-        try { direcao = await fazerDirecao(uid, contexto, dados, metodo, pedido.imagens, pedido.prazo); } catch (e) { console.error("[roteiros] direcao: " + (e && e.message)); }
+        try { direcao = await fazerDirecao(uid, contexto, ideiaTxt + dados, metodo, pedido.imagens, pedido.prazo); } catch (e) { console.error("[roteiros] direcao: " + (e && e.message)); }
         if (direcao) {
             await grava(mexeNaRodada(rid, function (r) { r.direcao = direcao; return r; }));
             if (pedido.renomear && direcao.nome) await banco("projetos?id=eq." + encodeURIComponent(proj.id) + "&user_id=eq." + encodeURIComponent(uid), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { nome: corta(direcao.nome, 40), form: Object.assign({}, proj.form || {}, { nicho: direcao.nicho }) } }).catch(function () {});
@@ -239,12 +312,12 @@ async function gerarRodada(uid, proj, pedido, carregado) {
     // 2. os roteiros, ao mesmo tempo
     const sistema = AGENTE + "\n\n" + regrasDoFormato(formato);
     const dirTxt = direcao ? "DIREÇÃO DO CONTEÚDO (siga em todos os roteiros; a chamada é a base do fechamento): objetivo: " + direcao.objetivo + " | público: " + direcao.publico + " | mensagem principal: " + direcao.mensagem + " | chamada: " + direcao.chamada : "";
-    const base = "MÉTODO DESTA RODADA: " + METODOS[metodo].nome + " (código " + metodo + "). Siga esse método da sua base de métodos.\n" + tamanho(dossie, formato) + "\n\n" + contexto + "\n\n" + dirTxt + (dados ? "\n\nDADOS DESTA LOJA:\n" + dados : "");
+    const base = ideiaTxt + (formato === "curto" ? "" : "MÉTODO DESTA RODADA: " + METODOS[metodo].nome + " (código " + metodo + "). Siga esse método da sua base de métodos.\n") + tamanho(dossie, formato) + "\n\n" + contexto + "\n\n" + dirTxt + (dados ? "\n\nDADOS DESTA LOJA:\n" + dados : "");
     const fonteNumeros = base;
     const jaUsados = todosDoProjeto(rods0).map(function (s) { return corta(s.gancho, 160); }).filter(Boolean);
-    const ini = (numero - 1) * 2;
-    const estruturas = Array.from({ length: quantos }, function (_, i) { return ESTRUTURAS[(ini + i) % ESTRUTURAS.length]; });
-    const vozLoja = ((dossie.voz || {}).falas || []).length ? "VOZ DA LOJA: " + dossie.voz.falas.map(function (t, i) { return "[" + (i + 1) + "] " + corta(t, 900); }).join(" ") : "";
+    // com ideia: 3 jeitos de gravar a mesma ideia; sem ideia: estruturas do formato, girando entre as rodadas
+    const lista = ideia ? JEITOS[formato] : ESTRUTURAS_POR_FORMATO[formato], ini = ideia ? 0 : (numero - 1) * 2;
+    const estruturas = Array.from({ length: quantos }, function (_, i) { return lista[(ini + i) % lista.length]; });
     const maxAntes = Math.max(0, ...todosDoProjeto(rods0).map(function (s) { return Number(s.id) || 0; }));
     let feitos = 0, falhas = 0;
     async function fazer(i, aoComecar) {
@@ -255,9 +328,9 @@ async function gerarRodada(uid, proj, pedido, carregado) {
         }
         if (!r) { falhas++; registrarFalha(uid, "roteiro", "um roteiro da rodada não saiu"); return; }
         r = limpar(r, formato);
-        r = limpar(await revisar(uid, r, conferir(r, fonteNumeros), vozLoja, destino, formato, pedido.prazo), formato);
+        r = limpar(await revisar(uid, sistema, base, r, conferir(r, fonteNumeros), destino, formato, !!ideia, pedido.prazo), formato);
         const sobrou = conferir(r, fonteNumeros);
-        const roteiro = Object.assign({ id: maxAntes + i + 1, metodo: metodo, formato: formato, pilar: METODOS[metodo].pilar, funil: METODOS[metodo].funil, estrutura: estruturas[i].split(":")[0], ordem: i }, r, sobrou.length ? { avisos: sobrou } : {});
+        const roteiro = Object.assign({ id: maxAntes + i + 1, metodo: metodo, formato: formato, ideia: ideia ? ideia.titulo : undefined, pilar: METODOS[metodo].pilar, funil: METODOS[metodo].funil, estrutura: estruturas[i].split(":")[0], ordem: i }, r, sobrou.length ? { avisos: sobrou } : {});
         const salvo = await grava(mexeNaRodada(rid, function (rd) {
             const lista = ((rd.resultado && rd.resultado.roteiros) || []).concat([roteiro]).sort(function (a, b) { return (a.ordem || 0) - (b.ordem || 0); });
             rd.resultado = Object.assign({}, rd.resultado, { roteiros: lista });
@@ -285,17 +358,19 @@ async function refazerRoteiro(uid, proj, pedido, carregado) {
     let alvo = null, rodada = null;
     rods.forEach(function (rd) { ((rd.resultado && rd.resultado.roteiros) || []).forEach(function (s) { if (String(s.id) === String(pedido.roteiro_id)) { alvo = s; rodada = rd; } }); });
     if (!alvo) { const e = new Error("Não achei esse roteiro."); e.status = 404; throw e; }
-    const metodo = METODOS[alvo.metodo] ? alvo.metodo : (METODOS[rodada.metodo] ? rodada.metodo : "fftopo"), formato = alvo.formato || rodada.formato || "narrado";
+    const metodo = METODOS[alvo.metodo] ? alvo.metodo : (METODOS[rodada.metodo] ? rodada.metodo : "fftopo"), formato = FORMATOS.indexOf(alvo.formato || rodada.formato) > -1 ? (alvo.formato || rodada.formato) : "narrado";
+    const ideia = carregado.ideia || null;
     const dossie = carregado.dossie || {}, dados = dadosDaLoja(dossie, carregado.memoria, carregado.loja, metodo);
     const destino = DESTINOS[(proj.form && proj.form.objetivo) || proj.objetivo] || DESTINOS.site;
     const dir = rodada.direcao;
-    const base = "MÉTODO: " + METODOS[metodo].nome + " (código " + metodo + ").\n" + tamanho(dossie, formato) + "\n\nNEGÓCIO E PEDIDO DA DONA:\n" + corta(pedido.contexto, 12000) + "\nDESTINO: " + destino + "." +
+    const base = ideiaNoTopo(ideia, carregado.prova) + "MÉTODO: " + METODOS[metodo].nome + " (código " + metodo + ").\n" + tamanho(dossie, formato) + "\n\nNEGÓCIO E PEDIDO DA DONA:\n" + corta(pedido.contexto, 12000) + "\nDESTINO: " + destino + "." +
         (dir ? "\n\nDIREÇÃO DO CONTEÚDO: objetivo: " + dir.objetivo + " | público: " + dir.publico + " | mensagem: " + dir.mensagem + " | chamada: " + dir.chamada : "") + (dados ? "\n\nDADOS DESTA LOJA:\n" + dados : "");
-    const outra = ESTRUTURAS.find(function (e) { return e.split(":")[0] !== alvo.estrutura; }) || ESTRUTURAS[0];
-    const conteudo = [{ type: "text", text: base }, { type: "text", text: "SUA TAREFA: escreva UM roteiro novo para substituir este, que a dona não quis: " + aspas(corta(alvo.gancho, 300)) + ". Use a estrutura " + outra + " e um começo bem diferente." }];
-    let r = limpar(await umRoteiro(uid, AGENTE + "\n\n" + regrasDoFormato(formato), conteudo, null, pedido.prazo), formato);
-    const vozLoja = ((dossie.voz || {}).falas || []).length ? "VOZ DA LOJA: " + dossie.voz.falas.map(function (t, i) { return "[" + (i + 1) + "] " + corta(t, 900); }).join(" ") : "";
-    r = limpar(await revisar(uid, r, conferir(r, base), vozLoja, destino, formato, pedido.prazo), formato);
+    const opcoes = ideia ? JEITOS[formato] : ESTRUTURAS_POR_FORMATO[formato];
+    const outra = opcoes.find(function (e) { return e.split(":")[0] !== alvo.estrutura; }) || opcoes[0];
+    const sistema = AGENTE + "\n\n" + regrasDoFormato(formato);
+    const conteudo = [{ type: "text", text: base, cache_control: { type: "ephemeral" } }, { type: "text", text: "SUA TAREFA: escreva UM roteiro novo para substituir este, que a dona não quis: " + aspas(corta(alvo.gancho, 300)) + ". Use a estrutura " + outra + " e um começo bem diferente." }];
+    let r = limpar(await umRoteiro(uid, sistema, conteudo, null, pedido.prazo), formato);
+    r = limpar(await revisar(uid, sistema, base, r, conferir(r, base), destino, formato, !!ideia, pedido.prazo), formato);
     const novo = Object.assign({}, alvo, r, { estrutura: outra.split(":")[0], editado: true, liked: false, vendeu: false, copiado: 0, gravado: false, gravado_em: null, avisos: undefined });
     await gravador(proj.id, uid)(function (rs) {
         return rs.map(function (rd) { return Object.assign({}, rd, { resultado: Object.assign({}, rd.resultado, { roteiros: ((rd.resultado && rd.resultado.roteiros) || []).map(function (s) { return String(s.id) === String(alvo.id) ? novo : s; }) }) }); });
@@ -338,12 +413,15 @@ module.exports = async function handler(req, res) {
         const id = encodeURIComponent(uid);
         const [projs, contas, lojas] = await Promise.all([
             banco("projetos?id=eq." + encodeURIComponent(b.projeto_id) + "&user_id=eq." + id + "&select=id,nome,objetivo,form,rodadas"),
-            banco("contas_meta?user_id=eq." + id + "&select=dossie,memoria").catch(function () { return []; }),
+            banco("contas_meta?user_id=eq." + id + "&select=dossie,memoria" + (b.ideia || b.acao === "refazer" ? ",metricas,meta" : "")).catch(function () { return []; }),
             banco("lojas?user_id=eq." + id + "&select=produtos_dona,produtos_dona_em,produtos_admin").catch(function () { return []; })
         ]);
         const proj = projs && projs[0];
         if (!proj) return res.status(404).json({ error: "Não achei esse projeto." });
         const carregado = { dossie: (contas && contas[0] && contas[0].dossie) || {}, memoria: (contas && contas[0] && contas[0].memoria) || {}, loja: (lojas && lojas[0]) || {} };
+        // a ideia que originou o projeto (fica no projeto para "Gerar mais" e "Refazer")
+        carregado.ideia = limparIdeia(b.ideia) || limparIdeia(proj.form && proj.form.ideia);
+        if (carregado.ideia) { try { carregado.prova = corta(provaDoInspirador(contas && contas[0], carregado.ideia.inspirado), 2500); } catch (e) { console.error("[roteiros] prova: " + (e && e.message)); } }
         // a direcao sempre e feita aqui (nada vindo do navegador entra sem corte no pedido a IA)
         const pedido = { metodo: b.metodo, formato: b.formato, contexto: String(b.contexto || "").slice(0, 12000), direcao: null, imagens: imagens, renomear: !!b.renomear, roteiro_id: b.roteiro_id, quantos: b.quantos, prazo: inicio + 270000 };
         const acao = b.acao === "refazer" || b.acao === "ajustar" ? b.acao : "gerar";

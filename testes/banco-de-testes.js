@@ -99,12 +99,21 @@ async function rodarCaso(caso) {
     if (ARG.so !== "roteiros") {
         const p = { org: caso.dossie.organico && caso.dossie.organico.relatorio, ads: caso.dossie.anuncios && caso.dossie.anuncios.relatorio, pub: caso.dossie.publico, mem: null };
         const t0 = Date.now();
-        if (X.pedidoDiretor) { await X.rodarAgora(ctx, [X.pedidoDiretor(ctx, p)], p); out.oportunidades = ((p.dir && p.dir.oportunidades) || []).map(function (o) { return o.titulo; }); }
-        await X.rodarAgora(ctx, X.pedidosEspecialistas(ctx, p, []), p);
-        await X.rodarAgora(ctx, [X.pedidoCurador(ctx, p)], p);
+        const tempo = {}, marca = function (k, t) { tempo[k] = Math.round((Date.now() - t) / 1000); };
+        let tt = Date.now();
+        if (X.pedidoDiretor) { await X.rodarAgora(ctx, [X.pedidoDiretor(ctx, p)], p); marca("diretor", tt); out.oportunidades = ((p.dir && p.dir.oportunidades) || []).map(function (o) { return o.titulo; }); }
+        // rascunhos (12 por formato), avaliador e escrita completa dos escolhidos
+        const ant = X.titulosAnteriores(ctx);
+        tt = Date.now(); await X.rodarAgora(ctx, X.pedidosRascunhos(ctx, p, ant), p); marca("rascunhos", tt);
+        tt = Date.now(); await X.rodarAgora(ctx, X.pedidosAvaliador(ctx, p, ant), p); marca("avaliador", tt);
+        out.cortadas = [].concat.apply([], ["curto", "narrado", "provador"].map(function (f) { return (p["aval_" + f] && p["aval_" + f].cortadas) || []; })).map(function (c) { return c.codigo + " " + c.motivo; });
+        tt = Date.now(); await X.rodarAgora(ctx, X.pedidosEscrita(ctx, p, ant), p); marca("escrita", tt);
+        out.tempo_etapas = tempo; console.log("  tempo por etapa (s): " + JSON.stringify(tempo));
         const feitas = X.montarIdeias(p, X.mapaDeCodigos(ctx));
         out.tempo_ideias_s = Math.round((Date.now() - t0) / 1000);
-        out.ideias = feitas.lista.map(function (i) { return { titulo: i.titulo, formato: i.formato, tipo: i.tipo, gancho: i.gancho, passos: i.passos, fala: i.fala, por_que: i.por_que, metrica: i.metrica, problemas: conferir([i.titulo, i.gancho, (i.passos || []).join(" "), i.texto_na_tela, i.fala, i.por_que, i.metrica], fonte) }; });
+        // o roteiro de teste parte de uma ideia de verdade (de preferencia um provador)
+        out.ideia_do_roteiro = feitas.lista.filter(function (i) { return i.completa; }).sort(function (a, b) { return (b.formato === "provador") - (a.formato === "provador"); })[0] || null;
+        out.ideias = feitas.lista.map(function (i) { return { titulo: i.titulo, formato: i.formato, tipo: i.tipo, mecanica: i.mecanica, completa: i.completa, gancho: i.gancho, passos: i.passos, fala: i.fala, por_que: i.por_que, metrica: i.metrica, problemas: conferir([i.titulo, i.gancho, (i.passos || []).join(" "), i.texto_na_tela, i.fala, i.por_que, i.metrica], fonte) }; });
         const rep = aberturasRepetidas(out.ideias.map(function (i) { return i.gancho; }));
         if (rep.length) out.problemas.push("ideias com abertura repetida: " + rep.join(" | "));
         out.notas_ideias = await julgar(resumo, out.ideias.map(function (i) { return { titulo: i.titulo, formato: i.formato, gancho: i.gancho, passos: i.passos, fala: i.fala, por_que: i.por_que }; }));
@@ -115,7 +124,7 @@ async function rodarCaso(caso) {
             if (op && op.method === "PATCH" && /^projetos/.test(rota)) { if (op.body.rodadas) rodadas = op.body.rodadas; return []; }
             if (op && op.method) return [];
             if (/^projetos/.test(rota)) return [{ id: "00000000-0000-0000-0000-000000000001", nome: "Teste", objetivo: "mensagens", form: { objetivo: "mensagens" }, rodadas: rodadas }];
-            if (/^contas_meta/.test(rota)) return [{ dossie: caso.dossie, memoria: caso.memoria }];
+            if (/^contas_meta/.test(rota)) return [{ dossie: caso.dossie, memoria: caso.memoria, metricas: caso.metricas, meta: caso.meta }];
             if (/^lojas/.test(rota)) return [caso.loja || {}];
             return [];
         };
@@ -123,14 +132,14 @@ async function rodarCaso(caso) {
         const handler = require(path.join(RAIZ, "api/roteiros.js"));
         const produto = (caso.loja && (caso.loja.produtos_dona || caso.loja.produtos_admin)) || ((caso.dossie.ideias && caso.dossie.ideias.lista && caso.dossie.ideias.lista[0] && caso.dossie.ideias.lista[0].peca) || "a peça que mais vende");
         const t0 = Date.now();
-        await handler({ method: "POST", headers: { authorization: "Bearer x" }, body: { projeto_id: "00000000-0000-0000-0000-000000000001", metodo: ARG.metodo || "fffundo", formato: "narrado", renomear: false, contexto: "Produto: " + corta(produto, 500) + ". Destino: conversa no direct." } }, { status: function () { return this; }, json: function () {} });
+        await handler({ method: "POST", headers: { authorization: "Bearer x" }, body: { projeto_id: "00000000-0000-0000-0000-000000000001", ideia: out.ideia_do_roteiro || null, metodo: ARG.metodo || "fffundo", formato: "narrado", renomear: false, contexto: out.ideia_do_roteiro ? "Produto: Sem descrição: use o mesmo produto ou assunto da ideia escolhida (" + out.ideia_do_roteiro.titulo + "). Não invente detalhes do produto. Destino: conversa no direct." : "Produto: " + corta(produto, 500) + ". Destino: conversa no direct." } }, { status: function () { return this; }, json: function () {} });
         banco = null;
         out.tempo_roteiros_s = Math.round((Date.now() - t0) / 1000);
         const r = rodadas[rodadas.length - 1] || {};
-        out.roteiros = ((r.resultado && r.resultado.roteiros) || []).map(function (s) { return { titulo: s.titulo, estrutura: s.estrutura, gancho: s.gancho, aberturas_extras: s.aberturas_extras, corpo: s.corpo, cta: s.cta, legenda: s.legenda, duracao_s: s.duracao_s, cenas: (s.cenas || []).length, problemas: conferir([s.titulo, s.gancho, s.corpo, s.cta, s.legenda, (s.aberturas_extras || []).join(" ")], fonte + produto) }; });
+        out.roteiros = ((r.resultado && r.resultado.roteiros) || []).map(function (s) { return { titulo: s.titulo, estrutura: s.estrutura, gancho: s.gancho, aberturas_extras: s.aberturas_extras, corpo: s.corpo, cta: s.cta, legenda: s.legenda, duracao_s: s.duracao_s, formato: s.formato, stories: (s.stories || []).length, ideia: s.ideia, cenas: (s.cenas || []).length, problemas: conferir([s.titulo, s.gancho, s.corpo, s.cta, s.legenda, (s.aberturas_extras || []).join(" ")], fonte + produto) }; });
         const rep = aberturasRepetidas(out.roteiros.map(function (s) { return s.gancho; }));
         if (rep.length) out.problemas.push("roteiros com abertura repetida: " + rep.join(" | "));
-        if (out.roteiros.length) out.notas_roteiros = await julgar(resumo, out.roteiros.map(function (s) { return { titulo: s.titulo, gancho: s.gancho, corpo: s.corpo, cta: s.cta }; }));
+        if (out.roteiros.length) out.notas_roteiros = await julgar(resumo + (out.ideia_do_roteiro ? "\n\nOS ROTEIROS DEVEM SEGUIR ESTA IDEIA ESCOLHIDA PELA DONA (a peça e o assunto são os dela, não os do resumo): " + out.ideia_do_roteiro.titulo + " | " + out.ideia_do_roteiro.por_que : ""), out.roteiros.map(function (s) { return { titulo: s.titulo, gancho: s.gancho, corpo: s.corpo, cta: s.cta }; }));
     }
     return out;
 }
@@ -177,7 +186,7 @@ function relatorio(atual, anterior) {
 (async function () {
     const n = Math.max(1, Math.min(6, Number(ARG.lojas) || 2));
     console.log("Baixando o retrato de " + n + " lojas...");
-    const ids = sql("select c.user_id from contas_meta c where c.dossie->>'versao'='4' and c.metricas is not null order by c.atualizado_em desc limit " + n).map(function (r) { return r.user_id; });
+    const ids = sql("select c.user_id from contas_meta c join lojas l on l.user_id=c.user_id where l.nome is not null and c.dossie->>'versao' is not null and " + (ARG.loja ? "l.nome ilike '%" + String(ARG.loja).replace(/[^a-zA-Z0-9 ]/g, '') + "%' and " : "") + " c.metricas is not null order by c.atualizado_em desc limit " + n).map(function (r) { return r.user_id; });
     const casos = [];
     for (const id of ids) {
         const c = sql("select c.metricas, c.meta, c.dossie, c.memoria, c.referencias, l.nome, l.nicho, l.produtos_dona, l.produtos_admin, l.publico_admin from contas_meta c left join lojas l on l.user_id=c.user_id where c.user_id='" + id + "'")[0];

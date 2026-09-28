@@ -29,6 +29,7 @@ module.exports = async function handler(req, res) {
         const form = new FormData();
         form.append("file", new Blob([buf], { type: mediaType }), filename);
         form.append("model", "whisper-1");
+        form.append("language", "pt");
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 55000);
         const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
@@ -39,11 +40,11 @@ module.exports = async function handler(req, res) {
         });
         clearTimeout(timeout);
         const d = await r.json();
-        if (!r.ok) return res.status(r.status).json({ error: (d.error && d.error.message) || "Erro ao transcrever" });
+        if (!r.ok) { console.error("[transcribe] " + ((d.error && d.error.message) || r.status)); return res.status(502).json({ error: "Não consegui transcrever agora. Tente de novo." }); }
         return res.status(200).json({ text: d.text || "" });
     } catch (e) {
-        if (e.name === "AbortError") return res.status(504).json({ error: "A transcricao demorou demais. Tente um arquivo menor." });
-        return res.status(500).json({ error: e.message });
+        if (e.name === "AbortError") return res.status(504).json({ error: "A transcrição demorou demais. Tente um vídeo mais curto." });
+        console.error("[transcribe] " + (e && e.message)); return res.status(500).json({ error: "Não consegui transcrever agora. Tente de novo." });
     }
 };
 

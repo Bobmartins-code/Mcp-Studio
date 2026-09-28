@@ -15,8 +15,12 @@
 //       (o formato que prende no organico + a peca e o argumento que vendem nos anuncios +
 //       a duvida ou a dor do publico) em oportunidades de conteudo
 //    3. 3 especialistas em ideias: videos curtos (topo), narrados (meio) e provador (fundo);
-//       cada um escreve 6 opcoes partindo das oportunidades
-//    4. Curador: escolhe 4 curtos, 3 narrados e 3 provadores e guarda o resto na reserva
+//       cada um escreve 12 RASCUNHOS curtos partindo das oportunidades
+//    4. Avaliador (um por formato, ao mesmo tempo, com os mesmos dados no cache): confere
+//       cada rascunho nos numeros e corta os genericos, as formulas prontas sem dado, os
+//       repetidos (mesma mecanica com a mesma peca) e os que nao cruzam fontes; escolhe
+//       4 curtos, 3 narrados e 3 provadores
+//    5. Os especialistas escrevem por completo so os escolhidos (e 2 de reserva cada)
 //
 //  Economia: os 3 especialistas recebem o mesmo pacote de dados, gravado no cache
 //  da Anthropic pelo primeiro (os outros pagam 10% por essa parte); e a loja so e
@@ -39,10 +43,11 @@ const { registrarUso } = require("./_uso-ia.js");
 const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
 const { blocoDaResposta, diaSP, assinaturaDe } = require("./_coleta.js");
 const { enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia } = require("./_meta-leitura.js");
+const { textoVisual } = require("./_olhos.js");
 
 const MODELO = "claude-sonnet-5";
 const API = "https://api.anthropic.com/v1";
-const VERSAO = 5; // 5: estrategista cruza organico, anuncios e publico antes das ideias; campeoes de cada criterio
+const VERSAO = 6; // 6: olhos (como e cada video), rascunhos + avaliador, repeticao pela mecanica, post que virou anuncio
 const NICHOS = ["moda feminina", "moda masculina", "moda infantil", "moda fitness", "lingerie e moda intima", "calcados", "bolsas e acessorios", "joias e bijuterias", "beleza e cosmeticos", "saude e suplementos", "casa e decoracao", "alimentos e doces", "pet", "servicos", "cursos e infoprodutos", "outros"];
 
 const HORA_MS = 3600 * 1000, DIA_MS = 24 * HORA_MS;
@@ -134,6 +139,30 @@ const ESQ_DIRETOR = objeto({
         })
     }
 });
+// a mecanica de cada ideia, numa lista fechada: e o que permite saber que "5 looks numa peca" e "a calca em 5 looks" sao a mesma ideia
+const MECANICAS = ["provador frente, costas e detalhe", "troca de look", "vários looks com a mesma peça", "close no detalhe da peça", "a peça em várias cores", "novidade ou chegada", "abrindo a caixa ou o pacote", "bastidor da loja", "antes e depois do look", "look montado do zero", "POV ou situação em texto na tela", "resposta a uma dúvida das clientes", "comparação esse ou esse", "uma peça, várias ocasiões", "como usar ou amarrar", "oferta ou condição", "história ou depoimento", "fala direta para a câmera", "outra"];
+const ESQ_RASCUNHO = objeto({
+    ideias: {
+        type: "array", description: "12 rascunhos diferentes entre si.",
+        items: objeto({
+            titulo: textoPT("A ideia numa frase curta e concreta."),
+            mecanica: { type: "string", enum: MECANICAS, description: "O jeito de gravar, sem a peça." },
+            peca: textoPT("A peça ou linha, como está nos dados. Vazio se não houver."),
+            primeiro_segundo: textoPT("O que aparece (e o que é dito, se tiver fala) no primeiro segundo."),
+            prova: textoPT("O dado desta loja que sustenta a ideia, cruzando fontes (orgânico, anúncios, público), com o número. Descreva o post ou anúncio, sem código."),
+            oportunidade: { type: "integer", description: "Número da OPORTUNIDADE CRUZADA (0 se nenhuma)." },
+            inspirado_em: { type: "string", description: "Código do post (P) ou anúncio (A) que inspirou, ou vazio." },
+            tipo: { type: "string", enum: ["refazer_campeao", "nova"] }
+        })
+    }
+});
+const MOTIVOS_CORTE = ["generica", "formula_sem_dado", "repetida", "sem_cruzamento", "inventa_dado", "dificil_de_gravar"];
+const ESQ_AVALIADOR = objeto({
+    cortadas: { type: "array", items: objeto({ codigo: { type: "string" }, motivo: { type: "string", enum: MOTIVOS_CORTE } }) },
+    principais: { type: "array", items: { type: "string" }, description: "Códigos escolhidos, em ordem de prioridade." },
+    reserva: { type: "array", items: { type: "string" }, description: "Os outros rascunhos bons, do melhor para o pior." },
+    resumo: textoPT("2 frases para a dona: por onde começar esta semana e por quê.")
+});
 const ESQ_ESPECIALISTA = objeto({
     ideias: {
         type: "array",
@@ -152,16 +181,12 @@ const ESQ_ESPECIALISTA = objeto({
             funil: { type: "string", enum: ["topo", "meio", "fundo"] },
             metodo: { type: "string", enum: ["fftopo", "ffmeio", "fffundo", "dsb", "angulo"], description: "O método de roteiro mais próximo, se a ideia virar roteiro." },
             tipo: { type: "string", enum: ["refazer_campeao", "nova"], description: "refazer_campeao quando a ideia repete o formato de um post ou anúncio campeão desta conta com peça, situação ou ângulo novos." },
-            oportunidade: { type: "integer", description: "Número da OPORTUNIDADE CRUZADA em que a ideia se apoia (0 se não partiu de nenhuma)." }
+            oportunidade: { type: "integer", description: "Número da OPORTUNIDADE CRUZADA em que a ideia se apoia (0 se não partiu de nenhuma)." },
+            mecanica: { type: "string", enum: MECANICAS, description: "O jeito de gravar, sem a peça." },
+            codigo: { type: "string", description: "O código do rascunho que esta ideia escreve por completo (C1, N3...), ou vazio." }
         })
     }
 });
-const ESQ_CURADOR = objeto({
-    resumo: textoPT("2 frases para a dona: por onde começar esta semana e por quê."),
-    principais: { type: "array", items: { type: "string" }, description: "Códigos escolhidos, em ordem de prioridade: 4 curtos (C), 3 narrados (N) e 3 provadores (V)." },
-    reserva: { type: "array", items: { type: "string" }, description: "Os outros códigos bons, do melhor para o pior. Fora os fracos ou repetidos." }
-});
-
 const ETIQUETAS = ["provador", "narrado", "vídeo curto sem fala", "foto", "carrossel", "com o rosto da dona", "sem rosto", "look completo", "close no detalhe", "preço na tela", "bastidor da loja", "novidade ou chegada", "antes e depois do look", "POV"];
 const ESQ_MEMORIA = objeto({
     resumo: textoPT("2 frases para a dona: o que o time aprendeu sobre a loja dela até agora."),
@@ -382,7 +407,23 @@ function linhaPost(p, i) {
         (p.retencao_3s != null ? " | ficaram nos 3 primeiros segundos " + String(p.retencao_3s).replace(".", ",") + "%" : "") +
         " | curtidas " + p.curtidas + " | comentários " + p.comentarios + " | salvamentos " + p.salvamentos + " | compartilhamentos " + p.compartilhamentos +
         (p.seguiram ? " | começaram a seguir " + p.seguiram : "") + (p.visitas_perfil ? " | visitas ao perfil " + p.visitas_perfil : "") +
-        " | legenda: " + corta(p.legenda, 300) + (p.transcricao ? " | FALA DO VÍDEO: " + corta(p.transcricao, 700) : "");
+        (p.anuncio ? " | VIROU ANÚNCIO: investido " + brl(p.anuncio.gasto) + ", " + p.anuncio.resultados + " " + nomeResultado(p.anuncio.tipo) + (p.anuncio.receita > 0 ? ", vendeu " + brl(p.anuncio.receita) : "") : "") +
+        " | legenda: " + corta(p.legenda, 300) + (p.transcricao ? " | FALA DO VÍDEO: " + corta(p.transcricao, 700) : "") +
+        (p.visual ? " | COMO É O VÍDEO: " + textoVisual(p.visual) : "");
+}
+// anuncio feito a partir de um post da loja: o post fica sabendo quanto o anuncio vendeu (so dos 90 dias)
+function ligarPostsAosAnuncios(met) {
+    const a90 = met && met.anuncios && met.anuncios.p90;
+    const porId = {};
+    ((met && met.organico && met.organico.posts) || []).forEach(function (p) { delete p.anuncio; porId[p.id] = p; });
+    ((a90 && a90.anuncios) || []).forEach(function (a) {
+        const p = a.post_id && porId[a.post_id];
+        if (!p) return;
+        const x = p.anuncio || (p.anuncio = { tipo: a90.tipo_resultado, gasto: 0, resultados: 0, receita: 0, nomes: [] });
+        x.gasto += Number(a.gasto) || 0; x.resultados += Number(a.resultados) || 0; x.receita += Number(a.receita) || 0;
+        if (x.nomes.length < 3) x.nomes.push(corta(a.nome, 60));
+        p.anunciado = true;
+    });
 }
 
 function anunciosDaLoja(met) {
@@ -409,7 +450,8 @@ function linhaAnuncio(tipo, a, i) {
         (a.taxa_gancho != null ? " | taxa de gancho " + a.taxa_gancho + "%" : "") + (a.retencao != null ? " | retenção " + a.retencao + "%" : "") +
         (a.ctr != null ? " | taxa de clique " + a.ctr + "%" : "") + (a.compras ? " | compras " + a.compras : "") + (a.conversas ? " | conversas " + a.conversas : "") +
         (a.diagnostico ? " | " + a.diagnostico : "") + (a.titulo ? " | TÍTULO: " + corta(a.titulo, 120) : "") + (a.texto ? " | TEXTO DO ANÚNCIO: " + corta(a.texto, 400) : "") +
-        (a.transcricao ? " | FALA DO VÍDEO: " + corta(a.transcricao, 700) : "");
+        (a.transcricao ? " | FALA DO VÍDEO: " + corta(a.transcricao, 700) : "") +
+        (a.post_id ? " | é um post orgânico da loja que virou anúncio" : "") + (a.visual ? " | COMO É O VÍDEO: " + textoVisual(a.visual) : "");
 }
 
 // idade, genero e cidades pelo Reportei: so quando a Meta nao entregou
@@ -494,7 +536,7 @@ function vozEGanchos(met, comentarios) {
     const posts = ((met && met.organico && met.organico.posts) || []).filter(function (p) { return p.alcance > 0; });
     const falas = posts.filter(function (p) { return p.transcricao; }).sort(function (a, b) { return (b.indice || 0) - (a.indice || 0); })
         .map(function (p) { return corta(p.transcricao, 1400); }).filter(function (t, i, v) { return v.indexOf(t) === i; }).slice(0, 2);
-    const comGancho = posts.map(function (p) { return { texto: primeiraFrase(p.transcricao) || primeiraFrase(p.legenda), ficaram: p.retencao_3s, tempo: p.tempo_medio_s, indice: p.indice, fonte: p.transcricao ? "fala" : "legenda" }; })
+    const comGancho = posts.map(function (p) { const olho = p.visual && p.visual.primeiro_segundo; return { texto: primeiraFrase(p.transcricao) || (olho ? "[imagem] " + corta(olho, 160) : "") || primeiraFrase(p.legenda), ficaram: p.retencao_3s, tempo: p.tempo_medio_s, indice: p.indice, fonte: p.transcricao ? "fala" : olho ? "imagem" : "legenda" }; })
         .filter(function (g) { return g.texto; });
     const temRet = comGancho.some(function (g) { return g.ficaram != null; });
     const ord = comGancho.slice().sort(function (a, b) { return temRet ? ((b.ficaram == null ? -1 : b.ficaram) - (a.ficaram == null ? -1 : a.ficaram)) : ((b.indice || 0) - (a.indice || 0)); });
@@ -531,12 +573,13 @@ async function preparar(ctx, comMeta) {
     if (!postsTodos.length && !anunciosDaLoja(met)) throw new Error("Ainda nao ha numeros desta loja. Conecte o Instagram e os anuncios e atualize os dados.");
     let cache = ctx.conta.meta || null;
     if (comMeta) {
-        const daMeta = await enriquecerLoja(met, cache).catch(function (e) { console.error("[time] meta: " + (e && e.message)); return { cache: cache, pendentes: [] }; });
+        const daMeta = await enriquecerLoja(met, cache, ctx.userId).catch(function (e) { console.error("[time] meta: " + (e && e.message)); return { cache: cache, pendentes: [] }; });
         cache = daMeta.cache;
         await esperarFalas(daMeta.pendentes);
         if (cache) await banco("contas_meta?user_id=eq." + encodeURIComponent(ctx.userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { meta: cache } }).catch(function () {});
     }
     aplicarMeta(met, cache);
+    ligarPostsAosAnuncios(met);
     ctx.cacheMeta = cache;
     ctx.postsTodos = postsTodos;
     ctx.posts = postsDaLoja(met);
@@ -582,7 +625,7 @@ const SUGERIDAS_MS = 35 * DIA_MS;
 // guarda as ideias mostradas para a dona, para o Agente de Memoria achar depois quais viraram post
 function comSugeridas(memoria, ideias) {
     const agora = Date.now(), vistas = {};
-    const novas = (ideias || []).map(function (x) { return { t: corta(x.titulo, 160), f: x.formato || "", g: corta(x.gancho, 200), p: corta(x.peca, 80), em: new Date(agora).toISOString() }; });
+    const novas = (ideias || []).map(function (x) { return { t: corta(x.titulo, 160), f: x.formato || "", m: x.mecanica || "", g: corta(x.gancho, 200), p: corta(x.peca, 80), em: new Date(agora).toISOString() }; });
     const todas = novas.concat((memoria && memoria.sugeridas) || []).filter(function (x) {
         if (!x.t || vistas[x.t] || agora - new Date(x.em).getTime() > SUGERIDAS_MS) return false;
         vistas[x.t] = 1; return true;
@@ -646,7 +689,8 @@ async function pedidoMemoria(ctx) {
             (p.anunciado ? " | foi impulsionado" : "") + " | alcance " + p.alcance + (p.tempo_medio_s ? " | tempo médio " + String(p.tempo_medio_s).replace(".", ",") + " s" : "") +
             (p.retencao_3s != null ? " | ficaram nos 3 primeiros segundos " + String(p.retencao_3s).replace(".", ",") + "%" : "") +
             " | curtidas " + p.curtidas + " | comentários " + p.comentarios + " | salvamentos " + p.salvamentos + " | compartilhamentos " + p.compartilhamentos +
-            " | legenda: " + corta(p.legenda, 160) + (p.transcricao ? " | o que é falado no vídeo (transcrito pelo time, não é legenda): " + corta(p.transcricao, 300) : "");
+            " | legenda: " + corta(p.legenda, 160) + (p.transcricao ? " | o que é falado no vídeo (transcrito pelo time, não é legenda): " + corta(p.transcricao, 300) : "") +
+            (p.visual && p.visual.mecanica ? " | como é o vídeo: " + p.visual.mecanica + "; primeiro segundo: " + corta(p.visual.primeiro_segundo, 120) : "");
     }
     const texto = "Você é o AGENTE DE MEMÓRIA do time. Seu trabalho é descobrir o que funciona DE VERDADE para esta loja, comparando o que o time sugeriu com o que a dona publicou e com o resultado de cada post. O que você guardar vira a base das próximas ideias.\n\n" +
         "TAREFAS\n" +
@@ -771,7 +815,8 @@ const ESPECIALISTAS = {
             "- Final que emenda no começo, para o vídeo ser assistido de novo.\n" +
             "- Cara de conteúdo nativo do Instagram, gravado com o celular. Visual cru e real prende mais que anúncio produzido.\n" +
             "- Tem que dar para gravar SOZINHA, com o celular apoiado: cada tomada é gravada separada, no mesmo lugar e no mesmo enquadramento, e os cortes são juntados depois no editor do próprio Instagram. Diga isso nos passos (grave o look 1 parada, troque de roupa, grave o look 2 na mesma marca do chão). Nada de troca de roupa em menos de 1 segundo nem ação que precise de outra pessoa.\n" +
-            "REPERTÓRIO (referência de formato para adaptar a esta loja): 1 peça, 5 looks no ritmo da música; troca de look a cada batida; do pijama ao look do evento; o provador em 7 segundos; close no tecido, no bordado e no caimento; o look inteiro montado em 10 segundos; POV só em texto na tela (POV: você achou o look do casamento); a mesma peça em 4 cores; antes e depois do look (da roupa, nunca do corpo); abrindo a caixa dos lançamentos; esgotou e voltou, quando for verdade.\n" +
+            "DE ONDE VEM A MECÂNICA (o mais importante): cada curto repete o jeito de gravar de um vídeo que JÁ DEU CERTO NESTA LOJA (veja COMO É O VÍDEO nos posts e anúncios campeões): o mesmo tipo de primeiro segundo, cenário, transição e ritmo, com a peça, a situação ou o ângulo de uma oportunidade. Diga qual vídeo em inspirado_em. No máximo 1 em cada 6 testa um jeito que a loja ainda não fez, e mesmo assim ligado a um dado daqui (a peça que mais vende, uma dúvida das clientes).\n" +
+            "PROIBIDO, porque serve para qualquer loja e o dono já recusou: 1 peça em 5 looks no ritmo da música; troca de look a cada batida; do pijama ao look do evento; cinco looks numa peça só; giro mostrando as cores; a mesma peça em várias cores; abrindo a caixa. Só vale se esta loja já tiver um post exatamente assim acima da média (cite qual) ou se as clientes estiverem pedindo exatamente isso (cite o comentário).\n" +
             "EM CADA IDEIA: passos = de 4 a 8 tomadas na ordem, cada uma com o que aparece e quantos segundos; fala vazia; stories vazio; duracao_s entre 7 e 15; funil topo; metrica em palavras simples (quantas pessoas ficaram nos 3 primeiros segundos, quantas assistiram de novo e compartilharam)."
     },
     narrado: {
@@ -793,11 +838,11 @@ function regrasDasIdeias(ctx, anteriores) {
     const hoje = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
     const datas = datasDoVarejo(new Date());
     return "\n\nCOMO USAR OS DADOS DESTA LOJA\n" +
-        "- COMECE PELAS OPORTUNIDADES CRUZADAS: pelo menos 4 das 6 ideias partem de uma delas (diga o número em oportunidade). Elas juntam o formato que prende no orgânico, a peça ou o argumento que vende nos anúncios e a dúvida ou a dor do público. Uma boa ideia usa as três: o jeito de gravar que já prendeu aqui, com a peça que já vende, respondendo ao que a cliente pergunta.\n" +
+        "- COMECE PELAS OPORTUNIDADES CRUZADAS: a maior parte das ideias parte de uma delas (diga o número em oportunidade). Elas juntam o formato que prende no orgânico, a peça ou o argumento que vende nos anúncios e a dúvida ou a dor do público. Uma boa ideia usa as três: o jeito de gravar que já prendeu aqui, com a peça que já vende, respondendo ao que a cliente pergunta.\n" +
         "- Olhe os CAMPEÕES DE CADA CRITÉRIO, não só o engajamento: o mais visto mostra o que chega a gente nova, o mais compartilhado o que a cliente manda para a amiga, o mais salvo o que ela quer comprar depois, o melhor gancho a abertura que segura.\n" +
         "- Regra 80/20: a maior parte das ideias repete, com peça e situação novas, os FORMATOS-MÃE que já provaram resultado nesta conta; o resto testa um formato novo. Repetir o que funcionou com variação é o que dá constância.\n" +
-        "- REFAZER OS CAMPEÕES: pelo menos 2 das 6 ideias refazem um campeão desta conta (tipo refazer_campeao): o mesmo formato de um post ou anúncio que ficou bem acima da média, com peça, situação ou ângulo novos, e o código dele em inspirado_em. Vale também o anúncio que mais vendeu virando post orgânico, ou o post que mais engajou virando anúncio (diga isso no por_que).\n" +
-        "- Se o MAPA DE PÚBLICO trouxer perguntas_clientes, pelo menos 1 ideia responde a uma dessas dúvidas e diz quantas clientes perguntaram (exemplo: 5 clientes perguntaram se veste 46, então é prova real no corpo).\n" +
+        "- REFAZER OS CAMPEÕES: traga ideias que refazem um campeão desta conta (tipo refazer_campeao): o mesmo formato de um post ou anúncio que ficou bem acima da média, com peça, situação ou ângulo novos, e o código dele em inspirado_em. Vale também o anúncio que mais vendeu virando post orgânico, ou o post que mais engajou virando anúncio (diga isso no por_que).\n" +
+        "- Se o MAPA DE PÚBLICO trouxer perguntas_clientes, traga ideias que respondem a essas dúvidas e diz quantas clientes perguntaram (exemplo: 5 clientes perguntaram se veste 46, então é prova real no corpo).\n" +
         "- Cada ideia se apoia num dado desta loja: um post (P) ou anúncio (A) que funcionou, com o código em inspirado_em; um comentário; uma dor ou situação do MAPA DE PÚBLICO; um produto do momento; ou uma data do calendário.\n" +
         "- Use as peças dos PRODUTOS E OFERTAS DO MOMENTO sempre que fizer sentido. Sem produto informado, use a peça como aparece nos posts que funcionaram ou escreva 'a peça que você quer vender'.\n" +
         "- Fale com a faixa de idade que mais segue a loja e com as situações do dia a dia dela.\n" +
@@ -810,9 +855,10 @@ function regrasDasIdeias(ctx, anteriores) {
         "- Escreva para a dona entender de primeira: cada passo com até 12 palavras, dizendo o que aparece; por_que e metrica com uma frase curta cada.\n" +
         "- Teste da ideia fraca: se der para trocar o nome da loja e a ideia servir para qualquer outra loja, ela é fraca. Reescreva até ela só fazer sentido aqui (a peça que vende aqui, a dúvida que as clientes daqui fazem, o formato que já deu certo aqui).\n" +
         "- Em por_que, junte as provas numa frase simples (exemplo: o provador em frente ao espelho foi o seu post mais salvo, o vestido tricô é o anúncio que mais vende e 6 clientes perguntaram se veste 46). Use os números que a dona vê no app (visualizações, curtidas, comentários, salvamentos, compartilhamentos, vendas), e não o índice em vezes a média nem porcentagens de gancho.\n" +
-        "- Entregue 6 ideias diferentes entre si (peças, situações e ganchos distintos). Cada gancho começa de um jeito diferente: nunca comece dois com as mesmas palavras.\n" +
+        "- As ideias são diferentes entre si (peças, situações, mecânicas e ganchos distintos). Cada gancho começa de um jeito diferente: nunca comece dois com as mesmas palavras.\n" +
+        "- Não invente reposição, esgotou, estoque, lançamento ou chegada de peça: só se estiver nos dados ou nos produtos informados.\n" +
         "- Em por_que e em todo texto que a dona lê, descreva o post ou o anúncio (o Reels do vestido azul de 18/09); o código P ou A vai só em inspirado_em." +
-        (anteriores.length ? "\n- Estas ideias já foram sugeridas; traga outras: " + anteriores.slice(0, 40).join(" | ") : "");
+        (anteriores.length ? "\n- JÁ SUGERIDAS NOS ÚLTIMOS 35 DIAS (não repita a mesma mecânica com a mesma peça nem o mesmo título): " + anteriores.slice(0, 40).join(" | ") : "");
 }
 function contextoDasIdeias(ctx, p) {
     const pub = p.pub || ctx.dossie.publico;
@@ -823,14 +869,95 @@ function contextoDasIdeias(ctx, p) {
         "\nRELATÓRIO DE ANÚNCIOS: " + resumoRel(p.ads) +
         dadosEmTexto(ctx, 20, 12, 30);
 }
-// o pacote de dados vem primeiro e igual para os 3: o primeiro grava no cache e os outros leem por 10% do preco
-function pedidosEspecialistas(ctx, p, anteriores) {
-    const base = (regrasDasIdeias(ctx, anteriores) + contextoDasIdeias(ctx, p)).trim();
+// o pacote de dados vem primeiro e igual para os 3 (e igual nos rascunhos e na escrita): o primeiro grava no cache e os outros leem por 10% do preco
+function baseDasIdeias(ctx, p, anteriores) { return (regrasDasIdeias(ctx, anteriores) + contextoDasIdeias(ctx, p)).trim(); }
+function pedidosRascunhos(ctx, p, anteriores) {
+    const base = baseDasIdeias(ctx, p, anteriores);
     return Object.keys(ESPECIALISTAS).map(function (f) {
         const e = ESPECIALISTAS[f];
-        return { chave: "esp_" + f, nome: e.nome, esquema: ESQ_ESPECIALISTA, cache: true, max: 16000,
-            pedido: [{ type: "text", text: base, cache_control: { type: "ephemeral" } }, { type: "text", text: "SUA TAREFA\n" + e.texto }] };
+        return { chave: "ras_" + f, nome: e.nome + " (rascunhos)", esquema: ESQ_RASCUNHO, cache: true, max: 24000,
+            pedido: [{ type: "text", text: base, cache_control: { type: "ephemeral" } }, { type: "text", text: "SUA TAREFA\n" + e.texto +
+                "\n\nNESTA ETAPA, escreva 12 RASCUNHOS do seu formato, bem diferentes entre si, só com o essencial: título, mecânica, peça, primeiro segundo, prova com número, oportunidade, inspirado_em e tipo. Um avaliador rigoroso vai conferir cada prova nos números e cortar os genéricos, as fórmulas prontas e os repetidos; os escolhidos serão escritos por completo depois. No máximo 3 rascunhos com a mesma mecânica e no máximo 3 com a mesma peça." }] };
     });
+}
+function normal(t) { return String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\b(a|o|as|os|de|da|do|das|dos|e|em|com|para|pra|na|no)\b/g, " ").replace(/\s+/g, " ").trim(); }
+function chavePeca(x) { return normal(x && x.peca).split(" ").slice(0, 3).join(" "); }
+function chaveConceito(x) { return normal(x && x.mecanica) + "|" + chavePeca(x); }
+function candidatas(p) {
+    const out = [];
+    Object.keys(ESPECIALISTAS).forEach(function (f) {
+        (((p["ras_" + f] || {}).ideias) || []).forEach(function (x, i) { out.push({ codigo: ESPECIALISTAS[f].letra + (i + 1), formato: f, ideia: x }); });
+    });
+    return out;
+}
+// a escolha final: a ordem do avaliador, 4/3/3, sem repetir mecanica com a mesma peca e no maximo 2 da mesma peca
+function escolha(p) {
+    const cands = candidatas(p), por = {};
+    cands.forEach(function (c) { por[c.codigo] = c; });
+    const avs = [p.aval].concat(Object.keys(ESPECIALISTAS).map(function (f) { return p["aval_" + f]; })).filter(Boolean);
+    const av = { principais: [], reserva: [], cortadas: [] }, cod = function (c) { return String(c || "").trim().toUpperCase(); };
+    avs.forEach(function (a) { av.principais = av.principais.concat(a.principais || []); av.reserva = av.reserva.concat(a.reserva || []); av.cortadas = av.cortadas.concat(a.cortadas || []); });
+    const cortadas = {};
+    av.cortadas.forEach(function (c) { cortadas[cod(c.codigo)] = c.motivo || 1; });
+    let ordem = (av.principais || []).concat(av.reserva || []).map(cod).filter(function (c, i, v) { return por[c] && !cortadas[c] && v.indexOf(c) === i; });
+    // sem avaliador: a ordem dos especialistas; com ele, as que ele nao citou nem cortou vao para o fim
+    cands.forEach(function (c) { if (ordem.indexOf(c.codigo) < 0 && !cortadas[c.codigo]) ordem.push(c.codigo); });
+    const quer = { curto: 4, narrado: 3, provador: 3 }, tem = { curto: 0, narrado: 0, provador: 0 }, conceitos = {}, pecas = {};
+    const principais = [], reserva = [];
+    ordem.forEach(function (c) {
+        const x = por[c], k = chaveConceito(x.ideia), pk = chavePeca(x.ideia);
+        if (conceitos[k]) return;
+        conceitos[k] = 1;
+        if (tem[x.formato] < quer[x.formato] && (!pk || (pecas[pk] || 0) < 2)) { principais.push(c); tem[x.formato]++; if (pk) pecas[pk] = (pecas[pk] || 0) + 1; }
+        else reserva.push(c);
+    });
+    return { principais: principais, reserva: reserva, por: por, cortadas: cortadas };
+}
+const QUANTAS = { curto: 4, narrado: 3, provador: 3 };
+function pedidosAvaliador(ctx, p, anteriores) {
+    const cands = candidatas(p);
+    if (!cands.length) return [];
+    const dados = "Você é o AVALIADOR do time, rigoroso. Os especialistas escreveram rascunhos de vídeos para esta loja. Seu trabalho é cortar os fracos e escolher os melhores. Seja duro: é melhor cortar demais do que deixar passar ideia genérica.\n" +
+        "CORTE (em cortadas, com o motivo) todo rascunho que:\n" +
+        "- generica: serviria para qualquer loja trocando o nome da peça;\n" +
+        "- formula_sem_dado: é fórmula pronta de vídeo (5 looks no ritmo da música, troca de look a cada batida, do pijama ao look, giro mostrando as cores, a peça em várias cores, abrindo a caixa) sem um post desta loja assim acima da média nem um pedido das clientes;\n" +
+        "- repetida: mesma mecânica com a mesma peça de outro rascunho melhor ou de uma ideia JÁ SUGERIDA (lista abaixo);\n" +
+        "- sem_cruzamento: a prova não junta pelo menos 2 fontes (orgânico, anúncios, público) com número;\n" +
+        "- inventa_dado: cita preço, promoção, estoque, reposição, esgotou, lançamento ou número que não está nos DADOS. Confira cada número da prova nos dados; se não bater, corte;\n" +
+        "- dificil_de_gravar: a dona não consegue gravar sozinha só com o celular.\n" +
+        (anteriores.length ? "\nJÁ SUGERIDAS NOS ÚLTIMOS 35 DIAS (título [mecânica | peça]):\n" + anteriores.slice(0, 40).join("\n") + "\n" : "") +
+        textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
+        "\nPERGUNTAS DAS CLIENTES: " + JSON.stringify(((p.pub || ctx.dossie.publico || {}).perguntas_clientes) || []) +
+        dadosEmTexto(ctx, 20, 12, 30);
+    return Object.keys(ESPECIALISTAS).map(function (f) {
+        const meus = cands.filter(function (c) { return c.formato === f; });
+        if (!meus.length) return null;
+        return {
+            chave: "aval_" + f, nome: "Avaliador (" + NOME_FORMATO_TXT[f] + ")", esquema: ESQ_AVALIADOR, cache: true, max: 16000, effort: "low",
+            pedido: [{ type: "text", text: dados, cache_control: { type: "ephemeral" } }, { type: "text", text: "SUA TAREFA: avalie os rascunhos de " + NOME_FORMATO_TXT[f] + " abaixo. Depois do corte, escolha principais: os " + QUANTAS[f] + " melhores, em ordem de prioridade (o primeiro é o que ela deve gravar primeiro). No máximo 2 com a mesma peça. Se houver campeões para refazer, pelo menos 1 principal refaz um campeão (tipo refazer_campeao); se houver perguntas das clientes e o formato combinar, pelo menos 1 principal responde a uma delas. Em reserva, os outros bons, do melhor para o pior. Em resumo, 2 frases para a dona: por onde começar esta semana e por quê, sem códigos.\n\nRASCUNHOS:\n" + meus.map(function (c) { return c.codigo + ") " + JSON.stringify(c.ideia); }).join("\n") }]
+        };
+    }).filter(Boolean);
+}
+// os especialistas escrevem por completo so os escolhidos (os principais e 2 de reserva de cada formato)
+function pedidosEscrita(ctx, p, anteriores) {
+    const e = escolha(p), base = baseDasIdeias(ctx, p, anteriores);
+    return Object.keys(ESPECIALISTAS).map(function (f) {
+        const codigos = e.principais.filter(function (c) { return e.por[c].formato === f; }).concat(e.reserva.filter(function (c) { return e.por[c].formato === f; }).slice(0, 2));
+        if (!codigos.length) return null;
+        const esp = ESPECIALISTAS[f];
+        return { chave: "esc_" + f, nome: esp.nome, esquema: ESQ_ESPECIALISTA, cache: true, max: 24000,
+            pedido: [{ type: "text", text: base, cache_control: { type: "ephemeral" } }, { type: "text", text: "SUA TAREFA\n" + esp.texto +
+                "\n\nNESTA ETAPA, escreva POR COMPLETO estas ideias, que o avaliador escolheu entre os rascunhos, na mesma ordem. Mantenha o título, a mecânica, a peça, a prova e o primeiro segundo (pode deixar mais claro e mais concreto) e preencha o resto. Em codigo, repita o código do rascunho.\n" +
+                codigos.map(function (c) { return c + ") " + JSON.stringify(e.por[c].ideia); }).join("\n") }] };
+    }).filter(Boolean);
+}
+// o que ja foi sugerido: titulo, mecanica e peca (a repeticao e pela ideia, nao so pelo titulo)
+function titulosAnteriores(ctx) {
+    const i = ctx.dossie.ideias || {}, vistos = {}, out = [];
+    function junta(tit, mec, peca) { if (!tit || vistos[tit]) return; vistos[tit] = 1; out.push(tit + (mec || peca ? " [" + (mec || "?") + " | " + (peca || "sem peça") + "]" : "")); }
+    (i.lista || []).concat(i.reserva || []).forEach(function (x) { junta(x.titulo, x.mecanica, x.peca); });
+    ((ctx.memoria && ctx.memoria.sugeridas) || []).forEach(function (s) { junta(s.t, s.m, s.p); });
+    return out;
 }
 function pedidoDiretor(ctx, p) {
     return {
@@ -847,37 +974,6 @@ function pedidoDiretor(ctx, p) {
         max: 16000
     };
 }
-function titulosAnteriores(ctx) {
-    const i = ctx.dossie.ideias || {};
-    return (i.lista || []).concat(i.reserva || []).map(function (x) { return x.titulo; }).filter(Boolean);
-}
-
-// ---------- etapa 3: curador ----------
-function candidatas(p) {
-    const out = [];
-    Object.keys(ESPECIALISTAS).forEach(function (f) {
-        (((p["esp_" + f] || {}).ideias) || []).forEach(function (x, i) { out.push({ codigo: ESPECIALISTAS[f].letra + (i + 1), formato: f, ideia: x }); });
-    });
-    return out;
-}
-function pedidoCurador(ctx, p) {
-    const cands = candidatas(p);
-    return {
-        chave: "cur", nome: "Curador", esquema: ESQ_CURADOR,
-        pedido: "Você é o CURADOR do time. Os especialistas escreveram opções de vídeos curtos (C), narrados (N) e provador (V) para esta loja. Escolha as melhores para esta semana: 4 curtos, 3 narrados e 3 provadores, em ordem de prioridade dentro de cada formato. Critérios, nesta ordem:\n" +
-            "1. cruza as fontes desta loja: parte de uma OPORTUNIDADE CRUZADA e junta o formato que prende no orgânico, a peça ou argumento que vende nos anúncios e a dúvida ou dor do público (quanto mais fontes, melhor);\n" +
-            "2. só faz sentido nesta loja: descarte a ideia que serviria para qualquer loja trocando o nome da peça;\n" +
-            "3. primeiro segundo forte e fácil de entender sem som;\n" +
-            "4. executável só com o celular;\n" +
-            "5. diferentes entre si: sem duas com o mesmo tema, peça ou gancho;\n" +
-            "6. sem preço, promoção ou número que não esteja nos dados;\n" +
-            "7. de acordo com o que o time já aprendeu com esta loja e com o gosto da dona, quando houver.\n" +
-            "Depois ordene as que sobraram em reserva, da melhor para a pior, deixando de fora as fracas ou repetidas. Em resumo, 2 frases para a dona: por onde começar esta semana e por quê.\n" +
-            textoOportunidades(oportunidadesDe(ctx, p)) + "\n\n" +
-            ctx.sobreLoja + "\nMAPA DE PÚBLICO (resumo): " + (((p.pub || ctx.dossie.publico) || {}).resumo || "não disponível") + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) +
-            "\n\nOPÇÕES:\n" + cands.map(function (c) { return c.codigo + ") " + JSON.stringify(c.ideia); }).join("\n")
-    };
-}
 function formatoAntigo(f) { return f === "curto" ? "rápido com transições" : f; }
 // troca "P3" ou "A1" no texto que a dona le pela descricao do post ou do anuncio
 function semCodigos(texto, mapa) {
@@ -890,35 +986,32 @@ function semCodigos(texto, mapa) {
         return nome ? "o anúncio \u201C" + nome + "\u201D" : "o seu anúncio";
     });
 }
-// junta a escolha do curador com as ideias dos especialistas (sem curador, pega as primeiras de cada formato)
+// junta a escolha do avaliador com as ideias escritas por completo; rascunho sem escrita fica guardado para "Gerar mais ideias"
+const PADRAO_FORMATO = { curto: { funil: "topo", metodo: "fftopo" }, narrado: { funil: "meio", metodo: "ffmeio" }, provador: { funil: "fundo", metodo: "fffundo" } };
 function montarIdeias(p, mapa) {
-    const cands = candidatas(p), porCodigo = {};
-    cands.forEach(function (c) { porCodigo[c.codigo] = c; });
-    const cur = p.cur || {};
-    let principais = (cur.principais || []).filter(function (c) { return porCodigo[c]; });
-    if (principais.length < 6) {
-        principais = [];
-        [["curto", 4], ["narrado", 3], ["provador", 3]].forEach(function (x) { cands.filter(function (c) { return c.formato === x[0]; }).slice(0, x[1]).forEach(function (c) { principais.push(c.codigo); }); });
-    }
-    const usados = {};
-    principais.forEach(function (c) { usados[c] = 1; });
-    let reserva = (cur.reserva || []).filter(function (c) { return porCodigo[c] && !usados[c]; });
-    if (!cur.reserva) reserva = cands.map(function (c) { return c.codigo; }).filter(function (c) { return !usados[c]; });
+    const e = escolha(p), cheia = {};
+    Object.keys(ESPECIALISTAS).forEach(function (f) {
+        (((p["esc_" + f] || {}).ideias) || []).forEach(function (x) { const k = String(x.codigo || "").trim().toUpperCase(); if (e.por[k] && !cheia[k]) cheia[k] = x; });
+    });
     function ideia(codigo) {
-        const c = porCodigo[codigo], x = c.ideia, insp = x.inspirado_em && mapa && mapa[String(x.inspirado_em).trim().toUpperCase()];
-        ["titulo", "gancho", "texto_na_tela", "fala", "peca", "por_que", "metrica"].forEach(function (k) { x[k] = semCodigos(x[k], mapa); });
-        x.passos = (x.passos || []).map(function (s) { return semCodigos(s, mapa); });
-        x.stories = (x.stories || []).map(function (s) { return semCodigos(s, mapa); });
+        const c = e.por[codigo], r = c.ideia, x = cheia[codigo];
+        const d = x || { titulo: r.titulo, gancho: r.primeiro_segundo, passos: [], texto_na_tela: "", fala: "", stories: [], duracao_s: null, peca: r.peca, inspirado_em: r.inspirado_em, por_que: r.prova, metrica: "", funil: PADRAO_FORMATO[c.formato].funil, metodo: PADRAO_FORMATO[c.formato].metodo, tipo: r.tipo };
+        const insp = (d.inspirado_em || r.inspirado_em) && mapa && mapa[String(d.inspirado_em || r.inspirado_em).trim().toUpperCase()];
+        ["titulo", "gancho", "texto_na_tela", "fala", "peca", "por_que", "metrica"].forEach(function (k) { d[k] = semCodigos(d[k], mapa); });
         return {
-            titulo: x.titulo, formato: c.formato, formatos: [formatoAntigo(c.formato)],
-            gancho: x.gancho, como_fazer: x.gancho, passos: x.passos || [], texto_na_tela: x.texto_na_tela || "", fala: x.fala || "", stories: x.stories || [],
-            duracao_s: x.duracao_s || null, peca: x.peca || "", inspirado: insp || null, por_que: x.por_que, metrica: x.metrica, funil: x.funil, metodo: x.metodo, tipo: x.tipo || "nova"
+            titulo: d.titulo, formato: c.formato, formatos: [formatoAntigo(c.formato)],
+            gancho: d.gancho, como_fazer: d.gancho, passos: (d.passos || []).map(function (s) { return semCodigos(s, mapa); }), texto_na_tela: d.texto_na_tela || "", fala: d.fala || "", stories: (d.stories || []).map(function (s) { return semCodigos(s, mapa); }),
+            duracao_s: d.duracao_s || null, peca: d.peca || "", inspirado: insp || null, por_que: d.por_que, metrica: d.metrica, funil: d.funil, metodo: d.metodo, tipo: d.tipo || r.tipo || "nova",
+            mecanica: r.mecanica || d.mecanica || "", completa: !!x
         };
     }
     // ordem da tela: curtos, narrados e provador
     const ordem = { curto: 0, narrado: 1, provador: 2 };
-    const lista = principais.map(ideia).sort(function (a, b) { return ordem[a.formato] - ordem[b.formato]; });
-    return { resumo: cur.resumo || "", lista: lista, reserva: reserva.map(ideia) };
+    const lista = e.principais.map(ideia).sort(function (a, b) { return ordem[a.formato] - ordem[b.formato]; });
+    const reserva = e.reserva.filter(function (c) { return cheia[c]; }).map(ideia);
+    const rascunhos = e.reserva.filter(function (c) { return !cheia[c]; }).slice(0, 24).map(ideia);
+    const av = p.aval_curto || p.aval || p.aval_narrado || p.aval_provador || {};
+    return { resumo: semCodigos(av.resumo || "", mapa), lista: lista, reserva: reserva, rascunhos: rascunhos, cortadas: Object.keys(e.cortadas).length };
 }
 
 // as ideias da analise anterior que a dona marcou com Gostei continuam na lista
@@ -954,7 +1047,7 @@ async function salvarDossie(ctx, p, motivo, mapa, mapaMem) {
         oportunidades: (dir.oportunidades || dossieAnt.oportunidades || []).map(function (o) { const c = Object.assign({}, o); delete c.codigos; return c; }),
         organico: p.org ? { relatorio: limpo.org, total_posts: ctx.postsTodos.length, videos: posts.filter(function (x) { return x.transcricao; }).map(function (x) { return { id: x.id, link: x.link, legenda: corta(x.legenda, 80), transcricao: x.transcricao }; }) } : null,
         anuncios: ads ? { relatorio: limpo.ads || null, tipo_resultado: ads.tipo, total: ads.lista.length, com_texto: ads.lista.filter(function (a) { return a.texto || a.transcricao; }).length, anuncios: ads.lista.filter(function (a) { return a.transcricao; }).map(function (a) { return { id: a.id, nome: a.nome, transcricao: a.transcricao }; }) } : null,
-        ideias: ideias.lista.length ? Object.assign({ gerado_em: new Date().toISOString(), resumo: ideias.resumo, lista: ideias.lista.concat(ideiasGuardadas(ctx, antIdeias, ideias.lista)).slice(0, 30), reserva: ideias.reserva }, antIdeias.levas_dia ? { levas_dia: antIdeias.levas_dia, levas: antIdeias.levas } : {}) : (antIdeias.lista ? antIdeias : null),
+        ideias: ideias.lista.length ? Object.assign({ gerado_em: new Date().toISOString(), resumo: ideias.resumo, lista: ideias.lista.concat(ideiasGuardadas(ctx, antIdeias, ideias.lista)).slice(0, 30), reserva: ideias.reserva, rascunhos: ideias.rascunhos, cortadas: ideias.cortadas }, antIdeias.levas_dia ? { levas_dia: antIdeias.levas_dia, levas: antIdeias.levas } : {}) : (antIdeias.lista ? antIdeias : null),
         publico: limpo.pub || dossieAnt.publico || null,
         publico_em: pubNovo ? new Date().toISOString() : (dossieAnt.publico_em || null),
         publico_admin_usado: pubNovo ? (ctx.loja.publico_admin || "") : (dossieAnt.publico_admin_usado || ""),
@@ -985,8 +1078,9 @@ async function pedidosDaEtapa(ctx, job) {
     if (job.etapa === 1) { const ped = await pedidosEtapa1(ctx); if (ctx.mapaMem && !job.parciais.mem) job.mapaMem = ctx.mapaMem; return ped; }
     if (!job.mapa) job.mapa = mapaDeCodigos(ctx);
     if (job.etapa === 2) return [pedidoDiretor(ctx, job.parciais)];
-    if (job.etapa === 3) return pedidosEspecialistas(ctx, job.parciais, titulosAnteriores(ctx));
-    return candidatas(job.parciais).length ? [pedidoCurador(ctx, job.parciais)] : [];
+    if (job.etapa === 3) return pedidosRascunhos(ctx, job.parciais, titulosAnteriores(ctx));
+    if (job.etapa === 4) return pedidosAvaliador(ctx, job.parciais, titulosAnteriores(ctx));
+    return candidatas(job.parciais).length ? pedidosEscrita(ctx, job.parciais, titulosAnteriores(ctx)) : [];
 }
 // roda na hora os pedidos que faltam (modo "agora", ou o que falhou no lote)
 async function rodarAgora(ctx, pedidos, parciais, prazo) {
@@ -996,7 +1090,7 @@ async function rodarAgora(ctx, pedidos, parciais, prazo) {
     function um(p, aoComecar) {
         return perguntar(ctx.userId, prazo ? Object.assign({}, p, { prazo: prazo }) : p, aoComecar).then(function (x) { if (x) parciais[p.chave] = x; }).catch(function (e) {
             console.error("[time] " + p.nome + ": " + (e && e.message));
-            if (!/^esp_|^cur|^mem/.test(p.chave) && !falha) falha = e;
+            if (!/^ras_|^esc_|^aval|^mem/.test(p.chave) && !falha) falha = e;
         });
     }
     // os especialistas dividem o mesmo pacote de dados: o primeiro vai sozinho e grava o cache;
@@ -1017,7 +1111,7 @@ async function rodarAgora(ctx, pedidos, parciais, prazo) {
 
 // Comeca uma analise. modo "lote" (madrugada) ou "agora".
 async function iniciarAnalise(userId, modo, motivo) {
-    const job = { modo: modo, etapa: 1, motivo: motivo || modo, criado_em: new Date().toISOString(), parciais: {} };
+    const job = { v: VERSAO, modo: modo, etapa: 1, motivo: motivo || modo, criado_em: new Date().toISOString(), parciais: {} };
     const reserva = await banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&dossie_job=is.null&select=user_id", { method: "PATCH", headers: { Prefer: "return=representation" }, body: { dossie_job: Object.assign({}, job, { rodando_ate: new Date(Date.now() + RODANDO_MS).toISOString() }) } });
     if (!reserva || !reserva.length) return { status: "ocupada" };
     try {
@@ -1062,7 +1156,7 @@ async function avancarEtapa(ctx, job) {
     }
     // prepara a proxima etapa (ou a primeira); so o que ainda nao tem resposta
     await prepararDoJob(ctx, job);
-    if (job.etapa > 4) { await salvarDossie(ctx, job.parciais, job.motivo, job.mapa, job.mapaMem); return { status: "pronta" }; }
+    if (job.etapa > 5) { await salvarDossie(ctx, job.parciais, job.motivo, job.mapa, job.mapaMem); return { status: "pronta" }; }
     const pedidos = (await pedidosDaEtapa(ctx, job)).filter(function (p) { return !job.parciais[p.chave]; });
     if (!pedidos.length) { job.etapa++; return avancarEtapa(ctx, job); }
     if (job.modo === "lote") {
@@ -1089,6 +1183,8 @@ async function continuarAnalise(userId, temTempo) {
     let ctx = await carregar(userId), job = ctx.job;
     if (!job) return { status: "sem_analise" };
     if (job.rodando_ate && new Date(job.rodando_ate).getTime() > Date.now()) return { status: "em_andamento" };
+    // analise comecada por uma versao anterior do time: as etapas mudaram, recomeca do zero
+    if (job.v !== VERSAO) { await salvarJob(userId, null); await marcar(userId, "Analisada"); return { status: "recomecar" }; }
     // analise na hora parada ha muito tempo: recomeca do zero na proxima vez
     if (job.modo === "agora" && Date.now() - new Date(job.criado_em).getTime() > AGORA_VENCIDO_MS) {
         await salvarJob(userId, null); await marcar(userId, "Analisada");
@@ -1111,7 +1207,7 @@ async function continuarAnalise(userId, temTempo) {
     return r;
 }
 
-// Analise completa na hora (botao do admin e primeira analise): roda as 4 etapas em sequencia
+// Analise completa na hora (botao do admin e primeira analise): roda as 5 etapas em sequencia
 async function analisarLoja(userId, motivo) {
     try {
         await iniciarAnalise(userId, "agora", motivo || "manual");
@@ -1145,19 +1241,35 @@ async function gerarMaisIdeias(userId) {
         reserva.filter(function (x) { return x.formato === f; }).slice(0, POR_LEVA[f]).forEach(function (x) { novas.push(x); });
     });
     reserva = reserva.filter(function (x) { return novas.indexOf(x) < 0; });
+    let rascunhos = (ant.rascunhos || []).slice();
     if (novas.length < 3) {
         await preparar(ctx, false);
+        const anteriores = titulosAnteriores(ctx);
         const p = { org: dossie.organico && dossie.organico.relatorio, ads: dossie.anuncios && dossie.anuncios.relatorio, pub: dossie.publico, dir: { oportunidades: dossie.oportunidades || [] } };
-        await rodarAgora(ctx, pedidosEspecialistas(ctx, p, titulosAnteriores(ctx)), p, Date.now() + 240000);
-        if (!candidatas(p).length) throw new ErroIdeias(502, "Não consegui gerar ideias agora. Tente de novo em alguns minutos.");
-        await rodarAgora(ctx, [pedidoCurador(ctx, p)], p, Date.now() + 90000);
+        const prazo = Date.now() + 240000;
+        if (rascunhos.length) {
+            // rascunhos que o avaliador aprovou e ainda nao foram escritos: 2 de cada formato
+            const pegar = [];
+            Object.keys(POR_LEVA).forEach(function (f) { rascunhos.filter(function (x) { return x.formato === f; }).slice(0, POR_LEVA[f]).forEach(function (x) { pegar.push(x); }); });
+            rascunhos = rascunhos.filter(function (x) { return pegar.indexOf(x) < 0; });
+            Object.keys(ESPECIALISTAS).forEach(function (f) { p["ras_" + f] = { ideias: pegar.filter(function (x) { return x.formato === f; }).map(function (x) { return { titulo: x.titulo, mecanica: x.mecanica || "outra", peca: x.peca, primeiro_segundo: x.gancho, prova: x.por_que, oportunidade: 0, inspirado_em: "", tipo: x.tipo || "nova" }; }) }; });
+            p.aval = { principais: candidatas(p).map(function (c) { return c.codigo; }), reserva: [], cortadas: [] };
+        } else {
+            await rodarAgora(ctx, pedidosRascunhos(ctx, p, anteriores), p, prazo);
+            if (!candidatas(p).length) throw new ErroIdeias(502, "Não consegui gerar ideias agora. Tente de novo em alguns minutos.");
+            await rodarAgora(ctx, pedidosAvaliador(ctx, p, anteriores), p, prazo);
+        }
+        await rodarAgora(ctx, pedidosEscrita(ctx, p, anteriores), p, prazo);
         const feitas = montarIdeias(p, mapaDeCodigos(ctx));
-        novas = feitas.lista; reserva = feitas.reserva;
+        if (!feitas.lista.length) throw new ErroIdeias(502, "Não consegui gerar ideias agora. Tente de novo em alguns minutos.");
+        novas = feitas.lista.filter(function (x) { return x.completa; });
+        if (novas.length < 3) novas = feitas.lista;
+        if (!(ant.rascunhos || []).length) { reserva = feitas.reserva; rascunhos = feitas.rascunhos; }
     }
     const ideias = Object.assign({}, ant, {
         gerado_em: new Date().toISOString(),
         lista: novas.map(function (i) { return Object.assign({}, i, { nova: true }); }).concat((ant.lista || []).map(function (i) { const c = Object.assign({}, i); delete c.nova; return c; })).slice(0, 60),
-        reserva: reserva, levas_dia: hoje, levas: levas + 1
+        reserva: reserva, rascunhos: rascunhos, levas_dia: hoje, levas: levas + 1
     });
     // rele antes de gravar: se uma analise nova terminou enquanto as ideias eram escritas, junta com ela
     const agora = await banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&select=dossie,memoria").catch(function () { return []; });
@@ -1170,6 +1282,7 @@ async function gerarMaisIdeias(userId) {
             const fi = fresco.ideias || {};
             ideias.lista = novas.map(function (i) { return Object.assign({}, i, { nova: true }); }).concat(fi.lista || []).slice(0, 60);
             ideias.reserva = fi.reserva || [];
+            ideias.rascunhos = fi.rascunhos || [];
             ideias.resumo = fi.resumo || ideias.resumo;
         }
     }
@@ -1220,7 +1333,7 @@ function entraNoLote(c, agora, acessoEm, ativaDesde) {
 
 module.exports = {
     analisarLoja, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO,
-    conversa: { semCodigos, textoDaLoja, espera, FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
-    _teste: { pedidoMemoria, memoriaNova, pedidoDiretor, pedidosEspecialistas, pedidoCurador, montarIdeias, mapaDeCodigos, rodarAgora, textoCampeoes, postsDaLoja, semCodigosEmTudo },
-    _interno: { vozEGanchos, primeiraFrase, postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, datasDoVarejo, montarIdeias, candidatas, ESQ_DIRETOR, ESQ_ESPECIALISTA, ESQ_CURADOR, SISTEMA_TIME }
+    conversa: { semCodigos, textoDaLoja, espera, FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, textoOportunidades, linhaPost, linhaAnuncio, ligarPostsAosAnuncios, anunciosDaLoja, postsDaLoja, MECANICAS, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
+    _teste: { pedidoMemoria, memoriaNova, pedidoDiretor, pedidosRascunhos, pedidosAvaliador, pedidosEscrita, escolha, montarIdeias, mapaDeCodigos, rodarAgora, textoCampeoes, postsDaLoja, semCodigosEmTudo, titulosAnteriores, ligarPostsAosAnuncios },
+    _interno: { vozEGanchos, primeiraFrase, postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, datasDoVarejo, montarIdeias, candidatas, ESQ_DIRETOR, ESQ_ESPECIALISTA, ESQ_RASCUNHO, ESQ_AVALIADOR, SISTEMA_TIME }
 };
