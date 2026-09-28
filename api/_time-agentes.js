@@ -516,7 +516,7 @@ async function preparar(ctx, comMeta) {
 // codigos P1/A1 para achar o video que inspirou cada ideia (guardado com a etapa, porque os numeros mudam entre as etapas)
 function mapaDeCodigos(ctx) {
     const m = {};
-    ctx.posts.forEach(function (p, i) { m["P" + (i + 1)] = { tipo: "post", link: p.link || "", miniatura: p.miniatura || "", legenda: corta(p.legenda, 90) }; });
+    ctx.posts.forEach(function (p, i) { m["P" + (i + 1)] = { tipo: "post", link: p.link || "", miniatura: p.miniatura || "", legenda: corta(p.legenda, 90), data: p.data || null, formato: p.tipo || "post" }; });
     ((ctx.ads && ctx.ads.lista) || []).slice(0, 12).forEach(function (a, i) { m["A" + (i + 1)] = { tipo: "anuncio", link: a.post_link || "", miniatura: a.miniatura || "", legenda: corta(a.nome, 90) }; });
     return m;
 }
@@ -725,7 +725,8 @@ const ESPECIALISTAS = {
             "- Texto grande na tela, de 3 a 8 palavras, dizendo o que a pessoa vê ou o preço, porque muita gente assiste sem som.\n" +
             "- Final que emenda no começo, para o vídeo ser assistido de novo.\n" +
             "- Cara de conteúdo nativo do Instagram, gravado com o celular. Visual cru e real prende mais que anúncio produzido.\n" +
-            "REPERTÓRIO (referência de formato para adaptar a esta loja): 1 peça, 5 looks no ritmo da música; troca de look a cada batida; do pijama ao look do evento; o provador em 7 segundos; close no tecido, no bordado e no caimento; o look inteiro montado em 10 segundos; POV só em texto na tela (POV: você achou o look do casamento); a mesma peça em 4 cores; antes e depois do look (da roupa, nunca do corpo); unboxing dos lançamentos; esgotou e voltou, quando for verdade.\n" +
+            "- Tem que dar para gravar SOZINHA, com o celular apoiado: cada tomada é gravada separada, no mesmo lugar e no mesmo enquadramento, e os cortes são juntados depois no editor do próprio Instagram. Diga isso nos passos (grave o look 1 parada, troque de roupa, grave o look 2 na mesma marca do chão). Nada de troca de roupa em menos de 1 segundo nem ação que precise de outra pessoa.\n" +
+            "REPERTÓRIO (referência de formato para adaptar a esta loja): 1 peça, 5 looks no ritmo da música; troca de look a cada batida; do pijama ao look do evento; o provador em 7 segundos; close no tecido, no bordado e no caimento; o look inteiro montado em 10 segundos; POV só em texto na tela (POV: você achou o look do casamento); a mesma peça em 4 cores; antes e depois do look (da roupa, nunca do corpo); abrindo a caixa dos lançamentos; esgotou e voltou, quando for verdade.\n" +
             "EM CADA IDEIA: passos = de 4 a 8 tomadas na ordem, cada uma com o que aparece e quantos segundos; fala vazia; stories vazio; duracao_s entre 7 e 15; funil topo; metrica em palavras simples (quantas pessoas ficaram nos 3 primeiros segundos, quantas assistiram de novo e compartilharam)."
     },
     narrado: {
@@ -758,9 +759,10 @@ function regrasDasIdeias(ctx, anteriores) {
         "REGRAS\n" +
         "- Preço, promoção, estoque, depoimento e número só entram se estiverem nos dados ou nos produtos informados. Urgência e escassez só com estoque baixo informado.\n" +
         "- Antes e depois só do look. Fale da peça e da situação, não do corpo da cliente (a calça que não marca, e não você que tem barriga), porque a Meta reprova anúncio que aponta característica pessoal e porque assim a cliente se sente bem.\n" +
-        "- Tudo gravável só com o celular pela dona ou pela equipe.\n" +
+        "- Tudo gravável só com o celular pela dona ou pela equipe. Nos passos, diga onde fica o celular (apoiado na prateleira na altura do peito, de frente para o espelho...) e em que ponto parar e trocar de roupa; a fala vem em blocos curtos, para gravar em partes e juntar depois, sem precisar decorar tudo de uma vez.\n" +
         "- Escreva para a dona entender de primeira: cada passo com até 12 palavras, dizendo o que aparece; por_que e metrica com uma frase curta cada.\n" +
-        "- Entregue 6 ideias diferentes entre si (peças, situações e ganchos distintos)." +
+        "- Entregue 6 ideias diferentes entre si (peças, situações e ganchos distintos). Cada gancho começa de um jeito diferente: nunca comece dois com as mesmas palavras.\n" +
+        "- Em por_que e em todo texto que a dona lê, descreva o post ou o anúncio (o Reels do vestido azul de 18/09); o código P ou A vai só em inspirado_em." +
         (anteriores.length ? "\n- Estas ideias já foram sugeridas; traga outras: " + anteriores.slice(0, 40).join(" | ") : "");
 }
 function contextoDasIdeias(ctx, p) {
@@ -827,6 +829,17 @@ function pedidoCurador(ctx, p) {
     };
 }
 function formatoAntigo(f) { return f === "curto" ? "rápido com transições" : f; }
+// troca "P3" ou "A1" no texto que a dona le pela descricao do post ou do anuncio
+function semCodigos(texto, mapa) {
+    if (typeof texto !== "string" || !mapa) return texto;
+    return texto.replace(/\b([PA])(\d{1,2})\b/g, function (tudo, letra, num) {
+        const x = mapa[letra + num];
+        if (!x) return letra === "P" ? "um dos seus posts" : "um dos seus anúncios";
+        if (letra === "P") return "o " + (x.formato === "Reels" ? "Reels" : "post") + (x.data ? " de " + dataCurta(x.data) : "");
+        const nome = corta(String(x.legenda || "").replace(/^\s*\[[^\]]*\]\s*[-–:|]*\s*/, ""), 40);
+        return nome ? "o anúncio \u201C" + nome + "\u201D" : "o seu anúncio";
+    });
+}
 // junta a escolha do curador com as ideias dos especialistas (sem curador, pega as primeiras de cada formato)
 function montarIdeias(p, mapa) {
     const cands = candidatas(p), porCodigo = {};
@@ -843,6 +856,9 @@ function montarIdeias(p, mapa) {
     if (!cur.reserva) reserva = cands.map(function (c) { return c.codigo; }).filter(function (c) { return !usados[c]; });
     function ideia(codigo) {
         const c = porCodigo[codigo], x = c.ideia, insp = x.inspirado_em && mapa && mapa[String(x.inspirado_em).trim().toUpperCase()];
+        ["titulo", "gancho", "texto_na_tela", "fala", "peca", "por_que", "metrica"].forEach(function (k) { x[k] = semCodigos(x[k], mapa); });
+        x.passos = (x.passos || []).map(function (s) { return semCodigos(s, mapa); });
+        x.stories = (x.stories || []).map(function (s) { return semCodigos(s, mapa); });
         return {
             titulo: x.titulo, formato: c.formato, formatos: [formatoAntigo(c.formato)],
             gancho: x.gancho, como_fazer: x.gancho, passos: x.passos || [], texto_na_tela: x.texto_na_tela || "", fala: x.fala || "", stories: x.stories || [],
@@ -1100,7 +1116,7 @@ function entraNoLote(c, agora, acessoEm, ativaDesde) {
 
 module.exports = {
     analisarLoja, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO,
-    conversa: { textoDaLoja, espera, FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
-    _teste: { pedidoMemoria, memoriaNova },
+    conversa: { semCodigos, textoDaLoja, espera, FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
+    _teste: { pedidoMemoria, memoriaNova, pedidosEspecialistas, pedidoCurador, montarIdeias, mapaDeCodigos, rodarAgora },
     _interno: { vozEGanchos, primeiraFrase, postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, datasDoVarejo, montarIdeias, candidatas, ESQ_DIRETOR, ESQ_ESPECIALISTA, ESQ_CURADOR, SISTEMA_TIME }
 };

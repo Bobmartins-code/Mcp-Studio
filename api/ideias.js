@@ -7,6 +7,7 @@
 
 const { SUPA_URL, SUPA_ANON } = require("./_seguranca.js");
 const { gerarMaisIdeias, ErroIdeias } = require("./_time-agentes.js");
+const { registrarFalha } = require("./_uso-ia.js");
 
 // quem esta pedindo (o token do login da propria dona)
 async function usuarioDoToken(jwt) {
@@ -29,6 +30,7 @@ module.exports = async function handler(req, res) {
     } catch (e) {
         if (e instanceof ErroIdeias) return res.status(e.status).json({ error: e.message });
         console.error("[ideias] " + u.id + ": " + (e && e.message));
+        registrarFalha(u.id, "gerar mais ideias", e && e.message);
         return res.status(500).json({ error: "Não consegui gerar ideias agora. Tente de novo em alguns minutos." });
     }
 };

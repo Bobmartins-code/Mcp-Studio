@@ -7,6 +7,7 @@
 
 const { banco, acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
 const { limparNomes, atualizarReferencias } = require("./_referencias.js");
+const { registrarFalha } = require("./_uso-ia.js");
 
 module.exports = async function handler(req, res) {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -28,6 +29,7 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ ok: true, perfis: nomes, referencias: ref });
     } catch (e) {
         console.error("[referencias] " + uid + ": " + (e && e.message));
+        registrarFalha(uid, "lojas de referência", e && e.message);
         return res.status(500).json({ error: "Não consegui salvar as referências agora. Tente de novo." });
     }
 };

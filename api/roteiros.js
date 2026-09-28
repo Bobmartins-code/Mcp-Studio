@@ -23,6 +23,7 @@ const { banco, acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
 const { diaSP } = require("./_coleta.js");
 const { SISTEMA: AGENTE } = require("./_agente-mcp.js");
 const { conversa: T } = require("./_time-agentes.js");
+const { registrarFalha } = require("./_uso-ia.js");
 
 const ROTEIRISTA = "claude-opus-5-5", AJUDANTE = "claude-sonnet-5";
 const POR_RODADA = 3, MAX_RODADAS = 5, MAX_DIA = 40;
@@ -36,7 +37,7 @@ const METODOS = {
 const ESTRUTURAS = [
     "opinião forte: a dona defende uma ideia, explica por quê e fecha com a conclusão",
     "demonstração: mostra na prática, no corpo, no espelho ou na peça",
-    "situação do dia a dia (POV): a cena que a cliente vive, contada de um jeito que ela se reconhece",
+    "situação do dia a dia: a cena que a cliente vive, contada de um jeito que ela se reconhece, com a peça resolvendo",
     "lista curta: 2 ou 3 sinais, erros ou jeitos de usar, cada um com um exemplo real",
     "história: algo que aconteceu na loja ou com uma cliente, contado como conversa (só com fatos dos dados)",
     "experiência de quem faz: o que a dona aprendeu vendendo, com a lição concreta"
@@ -126,9 +127,9 @@ function conferir(r, fonte) {
     const palavrasGancho = String(r.gancho || "").split(/\s+/).filter(Boolean).length;
     if (palavrasGancho > 16) achados.push("gancho longo (" + palavrasGancho + " palavras): corte para até 15");
     // numero, preco ou porcentagem que nao esta nos dados vira promessa que a loja nao cumpre
-    const fonteNum = String(fonte || "").replace(/\s/g, "");
+    const fonteNum = String(fonte || "").replace(/[\s.,]/g, "");
     const nums = (tudo.match(/R\$\s?\d[\d.,]*|\d+[.,]?\d*\s?%|\b\d[\d.,]*\s?(?:mil\s)?(?:peças|clientes|vendas|pedidos|avaliações|unidades|seguidoras|seguidores|anos|meses)\b/gi) || []).map(function (n) { return n.trim(); });
-    const inventados = nums.filter(function (n, i, v) { const so = (n.match(/\d[\d.,]*/) || [""])[0].replace(/[.,]$/, ""); return v.indexOf(n) === i && so && fonteNum.indexOf(so) < 0; });
+    const inventados = nums.filter(function (n, i, v) { const so = (n.match(/\d[\d.,]*/) || [""])[0].replace(/[.,]/g, ""); return v.indexOf(n) === i && so && fonteNum.indexOf(so) < 0; });
     if (inventados.length) achados.push("números que não estão nos dados da loja: " + inventados.slice(0, 5).join(", ") + " (tire ou troque por algo que está nos dados)");
     return achados;
 }
@@ -152,6 +153,7 @@ function pedidoRoteiro(base, k, total, estrutura, pergunta, jaUsados, fechamento
             (pergunta ? " O gancho pode ser uma pergunta." : " O gancho NÃO é pergunta (outro roteiro da rodada usa pergunta).") +
             " Feche com " + fechamento + "." +
             " Os outros roteiros da rodada usam outras estruturas e outros fechamentos, então faça este bem diferente deles." +
+            " Use pelo menos um dado concreto dos DADOS DESTA LOJA (a peça, a cor, o tamanho, o preço, uma dúvida real das clientes ou o tipo de vídeo que mais rende nela) e, em loja de roupa, mostre a peça vestida no corpo em pelo menos uma cena." +
             (jaUsados.length ? " Ganchos que já existem neste projeto (comece de outro jeito): " + jaUsados.slice(-12).map(aspas).join(" | ") : "") }
     ];
 }
@@ -241,7 +243,7 @@ async function gerarRodada(uid, proj, pedido, carregado) {
             try { r = await umRoteiro(uid, sistema, pedidoRoteiro(base, i + 1, quantos, estruturas[i], i === 0, jaUsados, FECHAMENTOS[i % FECHAMENTOS.length]), tentativa === 0 ? aoComecar : null); }
             catch (e) { console.error("[roteiros] roteiro " + (i + 1) + ": " + (e && e.message)); if (tentativa === 0 && aoComecar) aoComecar(); }
         }
-        if (!r) { falhas++; return; }
+        if (!r) { falhas++; registrarFalha(uid, "roteiro", "um roteiro da rodada não saiu"); return; }
         r = limpar(r, formato);
         r = limpar(await revisar(uid, r, conferir(r, fonteNumeros), vozLoja, destino, formato), formato);
         const sobrou = conferir(r, fonteNumeros);
@@ -262,6 +264,7 @@ async function gerarRodada(uid, proj, pedido, carregado) {
     return { ok: feitos > 0, roteiros: feitos, faltaram: falhas };
     } catch (e) {
         await grava(mexeNaRodada(rid, function (rd) { rd.gerando = false; rd.erro = true; return rd; }));
+        registrarFalha(uid, "rodada de roteiros", e && e.message);
         throw e;
     }
 }
@@ -343,6 +346,7 @@ module.exports = async function handler(req, res) {
     } catch (e) {
         if (e && e.status) return res.status(e.status).json({ error: e.message });
         console.error("[roteiros] " + uid + ": " + (e && e.message));
+        if (b.acao) registrarFalha(uid, b.acao === "ajustar" ? "ajustar roteiro" : "refazer roteiro", e && e.message);
         return res.status(500).json({ error: /credit balance/i.test((e && e.message) || "") ? "O MCP Studio está sem créditos de IA agora. Avise a equipe." : "Não consegui gerar os roteiros agora. Tente de novo em alguns minutos." });
     }
 };

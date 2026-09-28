@@ -1,5 +1,5 @@
 const { acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
-const { registrarUso } = require("./_uso-ia.js");
+const { registrarUso, registrarFalha } = require("./_uso-ia.js");
 // Agente MCP: o cerebro do agente (quem ele e, como escreve e os metodos) fica em api/_agente-mcp.js
 const { SISTEMA: AGENTE } = require("./_agente-mcp.js");
 const FORMATO = "FORMATO DA RESPOSTA: quando o pedido for JSON, responda só com o JSON puro, sem markdown. Dentro dos textos, use aspas simples para citações, porque aspas duplas quebram o JSON e a cliente perde o resultado.";
@@ -80,11 +80,13 @@ module.exports = async function handler(req, res) {
             });
         } catch (e) {
             clearTimeout(timeout);
+            registrarFalha(quem, funcao, e.message);
             return res.status(500).json({ error: e.message });
         }
         if (!r.ok || !r.body) {
             clearTimeout(timeout);
             let errTxt = ""; try { errTxt = await r.text(); } catch (_) {}
+            registrarFalha(quem, funcao, "IA respondeu " + r.status + ": " + errTxt.slice(0, 200));
             return res.status(r.status || 500).json({ error: "Erro na IA", detail: errTxt.slice(0, 400) });
         }
         res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -143,12 +145,15 @@ module.exports = async function handler(req, res) {
         clearTimeout(timeout);
         const d = await r.json();
         await registrarUso(quem, funcao, model, d && d.usage, false);
+        if (!r.ok) registrarFalha(quem, funcao, "IA respondeu " + r.status + ": " + String((d && d.error && d.error.message) || "").slice(0, 200));
         if (d && Array.isArray(d.content)) d.content.forEach(function (b) { if (b && typeof b.text === "string") b.text = semTravessao(b.text); });
         return res.status(r.ok ? 200 : r.status).json(d);
     } catch(e) {
         if (e.name === "AbortError") {
+            registrarFalha(quem, funcao, "a IA demorou demais");
             return res.status(504).json({ error: "A IA demorou demais. Tente novamente." });
         }
+        registrarFalha(quem, funcao, e.message);
         return res.status(500).json({ error: e.message });
     }
 };

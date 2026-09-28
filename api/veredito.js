@@ -8,6 +8,7 @@
 
 const { banco, acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
 const { conversa: T } = require("./_time-agentes.js");
+const { registrarFalha } = require("./_uso-ia.js");
 
 const GUARDA_MS = 7 * 24 * 3600 * 1000;
 const ESQ = T.objeto({
@@ -64,6 +65,7 @@ module.exports = async function handler(req, res) {
         return res.status(200).json(r);
     } catch (e) {
         console.error("[veredito] " + uid + ": " + (e && e.message));
+        registrarFalha(uid, "como melhorar o vídeo", e && e.message);
         return res.status(500).json({ error: /credit balance/i.test((e && e.message) || "") ? "O MCP Studio está sem créditos de IA agora. Avise a equipe." : "Não consegui analisar o vídeo agora. Tente de novo." });
     }
 };

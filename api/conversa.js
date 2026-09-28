@@ -12,6 +12,7 @@ const { banco, acessoLiberado, SEM_ACESSO } = require("./_seguranca.js");
 const { diaSP } = require("./_coleta.js");
 const { SISTEMA: AGENTE_MCP } = require("./_agente-mcp.js");
 const { conversa: T } = require("./_time-agentes.js");
+const { registrarFalha } = require("./_uso-ia.js");
 
 const MAX_DIA = 15;
 const FORMATOS = ["curto", "narrado", "provador"];
@@ -53,6 +54,8 @@ async function conversarIdeias(uid, pedido, historico) {
     const mapa = T.mapaDeCodigos(ctx);
     const ideias = (r.ideias || []).slice(0, 4).map(function (x) {
         const insp = x.inspirado_em && mapa[String(x.inspirado_em).trim().toUpperCase()];
+        ["titulo", "gancho", "texto_na_tela", "fala", "peca", "por_que", "metrica"].forEach(function (k) { x[k] = T.semCodigos(x[k], mapa); });
+        x.passos = (x.passos || []).map(function (s) { return T.semCodigos(s, mapa); });
         const f = FORMATOS.indexOf(x.formato) > -1 ? x.formato : "curto";
         return { titulo: x.titulo, formato: f, formatos: [f === "curto" ? "rápido com transições" : f], gancho: x.gancho, como_fazer: x.gancho, passos: x.passos || [], texto_na_tela: x.texto_na_tela || "", fala: x.fala || "", stories: x.stories || [], duracao_s: x.duracao_s || null, peca: x.peca || "", inspirado: insp || null, por_que: x.por_que, metrica: x.metrica, funil: x.funil, metodo: x.metodo, origem: "conversa" };
     });
@@ -133,6 +136,7 @@ module.exports = async function handler(req, res) {
     } catch (e) {
         if (e && e.status) return res.status(e.status).json({ error: e.message });
         console.error("[conversa] " + uid + ": " + (e && e.message));
+        registrarFalha(uid, "chat de " + area, e && e.message);
         return res.status(500).json({ error: /credit balance/i.test((e && e.message) || "") ? "O time está sem créditos de IA agora. Avise a equipe do MCP Studio." : "Não consegui responder agora. Tente de novo em alguns minutos." });
     }
 };

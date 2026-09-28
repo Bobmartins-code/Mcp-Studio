@@ -37,4 +37,10 @@ function registrarUso(userId, funcao, modelo, usage, lote) {
         .catch(function (e) { console.error("[uso_ia] " + (e && e.message)); });
 }
 
-module.exports = { registrarUso, custoDe, PRECOS };
+// erro que a dona viu (roteiro, chat, analise do video...): o Painel Admin mostra os dos ultimos 7 dias
+function registrarFalha(userId, onde, erro) {
+    return banco("falhas", { method: "POST", headers: { Prefer: "return=minimal" }, body: { user_id: userId || null, onde: String(onde || "").slice(0, 60), erro: String(erro || "").slice(0, 300) } })
+        .catch(function (e) { console.error("[falhas] " + (e && e.message)); });
+}
+
+module.exports = { registrarUso, registrarFalha, custoDe, PRECOS };

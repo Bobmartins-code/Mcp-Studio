@@ -771,18 +771,39 @@ function lojasOrdenadas(){
     .sort(function(a,b){var la=!!lojas[a.id],lb=!!lojas[b.id];if(la!==lb)return la?-1:1;return nomeLoja(a.id).localeCompare(nomeLoja(b.id),"pt-BR");});
 }
 // gasto de IA dos ultimos 30 dias, por loja (tabela uso_ia, gravada pelo servidor)
-var custos={},custoTotal=0;
+var custos={},custoTotal=0,uso7={},total7={roteiros:0,falhas:0};
+function u7(k){return uso7[k]=uso7[k]||{roteiros:0,pedidos:0,gravados:0,falhas:0,erros:[],custo:0};}
 async function carregarCustos(){
-  custos={};custoTotal=0;
+  custos={};custoTotal=0;uso7={};total7={roteiros:0,falhas:0};
+  var sete=Date.now()-7*864e5;
   try{
     var desde=new Date(Date.now()-30*864e5).toISOString(),de=0;
     for(var pg=0;pg<20;pg++){
-      var r=await supaClient.from("uso_ia").select("user_id,custo_usd,lote").gte("criado_em",desde).range(de,de+999);
+      var r=await supaClient.from("uso_ia").select("user_id,custo_usd,lote,funcao,criado_em").gte("criado_em",desde).range(de,de+999);
       if(r.error)break;var rows=r.data||[];
-      rows.forEach(function(x){var k=x.user_id||"-";custos[k]=(custos[k]||0)+Number(x.custo_usd||0);custoTotal+=Number(x.custo_usd||0);});
+      rows.forEach(function(x){
+        var k=x.user_id||"-",c=Number(x.custo_usd||0);custos[k]=(custos[k]||0)+c;custoTotal+=c;
+        if(new Date(x.criado_em).getTime()<sete)return;
+        var s=u7(k);s.custo+=c;
+        // cada chamada "Roteiro" e 1 roteiro; o jeito antigo (no navegador) fazia 3 por chamada
+        if(x.funcao==="Roteiro"){s.roteiros++;total7.roteiros++;}
+        else if(x.funcao==="app: roteiros"){s.roteiros+=3;total7.roteiros+=3;}
+        else if(/^Chat de/.test(x.funcao||""))s.pedidos++;
+      });
       if(rows.length<1000)break;de+=1000;
     }
   }catch(e){}
+  // falhas que a dona viu
+  try{var rf=await supaClient.from("falhas").select("user_id,onde,erro,criado_em").gte("criado_em",new Date(sete).toISOString()).order("criado_em",{ascending:false}).limit(1000);
+    ((rf&&rf.data)||[]).forEach(function(x){var s=u7(x.user_id||"-");s.falhas++;total7.falhas++;if(s.erros.length<5)s.erros.push(fmtCurto(x.criado_em)+" · "+x.onde+": "+String(x.erro||"").slice(0,120));});}catch(e){}
+  // gravados: roteiros marcados como gravados e ideias da semana marcadas
+  (allProjetos||[]).forEach(function(p){(p.rodadas||[]).forEach(function(rd){((rd.resultado&&rd.resultado.roteiros)||[]).forEach(function(s){if(s.gravado&&s.gravado_em&&new Date(s.gravado_em).getTime()>=sete)u7(p.user_id).gravados++;});});});
+  try{var rs=await supaClient.from("semana").select("user_id,dia,feito").eq("feito",true).gte("dia",new Date(sete).toISOString().slice(0,10));((rs&&rs.data)||[]).forEach(function(x){u7(x.user_id).gravados++;});}catch(e){}
+}
+function blocoUso7(uid){
+  var s=uso7[uid];if(!s)return '<span class="mini">Sem uso</span>';
+  var p=[];if(s.roteiros)p.push(s.roteiros+(s.roteiros===1?" roteiro":" roteiros"));if(s.gravados)p.push(s.gravados+(s.gravados===1?" gravado":" gravados"));if(s.pedidos)p.push(s.pedidos+(s.pedidos===1?" pedido ao time":" pedidos ao time"));
+  return '<div style="font-size:13px">'+(p.join(" · ")||"Sem uso")+'</div>'+(s.falhas?'<div class="mini" style="color:var(--ac2)" title="'+escHtml(s.erros.join("\n"))+'">'+s.falhas+(s.falhas===1?" falha":" falhas")+' · '+escHtml(String(s.erros[0]||"").slice(0,70))+'</div>':'')+(s.custo?'<div class="mini">IA em 7 dias: '+fmtUsd(s.custo)+'</div>':'');
 }
 function fmtUsd(v){return "US$ "+(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
 function temConexao(n){var ct=(n&&n.conta)||{};return !!(ct.username||ct.anuncios||(n&&(n.ig_username||n.ad_account_nome)));}
@@ -792,10 +813,10 @@ function renderLojas(){
   var acessa=0,aguardando=0,falta=0;
   allUsers.forEach(function(u){if(u.last_sign_in_at)acessa++;else aguardando++;if(!temConexao(numeros[u.id]))falta++;});
   document.getElementById("nav-lojas").textContent=allUsers.length||"";
-  document.getElementById("lojas-tiles").innerHTML=[["Lojas",allUsers.length,""],["Dona já acessa",acessa,"var(--ok)"],["Aguardando 1º acesso",aguardando,"var(--gold)"],["Falta conectar",falta,"var(--ac2)"],["IA nos últimos 30 dias",fmtUsd(custoTotal),""]].map(function(t){return '<div class="tile"><div class="tile-l">'+t[0]+'</div><div class="tile-v"'+(t[2]?' style="color:'+t[2]+'"':'')+'>'+t[1]+'</div></div>';}).join("");
+  document.getElementById("lojas-tiles").innerHTML=[["Lojas",allUsers.length,""],["Dona já acessa",acessa,"var(--ok)"],["Aguardando 1º acesso",aguardando,"var(--gold)"],["Falta conectar",falta,"var(--ac2)"],["Roteiros em 7 dias",total7.roteiros,""],["Falhas em 7 dias",total7.falhas,total7.falhas?"var(--ac2)":""],["IA nos últimos 30 dias",fmtUsd(custoTotal),""]].map(function(t){return '<div class="tile"><div class="tile-l">'+t[0]+'</div><div class="tile-v"'+(t[2]?' style="color:'+t[2]+'"':'')+'>'+t[1]+'</div></div>';}).join("");
   var lista=lojasOrdenadas();
   if(!lista.length){el.innerHTML='<div class="empty">Nenhuma loja encontrada.</div>';return;}
-  var html='<table><thead><tr><th>Loja</th><th>Instagram</th><th>Anúncios</th><th>Acesso da dona</th><th>Números</th><th></th></tr></thead><tbody>';
+  var html='<table><thead><tr><th>Loja</th><th>Instagram</th><th>Anúncios</th><th>Acesso da dona</th><th>Últimos 7 dias</th><th>Números</th><th></th></tr></thead><tbody>';
   lista.forEach(function(u){
     var l=lojas[u.id],n=numeros[u.id]||{},ct=n.conta||{},cc=connectClientes[u.id];
     var conectar='<button class="lk" onclick="conectarLoja(\''+u.id+'\')">Conectar →</button>';
@@ -808,7 +829,7 @@ function renderLojas(){
     if(custos[u.id])num+='<div class="mini">IA em 30 dias: '+fmtUsd(custos[u.id])+'</div>';
     if((n.avisos||[]).length)num+='<div class="mini" style="color:var(--gold);max-width:260px;white-space:normal" title="'+escHtml(n.avisos.join(" | "))+'">Aviso: '+escHtml(String(n.avisos[0]).slice(0,120))+(n.avisos.length>1?' (+'+(n.avisos.length-1)+')':'')+'</div>';
     html+='<tr><td><div style="display:flex;gap:12px;align-items:center"><div class="av">'+escHtml(iniciais(nomeLoja(u.id)))+'</div><div style="min-width:0"><div style="font-weight:600;font-size:14.5px">'+escHtml(nomeLoja(u.id))+(u.id===ADMIN_ID?' <span class="ch ch-mu" style="font-size:10px">você</span>':'')+'</div><div class="mini">'+escHtml(l&&l.nicho?l.nicho+" · "+u.email:u.email)+'</div>'+(!l?'<div class="mini"><button class="lk" onclick="abrirDrawerLoja(\''+u.id+'\')">Completar dados da loja</button></div>':'')+'</div></div></td>'
-      +'<td>'+ig+'</td><td>'+ads+'</td><td>'+acesso+'</td><td style="font-size:13px">'+num+'<div class="mini" id="ls-'+u.id+'" style="color:var(--ac2);max-width:260px;white-space:normal">'+escHtml(statusLoja[u.id]||"")+'</div></td>'
+      +'<td>'+ig+'</td><td>'+ads+'</td><td>'+acesso+'</td><td>'+blocoUso7(u.id)+'</td><td style="font-size:13px">'+num+'<div class="mini" id="ls-'+u.id+'" style="color:var(--ac2);max-width:260px;white-space:normal">'+escHtml(statusLoja[u.id]||"")+'</div></td>'
       +'<td style="white-space:nowrap;text-align:right"><button class="btn-out" onclick="verComoLoja(\''+u.id+'\')">Abrir loja</button> <button class="btn-dots" aria-label="Mais opções da loja" aria-haspopup="menu" onclick="abrirMenu(\''+u.id+'\',this)">⋯</button></td></tr>';
   });
   el.innerHTML=html+'</tbody></table>';
