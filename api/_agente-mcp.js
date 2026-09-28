@@ -30,7 +30,7 @@ Cada gancho nasce de um desses pontos. O corpo responde ao que trava a compra co
 
 const VOZ = `
 COMO VOCÊ ESCREVE
-Escreva do jeito que a dona da loja fala, e não do jeito que um anúncio escreve. Quando vier a VOZ DA LOJA (falas reais dela nos vídeos que mais deram certo), estude como ela abre, como desenvolve e como fecha os vídeos, e siga esse jeito: o ritmo, o tamanho das frases, as expressões e os conectores que ela usa ('gente', 'ó', 'agora vem cá', 'então'). A fala transcrita pode ter erro de palavra; escreva sempre a forma correta. Quando vierem COMENTÁRIOS REAIS, use as palavras que as clientes usam. É isso que faz o roteiro soar como ela, e não como uma IA.
+Escreva do jeito que a dona da loja fala, e não do jeito que um anúncio escreve. Quando vier a VOZ DA LOJA (falas reais dela nos vídeos que mais deram certo), estude como ela abre, como desenvolve e como fecha os vídeos, e siga esse jeito: o ritmo, o tamanho das frases, as expressões e os conectores que ela mesma usa nas falas. A fala transcrita pode ter erro de palavra; escreva sempre a forma correta. Quando vierem COMENTÁRIOS REAIS, use as palavras que as clientes usam. É isso que faz o roteiro soar como ela, e não como uma IA.
 Frases de tamanhos diferentes, como na fala: uma curta, uma mais longa, uma bem curta. Contrações naturais do português falado (pra, tá, tô, né). Uma ideia por frase.
 Para ligar as frases, use vírgula, ponto ou uma frase nova. O travessão não aparece na fala e denuncia texto escrito por máquina.
 Cada roteiro tem uma abertura diferente dos outros, porque três roteiros que começam igual parecem feitos em série.
@@ -41,19 +41,22 @@ Use só prova que está nos dados: depoimento, nome de cliente, número de venda
 const ESTRUTURA_DO_ROTEIRO = `
 ESTRUTURA DE TODO ROTEIRO
 O roteiro é uma fala de Reels, não um anúncio. Ele funciona quando parece a dona contando algo que sabe, mostrando algo que fez ou dando a opinião dela, e a venda aparece como consequência natural no final.
-OS 3 ROTEIROS TÊM 3 ESTRUTURAS DIFERENTES. Escolha 3 destas, uma para cada roteiro, de preferência as que a dona já usa nos vídeos dela (veja a VOZ DA LOJA):
-- opinião ou tese forte: abre com uma afirmação que a dona defende ('Tráfego pago não vai salvar a sua loja.'), explica por quê e fecha com a conclusão;
-- demonstração: mostra na prática, na tela, no corpo ou no produto ('Olha só, vou te mostrar numa loja fictícia...');
+OS ROTEIROS DE UMA RODADA TÊM ESTRUTURAS DIFERENTES, e a tarefa diz qual estrutura e qual fechamento usar em cada um. As estruturas possíveis:
+- opinião forte: a dona abre defendendo uma ideia sobre o assunto, explica por quê e fecha com a conclusão;
+- demonstração: mostra na prática, na tela, no corpo ou na peça;
 - história: algo que aconteceu com a dona ou com uma cliente, contado como conversa (só com fatos que estão nos dados);
-- experiência de quem faz: 'Uma coisa que eu aprendi em tantos anos de...', e a lição concreta;
+- experiência de quem faz: o que a dona aprendeu vendendo, e a lição concreta;
 - situação ou POV: a cena do dia a dia da cliente, descrita de um jeito que ela se reconhece;
 - lista curta: 2 ou 3 sinais, erros ou jeitos de usar, cada um com um exemplo real.
-Nos 3 roteiros, no máximo 1 gancho é pergunta, porque três perguntas seguidas soam como fórmula de anúncio.
+Escreva cada frase com palavras novas, tiradas do caso desta loja: nunca repita frases prontas deste texto de instruções.
+Na rodada, no máximo 1 gancho é pergunta, porque várias perguntas seguidas soam como fórmula de anúncio.
 ESPECIFICIDADE: cada gancho traz um dado, uma situação ou um detalhe que só este negócio tem. Se um concorrente pudesse falar a mesma frase, reescreva até ela ficar única.
 GANCHO: a primeira frase, curta, que dá para falar em 3 segundos (até umas 15 palavras). Vai direto ao assunto. Quando vier a BIBLIOTECA DE GANCHOS DA CONTA, use o tipo de abertura que mais segurou gente nesta conta, com palavras novas.
 CORPO: o desenvolvimento no jeito da dona: o exemplo, a demonstração, a história ou a explicação, com um argumento concreto (dado, cálculo, detalhe do produto, o motivo de funcionar). Pode ter de 3 a 6 frases.
-CTA: o fechamento. Primeiro a conclusão ou a lição, depois um convite curto e natural coerente com o DESTINO (conversa, seguir o perfil ou site), como a dona faria. Cada um dos 3 roteiros fecha de um jeito diferente; pedir para comentar ou mandar uma palavra-chave pode aparecer em no máximo um deles.
-TAMANHO: de 25 a 45 segundos de fala. Quando vier o tempo médio assistido da conta, o argumento principal aparece antes desse tempo.
+CTA: o fechamento. Primeiro a conclusão ou a lição, depois um convite curto e natural coerente com o DESTINO (conversa, seguir o perfil ou site), como a dona faria, no tipo de fechamento que a tarefa pedir.
+TAMANHO: siga a duração que vier no pedido; sem ela, de 25 a 45 segundos de fala.
+PRONTO PARA GRAVAR: além do texto, entregue as cenas (o que ela fala, o que aparece na imagem e o texto por cima do vídeo), o texto da capa, a legenda do post, de 3 a 5 hashtags e 2 aberturas extras para ela testar qual prende mais.
+PORTUGUÊS SIMPLES: nada de palavra em inglês além de Reels, stories, direct, close e POV, e nada de termo técnico de edição ou de marketing.
 `;
 
 // Base de metodos. O app envia qual deles foi escolhido (pelo codigo entre parenteses).

@@ -181,11 +181,11 @@ function chave() {
 function cabecalhos() { return { "Content-Type": "application/json", "x-api-key": chave(), "anthropic-version": "2023-06-01" }; }
 function corpoDe(p) {
     return {
-        model: MODELO,
+        model: p.modelo || MODELO,
         max_tokens: p.max || 12000,
         system: [{ type: "text", text: p.sistema || SISTEMA_TIME }],
         messages: [{ role: "user", content: p.pedido }],
-        output_config: { effort: "medium", format: { type: "json_schema", schema: p.esquema } }
+        output_config: { effort: p.effort || "medium", format: { type: "json_schema", schema: p.esquema } }
     };
 }
 // resposta da API (na hora ou do lote) virando o JSON pedido
@@ -243,7 +243,7 @@ async function perguntar(userId, p, aoComecar) {
             if (t < 2) { await espera(2000 * (t + 1)); continue; }
             throw new Error(p.nome + ": " + (e.name === "TimeoutError" || e.name === "AbortError" ? "a IA demorou demais" : (e.message || "falha na resposta")));
         }
-        await registrarUso(userId, p.nome, MODELO, d.usage, false);
+        await registrarUso(userId, p.nome, p.modelo || MODELO, d.usage, false);
         return lerResposta(p.nome, d);
     }
 }
@@ -996,7 +996,7 @@ function entraNoLote(c, agora, acessoEm, ativaDesde) {
 
 module.exports = {
     analisarLoja, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO,
-    conversa: { FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
+    conversa: { textoDaLoja, espera, FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
     _teste: { pedidoMemoria, memoriaNova },
     _interno: { vozEGanchos, primeiraFrase, postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, datasDoVarejo, montarIdeias, candidatas, ESQ_DIRETOR, ESQ_ESPECIALISTA, ESQ_CURADOR, SISTEMA_TIME }
 };

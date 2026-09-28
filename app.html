@@ -301,6 +301,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .toast{max-width:min(520px,calc(100vw - 32px));z-index:400}
 .toast.err{border-color:rgba(255,107,90,.5)}
 .toast-bt{margin-left:6px;flex-shrink:0;min-height:36px;padding:0 12px;border-radius:8px;border:none;background:#D43D00;color:#fff;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer}
+.cenas{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:10px}.cena{font-size:13.5px;line-height:1.5}.cena-f{font-weight:600;margin-bottom:3px}.cena-t{color:#C9C7C0;font-size:13px}
 .esqueleto{background:linear-gradient(90deg,var(--sur) 0%,var(--sur2) 50%,var(--sur) 100%);background-size:200% 100%;animation:esq 1.2s linear infinite;border-radius:14px}
 @keyframes esq{0%{background-position:100% 0}100%{background-position:-100% 0}}
 </style>
@@ -400,22 +401,6 @@ var NICHOS=["moda feminina","moda masculina","moda infantil","moda fitness","lin
 var CONTA_AGENTE={texto:"",nicho:"",por_metodo:null,voz:null,ganchos:null},REFERENCIA_ATUAL="";
 // o tempo medio assistido fica na raiz do dossie; entra junto com os ganchos para o roteirista
 function contaDoDossie(d){d=d||{};var g=d.ganchos||(d.tempo_medio_conta?{}:null);if(g&&d.tempo_medio_conta)g=Object.assign({},g,{tempo_medio_conta:d.tempo_medio_conta});return {texto:d.texto||"",nicho:d.nicho||"",por_metodo:d.por_metodo||null,voz:d.voz||null,ganchos:g};}
-// voz da loja (falas reais e comentarios) e ganchos com numeros desta conta, para o roteirista e o revisor
-function textoVozDaLoja(){
-  var v=CONTA_AGENTE.voz,partes=[];if(!v)return "";
-  if((v.falas||[]).length)partes.push("VOZ DA LOJA (falas reais e completas da dona nos vídeos que mais deram certo; estude como ela abre, desenvolve e fecha, e escreva nesse jeito, sem copiar as frases): "+v.falas.map(function(t,i){return "["+(i+1)+"] "+t;}).join(" "));
-  if((v.comentarios||[]).length)partes.push("COMENTÁRIOS REAIS DAS CLIENTES (use as palavras delas): "+v.comentarios.slice(0,12).map(function(t){return "'"+String(t).replace(/"/g,"'")+"'";}).join(" | "));
-  return partes.join(" ");
-}
-function textoGanchosDaConta(){
-  var g=CONTA_AGENTE.ganchos,partes=[];if(!g)return "";
-  function lin(x){return "'"+String(x.texto).replace(/"/g,"'")+"'"+(x.ficaram!=null?" ("+String(x.ficaram).replace(".",",")+"% ficaram"+(x.tempo?", "+String(x.tempo).replace(".",",")+" s assistidos em média":"")+")":x.indice?" ("+String(x.indice).replace(".",",")+"x a média)":"");}
-  if((g.melhores||[]).length)partes.push("GANCHOS QUE MAIS PRENDERAM NESTA CONTA (medida: "+g.medida+"): "+g.melhores.map(lin).join(" | "));
-  if((g.piores||[]).length)partes.push("GANCHOS QUE MAIS PERDERAM GENTE NESTA CONTA (fuja deste tipo de abertura): "+g.piores.map(lin).join(" | "));
-  if((g.anuncios||[]).length)partes.push("ABERTURAS DOS ANÚNCIOS COM MAIS GENTE PARANDO PARA VER: "+g.anuncios.map(function(x){return "'"+String(x.texto).replace(/"/g,"'")+"' ("+String(x.gancho_anuncio).replace(".",",")+"% pararam)";}).join(" | "));
-  if(g.tempo_medio_conta)partes.push("TEMPO MÉDIO ASSISTIDO NOS REELS DESTA CONTA: "+String(g.tempo_medio_conta).replace(".",",")+" segundos; o argumento principal precisa aparecer antes disso.");
-  return partes.length?"BIBLIOTECA DE GANCHOS DA CONTA: "+partes.join(" "):"";
-}
 function memoriaAgente(projects,perfil,metodo){
   var total=0,cands=[],vistos={};
   (projects||[]).forEach(function(p){todosRoteiros(p).forEach(function(s){
@@ -430,12 +415,6 @@ function memoriaAgente(projects,perfil,metodo){
   var descartados=((perfil&&perfil.descartados)||[]).slice(0,8);
   var partes=[];
   if(REFERENCIA_ATUAL)partes.push("VIDEO(S) DE REFERENCIA ESCOLHIDO(S) PELA CLIENTE (os roteiros devem partir do que fez estes videos darem resultado: o angulo, o tipo de gancho e a estrutura; com mais de um, combine o melhor de cada; crie roteiros novos, sem copiar): "+REFERENCIA_ATUAL);
-  if(CONTA_AGENTE.texto)partes.push("DOSSIE DA CONTA (feito pelo time de agentes com os dados reais dos ultimos 90 dias do Instagram e dos anuncios desta loja; e a fonte mais importante para saber o que da resultado): "+CONTA_AGENTE.texto);
-  var voz=textoVozDaLoja(),gch=textoGanchosDaConta();
-  if(voz)partes.push(voz);
-  if(gch)partes.push(gch);
-  var dica=CONTA_AGENTE.por_metodo&&CONTA_AGENTE.por_metodo[metodo];
-  if(dica)partes.push("ORIENTACAO DO TIME DE AGENTES PARA O METODO "+metodoInfo(metodo).lb.toUpperCase()+" NESTA CONTA: "+dica);
   if(top.length)partes.push("ROTEIROS QUE DERAM RESULTADO PARA ESTA CONTA (replique o padrao de gancho, estrutura e CTA, sem copiar o texto): "+top.map(function(c){var s=c.s;return "["+(s.vendeu?"VENDEU":"APROVADO")+(s.pilar?" | "+s.pilar:"")+" | gancho: "+String(s.gancho||"").substring(0,110)+" | cta: "+String(s.cta||"").substring(0,70)+"]";}).join(" "));
   if(ajustes.length)partes.push("AJUSTES QUE ESTA CLIENTE COSTUMA PEDIR (ja entregue assim de primeira): "+ajustes.join(" | "));
   if(descartados.length)partes.push("GANCHOS QUE ESTA CLIENTE DESCARTOU (evite esse estilo): "+descartados.map(function(g){return String(g).substring(0,80);}).join(" | "));
@@ -451,7 +430,6 @@ var TONS=[
   {id:"educativo",lb:"Educativo e autoridade",ds:"Ensina algo novo, constroi credibilidade"},
   {id:"inspirador",lb:"Inspirador e motivacional",ds:"Motiva, eleva, faz a pessoa se ver no resultado"}
 ];
-var STEPS=["Lendo seu público e seus vídeos...","Criando os roteiros...","Revisando para soar como você..."];
 var ESTILOS=[
   {id:"minimalista",lb:"Minimalista",desc:"limpo, com muito espaço livre, poucas cores e letra grande"},
   {id:"vibrante",lb:"Vibrante",desc:"cores fortes, alto contraste, chamativo"},
@@ -459,33 +437,6 @@ var ESTILOS=[
   {id:"editorial",lb:"Editorial",desc:"estilo revista, foto forte e marcante"}
 ];
 
-async function streamGeneration(messages,onText){
-  var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({funcao:"roteiros",messages:messages,max_tokens:16000,model:"claude-opus-5-5",effort:"high",stream:true})});
-  if(!res.ok){var e={};try{e=await res.json();}catch(_){}throw new Error((e&&e.error)||("Erro "+res.status));}
-  if(!res.body||!res.body.getReader){var t=await res.text();if(onText)onText(t);return t;}
-  var reader=res.body.getReader(),dec=new TextDecoder(),full="";
-  while(true){var rd=await reader.read();if(rd.done)break;full+=dec.decode(rd.value,{stream:true});if(onText)onText(full);}
-  return full;
-}
-function previewClean(t){
-  if(!t)return "";
-  return t.replace(/[{}\[\]]/g," ").replace(/"(personas|inteligencia|roteiros|nome|tipo|emoji|motivacao|dor|objecao|comunicacao|insight|bigIdea|mecanismo|diferencial|dores|desejos|objecoes|gatilhos|id|titulo|pilar|funil|gancho|corpo|cta)"\s*:/g,"").replace(/\\n/g," ").replace(/"/g,"").replace(/,(\s*)/g,"\n").replace(/\n{2,}/g,"\n").replace(/^\s+/,"");
-}
-function buildP(form,rod,hist,vencedores,metodo,direcao,memoria){
-  var met=metodoInfo(metodo);
-  var dirStr=(direcao&&(direcao.objetivo||direcao.publico||direcao.mensagem||direcao.chamada))?" DIRECAO DO CONTEUDO APROVADA PELO CLIENTE (siga obrigatoriamente em TODOS os roteiros): objetivo do conteudo: "+(direcao.objetivo||"-")+" | publico desta peca: "+(direcao.publico||"-")+" | mensagem principal: "+(direcao.mensagem||"-")+" | chamada (base do CTA de cada roteiro; adapte as palavras ao roteiro mantendo a ideia e o destino): "+(direcao.chamada||"-")+".":"";
-  var h=hist.length>0?" USADOS:"+hist.slice(-1).map(function(r){return r.roteiros?r.roteiros.slice(0,2).map(function(s){return s.gancho.substring(0,30);}).join("|"):"";}).join(""):"";
-  var tons=(form.tons&&form.tons.length>0)?form.tons.map(function(id){var t=TONS.find(function(x){return x.id===id;});return t?t.lb:id;}).join(","):"variado";var proibidas=form.proibidas?"PALAVRAS E ASSUNTOS QUE A LOJA NÃO QUER NOS ROTEIROS: "+form.proibidas+". ":"";var caract=form.caracteristicas?"CARACTERISTICAS:"+form.caracteristicas+". ":"";var exemplo=form.exemploConteudo?"CONTEUDO QUE JA FUNCIONOU PARA ESTE CLIENTE (use como modelo de estrutura, gancho e vocabulario que deram certo; replique o que funciona, sem copiar literalmente):"+form.exemploConteudo+". ":"";
-  var ganchos=hist.reduce(function(a,r){return a.concat(((r.resultado&&r.resultado.roteiros)||r.roteiros||[]).map(function(s){return s.gancho.substring(0,50);}));},[]);var gStr=ganchos.length>0?" GANCHOS JÁ USADOS NAS RODADAS ANTERIORES (crie aberturas novas, diferentes destas): "+ganchos.join(" | ")+" ":"";var liked=hist.reduce(function(a,r){return a.concat(((r.resultado&&r.resultado.roteiros)||r.roteiros||[]).filter(function(s){return s.liked;}));},[]);var lStr=liked.length>0?" ESTILO QUE A CLIENTE CURTIU: "+liked.slice(0,3).map(function(s){return "["+s.gancho.substring(0,40)+"]";}).join("|")+" ":"";var extra=rod>1?" RODADA "+rod+"."+gStr+lStr+"Gere roteiros com ângulos e aberturas diferentes das rodadas anteriores.":"";
-  var jaFeitos=hist.reduce(function(a,r){return a+((r.resultado&&r.resultado.roteiros)||[]).length;},0);var idIni=jaFeitos+1,idFim=jaFeitos+POR_RODADA;
-  var venc=(vencedores&&vencedores.length)?" EXEMPLOS QUE JA VENDERAM PARA ESTA CONTA (replique o padrao de gancho e de estrutura que funcionou, sem copiar literalmente): "+vencedores.slice(0,5).map(function(v){return "["+((v.gancho||"").substring(0,90))+" | CTA: "+((v.cta||"").substring(0,60))+"]";}).join(" ")+". ":"";
-  var DESTINOS={mensagens:{nome:"a pessoa CHAMAR NO WHATSAPP OU NO DIRECT para conversar (a loja vende por conversa)",cta:"o CTA convida a pessoa a mandar mensagem, por exemplo 'chama no direct que te mando os tamanhos' ou 'me chama no whats', porque é na conversa que esta loja fecha a venda"},seguidores:{nome:"a pessoa SEGUIR O PERFIL no Instagram (construir audiência)",cta:"o CTA convida a pessoa a seguir o perfil, por exemplo 'segue aqui que todo dia eu mostro um look novo' ou 'me segue pra não perder', porque o objetivo deste vídeo é trazer seguidoras novas"},site:{nome:"a pessoa ACESSAR A PÁGINA DO PRODUTO, O SITE OU O LINK DA BIO para comprar ou ver mais",cta:"o CTA leva para o link ou o site, por exemplo 'clica no link e garante o seu', 'acessa pelo link da bio' ou 'corre que o link tá aqui embaixo', porque a compra acontece no site"}};var destInfo=DESTINOS[form.objetivo]||DESTINOS.site;
-  return "Gere roteiros de Reels para o negócio abaixo. MÉTODO ESCOLHIDO NESTA GERAÇÃO: "+met.lb+" (código "+met.id+"). Siga esse método da sua base de métodos e a estrutura de todo roteiro."
-    +" CONTEXTO DO NEGÓCIO: Produto ou serviço: "+form.produto+" | DESTINO DESTE ANÚNCIO (para onde o CTA leva a pessoa): "+destInfo.nome+". COMO É O CTA NESTE DESTINO: "+destInfo.cta+". Todos os roteiros levam para este mesmo destino. | Público e negócio: "+(form.descricao||"deduza pelos dados")+" | Diferenciais: "+(form.diferenciais||"deduza pelos dados")+" | Ticket médio: "+(form.preco||"deduza pelos dados")+" | Tom de voz: "+tons+". "+caract+proibidas+exemplo+venc+(memoria||"")+extra+dirStr
-    +" NESTA RODADA "+rod+": gere exatamente "+POR_RODADA+" roteiros do método "+met.lb+". Numere os roteiros com id sequencial de "+idIni+" a "+idFim+"."
-    +" Responda só com JSON válido, sem markdown, exatamente neste formato: {\"roteiros\":[{\"id\":"+idIni+",\"titulo\":\"titulo curto\",\"pilar\":\"nome do pilar\",\"funil\":\"meio\",\"gancho\":\"...\",\"corpo\":\"...\",\"cta\":\"...\"}]}"
-    +" Os campos pilar e funil seguem o que o método indica; funil é exatamente topo, meio ou fundo, em minúsculo. Escreva todos os textos em português do Brasil com acentuação completa. Dentro dos textos, use aspas simples para citações, porque aspas duplas quebram o JSON.";
-}
 
 var DIR_CAMPOS=[
   {k:"objetivo",lb:"Objetivo do conteúdo",ph:"O que estes roteiros precisam fazer a pessoa pensar ou sentir"},
@@ -493,24 +444,6 @@ var DIR_CAMPOS=[
   {k:"mensagem",lb:"Mensagem principal",ph:"A ideia central que os roteiros vão passar"},
   {k:"chamada",lb:"Chamada",ph:"O que você quer que a pessoa faça no final"}
 ];
-async function gerarDirecao(ff,metodo,imgs,memoria){
-  var met=metodoInfo(metodo);
-  var DEST={mensagens:"chamar no WhatsApp ou no direct",seguidores:"seguir o perfil no Instagram",site:"acessar o link ou o site para comprar"};
-  var txt="Voce e diretor de criacao de Meta Ads para lojas brasileiras. Antes de escrever roteiros de Reels, monte a DIRECAO do conteudo. NEGOCIO: produto: "+(ff.produto||"-")+" | publico: "+(ff.descricao||"inferir")+" | diferenciais: "+(ff.diferenciais||"-")+" | caracteristicas: "+(ff.caracteristicas||"-")+" | ticket medio: "+(ff.preco||"-")+" | destino do anuncio: "+(DEST[ff.objetivo]||DEST.site)+". METODO ESCOLHIDO: "+met.lb+" ("+met.sub+"): "+met.ds+(memoria||"")+" Responda APENAS com JSON valido sem markdown: {\"objetivo\":\"o que estes roteiros precisam fazer a pessoa pensar ou sentir, 1 frase\",\"publico\":\"quem exatamente e a pessoa nesta etapa do funil, com o momento de vida e a dor ou desejo dela, 1 frase\",\"mensagem\":\"a ideia central que todos os roteiros vao passar, 1 frase especifica deste negocio\",\"chamada\":\"a chamada final, curta, na linguagem do publico e coerente com o destino\",\"nome\":\"nome curto do produto ou da colecao para dar nome ao projeto, de 2 a 4 palavras, com a primeira letra maiuscula\",\"nicho\":\"exatamente um destes: "+NICHOS.join(", ")+"\"}. Frases curtas, linguagem simples, especificas deste negocio. NUNCA use aspas duplas dentro dos textos.";
-  var content=(imgs&&imgs.length)?imgs.concat([{type:"text",text:"As imagens acima sao do produto. "+txt}]):txt;
-  try{
-    var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({funcao:"direcao",messages:[{role:"user",content:content}],max_tokens:4000,model:"claude-sonnet-5",effort:"low"})});
-    if(!res.ok)return null;
-    var data=await res.json();
-    var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
-    var s=raw.indexOf("{"),e=raw.lastIndexOf("}");
-    if(s<0||e<0)return null;
-    var o=JSON.parse(raw.substring(s,e+1));
-    if(!o.objetivo&&!o.mensagem)return null;
-    var ni=String(o.nicho||"").toLowerCase().trim();return {objetivo:o.objetivo||"",publico:o.publico||"",mensagem:o.mensagem||"",chamada:o.chamada||"",nome:String(o.nome||"").replace(/["'.]/g,"").trim().substring(0,40),nicho:NICHOS.indexOf(ni)>-1?ni:(ff.nicho||"outros")};
-  }catch(err){return null;}
-}
-
 async function lerConteudoUrl(url){
   var prompt="Acesse e leia o conteudo real desta URL e extraia as informacoes do negocio para criar anuncios. URL: "+url+". "
     +"Se for um link do Instagram, extraia o que conseguir da legenda, bio e descricao visivel. "
@@ -534,52 +467,6 @@ async function lerConteudoUrl(url){
     if(o.erro||(!o.produto&&!o.diferenciais))return null;
     return o;
   }catch(err){return null;}
-}
-
-async function pesquisarMercado(ff){
-  try{
-    var prompt="Pesquise na web o mercado deste negocio para criar anuncios melhores. Negocio: "+(ff.produto||"")+". Publico: "+(ff.descricao||"")+". Descubra o que concorrentes desse nicho usam em anuncios, angulos e ganchos que funcionam, tendencias atuais e dores comuns do publico. Responda APENAS com JSON sem markdown: {tendencias:texto, angulos:texto, dores:texto, oportunidade:texto}. Sem aspas duplas dentro dos textos.";
-    var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({funcao:"pesquisa",messages:[{role:"user",content:prompt}],max_tokens:5000,model:"claude-sonnet-5",effort:"low",tools:[{type:"web_search_20260209",name:"web_search"}]})});
-    if(!res.ok)return null;
-    var data=await res.json();
-    if(data.error)return null;
-    var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
-    var s=raw.indexOf("{"),e=raw.lastIndexOf("}");
-    if(s<0||e<0)return null;
-    var o;try{o=JSON.parse(raw.substring(s,e+1));}catch(err){return null;}
-    return " PESQUISA DE MERCADO ATUAL (use para deixar os ganchos e angulos mais afiados e atuais): tendencias: "+(o.tendencias||"-")+" | angulos que funcionam: "+(o.angulos||"-")+" | dores comuns: "+(o.dores||"-")+" | oportunidade: "+(o.oportunidade||"-")+".";
-  }catch(e){return null;}
-}
-
-async function revisarRoteiros(roteiros,destino){
-  try{
-    if(!Array.isArray(roteiros)||!roteiros.length)return roteiros;
-    var voz=textoVozDaLoja();
-    var prompt="Você é o REVISOR do MCP Studio, um diretor de criação que relê os roteiros antes de a dona da loja recebê-los. O objetivo é que cada roteiro soe como a própria dona falando, e não como texto de IA ou de anúncio."
-      +" Passe os roteiros por estes 6 testes:"
-      +" 1) Leitura em voz alta: lido em voz alta, soa como uma pessoa conversando? Frases de tamanhos variados, contrações naturais (pra, tá, tô), uma ideia por frase."
-      +" 2) Teste do concorrente: se outra loja pudesse falar a mesma frase, ela está genérica; troque por um detalhe concreto do produto, um número ou uma situação real da cliente que estejam nos roteiros ou nos dados abaixo."
-      +" 3) Teste da dona: ela falaria isso com essas palavras? Use o jeito de falar da VOZ DA LOJA quando vier."
-      +" 4) Marcas de texto de IA: frase no molde 'não é X, é Y', listas de três palavras seguidas, frases todas do mesmo tamanho, abertura que se repete entre os roteiros, palavras de efeito vazias (transformar, elevar, descomplicar, jornada, incrível), travessão. Troque por fala simples e concreta."
-      +" 5) Fórmula repetida: os 3 roteiros precisam ter estruturas diferentes (por exemplo opinião, demonstração, história, lista, situação); no máximo 1 gancho em forma de pergunta; cada um fecha de um jeito diferente, e pedir palavra-chave nos comentários ou no direct aparece em no máximo um. Se dois roteiros seguem o mesmo molde, reescreva um deles com outra estrutura."
-      +" 6) Cara de anúncio: o roteiro precisa soar como a dona contando, mostrando ou opinando, com a venda aparecendo só no final, de leve. Se ele parece propaganda do começo ao fim, reescreva no jeito da VOZ DA LOJA."
-      +" Reescreva o que falhar em algum teste e mantenha o que já está bom, com o mesmo assunto, o mesmo método, um tamanho parecido e o mesmo destino do CTA"+(destino?" ("+destino+")":"")+". Use só fatos que já estão nos roteiros ou nos dados abaixo; não acrescente depoimento, número ou promessa."
-      +(voz?" "+voz:"")
-      +" Responda só com JSON puro, um objeto {\"roteiros\":[...]} com a mesma quantidade de roteiros, na mesma ordem, e os mesmos campos id, titulo, pilar, funil, gancho, corpo, cta. Dentro dos textos use aspas simples para citações. ROTEIROS: "+JSON.stringify({roteiros:roteiros.map(function(r){return {id:r.id,titulo:r.titulo,pilar:r.pilar,funil:r.funil,gancho:r.gancho,corpo:r.corpo,cta:r.cta};})});
-    var ctrl=new AbortController(),tm=setTimeout(function(){ctrl.abort();},70000);
-    var res=await fetch("/api/generate",{method:"POST",signal:ctrl.signal,headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({funcao:"revisor",messages:[{role:"user",content:prompt}],max_tokens:8000,model:"claude-opus-5-5",effort:"medium"})});
-    clearTimeout(tm);
-    if(!res.ok)return roteiros;
-    var data=await res.json();
-    if(data.error)return roteiros;
-    var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
-    var p;
-    try{p=JSON.parse(raw);}
-    catch(e1){var st=raw.indexOf("{"),en=raw.lastIndexOf("}");if(st>-1&&en>-1){try{p=JSON.parse(raw.substring(st,en+1));}catch(e2){return roteiros;}}else return roteiros;}
-    if(!p||!Array.isArray(p.roteiros)||p.roteiros.length!==roteiros.length)return roteiros;
-    // so os textos mudam; id, metodo, pilar e funil ficam os originais
-    return roteiros.map(function(r,i){var n=p.roteiros[i]||{};return Object.assign({},r,{titulo:n.titulo||r.titulo,gancho:n.gancho||r.gancho,corpo:n.corpo||r.corpo,cta:n.cta||r.cta,revisado:true});});
-  }catch(e){return roteiros;}
 }
 
 function buildVP(form,tipo,ex){
@@ -609,7 +496,16 @@ function copiarTexto(txt){
 }
 function podeCompartilhar(){return typeof navigator!=="undefined"&&!!navigator.share;}
 function compartilharTexto(titulo,txt){try{navigator.share({title:titulo,text:txt}).catch(function(){});}catch(e){}}
-function textoRoteiro(s){return (s.titulo?s.titulo+"\n\n":"")+"GANCHO\n"+s.gancho+"\n\nCORPO\n"+s.corpo+"\n\nCTA\n"+s.cta;}
+function textoRoteiro(s){
+  var t=(s.titulo?s.titulo+"\n\n":"");
+  if(!(s.cenas||[]).length)return t+"GANCHO\n"+s.gancho+"\n\nCORPO\n"+s.corpo+"\n\nCTA\n"+s.cta;
+  t+=(s.formato==="curto"?"PRIMEIRO SEGUNDO\n":"GANCHO\n")+s.gancho+"\n\n";
+  if((s.aberturas_extras||[]).length)t+="OUTRAS ABERTURAS PARA TESTAR\n- "+s.aberturas_extras.join("\n- ")+"\n\n";
+  t+="COMO GRAVAR\n"+s.cenas.map(function(c,i){return (i+1)+". "+(c.fala?"Fala: "+c.fala+"\n   ":"")+"Na tela: "+c.na_tela+(c.texto_tela?"\n   Texto por cima: "+c.texto_tela:"");}).join("\n")+"\n\n";
+  if(s.texto_capa)t+="TEXTO DA CAPA\n"+s.texto_capa+"\n\n";
+  if(s.legenda)t+="LEGENDA\n"+s.legenda+((s.hashtags||[]).length?"\n\n"+s.hashtags.join(" "):"")+"\n";
+  return t;
+}
 // fotos de celular passam de 4 MB: reduz para 1600 px antes de enviar
 function reduzirImagem(arq,max,q){
   return new Promise(function(ok){
@@ -640,7 +536,6 @@ function App(){
   var s3=useState([]),projects=s3[0],setProjects=s3[1];
   var s4=useState(null),activeProject=s4[0],setActiveProject=s4[1];
   var s5=useState(false),generating=s5[0],setGenerating=s5[1];
-  var s6=useState(0),genStep=s6[0],setGenStep=s6[1];
   var s7=useState({}),openScripts=s7[0],setOpenScripts=s7[1];
   var s8=useState("roteiros"),activeTab=s8[0],setActiveTab=s8[1];
   var s9=useState(null),copiedId=s9[0],setCopiedId=s9[1];
@@ -650,7 +545,6 @@ function App(){
   var sLP=useState(false),lendoPublico=sLP[0],setLendoPublico=sLP[1];
   var sLV=useState(false),lendoVideo=sLV[0],setLendoVideo=sLV[1];
   var sLL=useState(false),lendoLink=sLL[0],setLendoLink=sLL[1];
-  var sLT=useState(""),liveText=sLT[0],setLiveText=sLT[1];
   var sPf=useState(null),perfil=sPf[0],setPerfil=sPf[1];
   var sRG=useState(null),regenId=sRG[0],setRegenId=sRG[1];
   var sImg=useState(null),imgModal=sImg[0],setImgModal=sImg[1];
@@ -660,7 +554,8 @@ function App(){
   var sCp=useState(true),carregandoProjetos=sCp[0],setCarregandoProjetos=sCp[1];
   var sCc=useState(true),carregandoConta=sCc[0],setCarregandoConta=sCc[1];
   var sIn=useState(null),pedidoInstalar=sIn[0],setPedidoInstalar=sIn[1];
-  var produtoRef=useRef(null),vendaRef=useRef(null),ajusteRef=useRef(null),chatRef=useRef("");
+  var produtoRef=useRef(null),vendaRef=useRef(null),ajusteRef=useRef(null),chatRef=useRef(""),esperandoRef=useRef(null);
+  var sFt=useState("narrado"),formatoRot=sFt[0],setFormatoRot=sFt[1];
   var sCz=useState(0),chatZera=sCz[0],setChatZera=sCz[1];
   var s11=useState(null),varLoading=s11[0],setVarLoading=s11[1];
   var s12=useState({}),varResults=s12[0],setVarResults=s12[1];
@@ -669,8 +564,6 @@ function App(){
   var s15=useState([]),imagePreviews=s15[0],setImagePreviews=s15[1];
   var s16=useState(false),drag=s16[0],setDrag=s16[1];
   var sMet=useState("fftopo"),metodoSel=sMet[0],setMetodoSel=sMet[1];
-  var sDir=useState(null),direcao=sDir[0],setDirecao=sDir[1];
-  var dirTok=useRef(0);
   var sCm=useState(null),contaMeta=sCm[0],setContaMeta=sCm[1];
   var sVt=useState("anuncios"),videosTab=sVt[0],setVideosTab=sVt[1];
   var sRf=useState(null),referencia=sRf[0],setReferenciaSt=sRf[1];
@@ -707,11 +600,6 @@ function App(){
   var userEmail=(currentUser&&currentUser.email)||"Usuario";
   var userInitial=userEmail[0].toUpperCase();
 
-  useEffect(function(){
-    if(!generating)return;
-    setGenStep(0);
-  },[generating]);
-
   useEffect(function(){carregarProjetos();carregarPerfil();carregarContaMeta();carregarLoja(currentUser.id,true);carregarRecados(currentUser.id);try{supaClient.rpc("registrar_acesso").then(function(){},function(){});}catch(e){}},[]);
   // botao voltar do celular: cada tela entra no historico do navegador
   var navRef=useRef({pop:false,primeira:true,n:0});
@@ -739,6 +627,11 @@ function App(){
   function voltar(padrao){if(navRef.current.n>0)history.back();else padrao();}
   // Android: o navegador avisa que da para instalar; guardamos o pedido para o botao da tela Conta
   useEffect(function(){function f(e){e.preventDefault();setPedidoInstalar(e);}window.addEventListener("beforeinstallprompt",f);return function(){window.removeEventListener("beforeinstallprompt",f);};},[]);
+  useEffect(function(){
+    if(!activeProject||!rodadaEmAndamento(activeProject))return;
+    var id=activeProject.id,h=setInterval(function(){recarregarProjeto(id);},3500);
+    return function(){clearInterval(h);};
+  },[activeProject?activeProject.id:"",activeProject?rodadaEmAndamento(activeProject):false]);
   // "Gostei" da dona: o Agente de Memoria usa para entender o gosto dela
   useEffect(function(){
     var uid=verComo?verComo.id:currentUser.id;setConversas({});
@@ -850,8 +743,9 @@ function App(){
   function ideiaNarrada(x){var f=formatoIdeia(x);return f==="narrado"||f==="provador";}
   // transforma uma ideia narrada em roteiro: vira a referencia e ja escolhe o metodo
   function ideiaParaRoteiro(ideia){
-    setReferencia({chave:"ideia:"+ideia.titulo,titulo:ideia.titulo,texto:"IDEIA DE CONTEÚDO escolhida pela loja ("+(NOME_FORMATO[formatoIdeia(ideia)]||"vídeo")+"; escreva roteiros narrados a partir dela): "+ideia.titulo+" | primeiro segundo: "+(ideia.gancho||ideia.como_fazer||ideia.como_gravar||"-")+((ideia.passos||[]).length?" | cenas: "+ideia.passos.join(" / "):"")+(ideia.fala?" | pontos da fala: "+ideia.fala:"")+(ideia.peca?" | peça: "+ideia.peca:"")+" | por que funciona nesta loja: "+(ideia.por_que||"-")});
-    if(ideia.metodo)setMetodoSel(ideia.metodo);
+    setReferencia({chave:"ideia:"+ideia.titulo,titulo:ideia.titulo,texto:"IDEIA DE CONTEÚDO escolhida pela loja ("+(NOME_FORMATO[formatoIdeia(ideia)]||"vídeo")+"; escreva os roteiros a partir dela): "+ideia.titulo+" | primeiro segundo: "+(ideia.gancho||ideia.como_fazer||ideia.como_gravar||"-")+((ideia.passos||[]).length?" | cenas: "+ideia.passos.join(" / "):"")+(ideia.fala?" | pontos da fala: "+ideia.fala:"")+(ideia.peca?" | peça: "+ideia.peca:"")+" | por que funciona nesta loja: "+(ideia.por_que||"-")});
+    var fIdeia=formatoIdeia(ideia)==="curto"?"curto":"narrado";setFormatoRot(fIdeia);
+    if(ideia.metodo)setMetodoSel(fIdeia==="curto"?"fftopo":ideia.metodo);
     setVideoSel(null);setActiveProject(null);setView("briefing");
     showToast("Ideia escolhida. Confira o objetivo e gere os roteiros.");
   }
@@ -907,8 +801,7 @@ function App(){
       if(inputModes.url&&!form.url){showToast("Insira a URL do produto","err");return;}
       if(inputModes.imagem&&imageFiles.length===0){showToast("Envie ao menos uma imagem","err");return;}
     }
-    var tok=++dirTok.current,met=metodoSel;
-    setDirecao({origem:"briefing",metodo:met,loading:true});
+    var met=metodoSel;setGenerating(true);
     try{
       var ff=Object.assign({},form);
       var produtoParts=[];
@@ -928,92 +821,125 @@ function App(){
       if(!ff.produto&&referencia)ff.produto="Sem descrição: use o mesmo produto ou assunto do vídeo de referência ("+titulosRef()+"). Não invente detalhes do produto que não aparecem no vídeo.";
       var imgs=null;
       if(inputModes.imagem&&imageFiles.length>0){imgs=await Promise.all(imageFiles.map(async function(f){return {type:"image",source:{type:"base64",media_type:f.type,data:await toB64(f)}};}));}
-      if(tok!==dirTok.current)return;
-      montarDirecao({origem:"briefing",metodo:met,ff:ff,imgs:imgs},tok);
-    }catch(e){if(tok===dirTok.current){setDirecao(null);avisarErro(e,"Não consegui preparar os roteiros. Tente de novo.",iniciarBriefing);}}
+      iniciarGeracao({origem:"briefing",metodo:met,ff:ff,imgs:imgs,formato:formatoRot});
+    }catch(e){setGenerating(false);avisarErro(e,"Não consegui preparar os roteiros. Tente de novo.",iniciarBriefing);}
   }
-  async function montarDirecao(base,tok){
-    var mem=memoriaAgente(projects,perfil,base.metodo);
-    base=Object.assign({},base,{mem:{total:mem.total,sinais:mem.sinais,conta:mem.conta,referencia:!!REFERENCIA_ATUAL}});
-    setDirecao(Object.assign({},base,{loading:true,campos:null}));
-    var c=await gerarDirecao(base.ff,base.metodo,base.imgs,mem.texto);
-    if(tok!==dirTok.current)return;
-    setDirecao(Object.assign({},base,{loading:false,campos:c||{objetivo:"",publico:"",mensagem:"",chamada:""},falhou:!c}));
+  // ---------- ROTEIROS: gerados no servidor, gravados um a um no projeto ----------
+  function rodadaParada(r){return !!(r&&r.gerando&&r.iniciado_em&&Date.now()-new Date(r.iniciado_em).getTime()>6*60000);}
+  function rodadaEmAndamento(p){return ((p&&p.rodadas)||[]).some(function(r){return r.gerando&&!rodadaParada(r);});}
+  function formatoDoProjeto(p){var rs=(p&&p.rodadas)||[];return (rs.length&&rs[rs.length-1].formato)||"narrado";}
+  async function tokenAtual(){try{var ss=await supaClient.auth.getSession();return (ss.data&&ss.data.session&&ss.data.session.access_token)||window.__authToken||"";}catch(e){return window.__authToken||"";}}
+  // o que a dona contou do produto e o que ela ja aprovou; os dados da loja (dossie, voz, publico, memoria) o servidor junta sozinho
+  function contextoRoteiro(ff,hist,metodo){
+    ff=ff||{};var L=[];
+    var tons=(ff.tons||[]).map(function(id){var x=TONS.find(function(o){return o.id===id;});return x?x.lb:id;}).join(", ");
+    L.push("Produto ou serviço: "+(ff.produto||"use o mesmo produto ou assunto do vídeo de referência, sem inventar detalhes"));
+    if(ff.descricao)L.push("Público e negócio: "+ff.descricao);
+    if(ff.diferenciais)L.push("Diferenciais: "+ff.diferenciais);
+    if(ff.caracteristicas)L.push("Características: "+ff.caracteristicas);
+    if(ff.preco)L.push("Preço ou ticket médio: "+ff.preco);
+    if(tons)L.push("Tom de voz: "+tons);
+    if(ff.proibidas)L.push("Palavras e assuntos que a loja não quer nos roteiros: "+ff.proibidas);
+    if(ff.exemploConteudo)L.push("Conteúdo que já funcionou para esta loja (modelo de estrutura e vocabulário, sem copiar): "+ff.exemploConteudo);
+    var curtidos=[];(hist||[]).forEach(function(r){((r.resultado&&r.resultado.roteiros)||[]).forEach(function(s){if((s.liked||s.vendeu)&&s.gancho)curtidos.push(s.gancho);});});
+    if(curtidos.length)L.push("Ganchos deste projeto que a dona aprovou (siga o estilo, com palavras novas): "+curtidos.slice(0,4).join(" | "));
+    var mem=memoriaAgente(projects,perfil,metodo).texto;if(mem)L.push(mem.trim());
+    return L.join("\n");
+  }
+  async function recarregarProjeto(id){
+    try{
+      var r=await supaClient.from("projetos").select("*").eq("id",id).maybeSingle();if(!r||r.error||!r.data)return;
+      var p=mapearProjeto(r.data),esp=esperandoRef.current;
+      // logo depois de pedir, o servidor ainda nao gravou a rodada: mantem o "escrevendo" na tela
+      if(esp&&esp.id===id){
+        var chegou=(p.rodadas||[]).some(function(x){return x.iniciado_em&&new Date(x.iniciado_em).getTime()>=esp.desde-60000;});
+        if(chegou||Date.now()-esp.desde>30000)esperandoRef.current=null;
+        else p=Object.assign({},p,{rodadas:(p.rodadas||[]).concat([esp.rodada])});
+      }
+      setProjects(function(prev){return prev.some(function(x){return x.id===id;})?prev.map(function(x){return x.id===id?p:x;}):[p].concat(prev);});
+      setActiveProject(function(a){return a&&a.id===id?p:a;});
+    }catch(e){}
+  }
+  async function iniciarGeracao(o){
+    if(somenteLeitura())return;
+    setGenerating(true);
+    var proj=o.proj||(o.origem==="results"?activeProject:null),ff=o.ff||(proj&&proj.form)||{};
+    try{
+      if(!proj){
+        var nome=String(ff.produto||"").replace(/\[[^\]]*\]/g,"").replace(/\s+/g," ").trim().substring(0,40)||(referencia?titulosRef().substring(0,40):"")||"Novo roteiro";
+        var ins=await supaClient.from("projetos").insert({nome:nome,objetivo:ff.objetivo,form:ff,rodadas:[],user_id:currentUser.id}).select().single();
+        if(ins.error)throw ins.error;
+        proj=mapearProjeto(ins.data);
+        setProjects(function(prev){return [proj].concat(prev);});
+      }
+      var metodo=o.metodo||"fftopo",formato=o.formato||"narrado",quantos=o.quantos||POR_RODADA;
+      var marca={rid:"local",local:true,metodo:metodo,formato:formato,quantos:quantos,gerando:true,iniciado_em:new Date().toISOString(),data:new Date().toLocaleDateString("pt-BR"),resultado:{roteiros:[]}};
+      esperandoRef.current={id:proj.id,desde:Date.now(),rodada:marca};
+      var comMarca=Object.assign({},proj,{rodadas:(proj.rodadas||[]).concat([marca])});
+      setProjects(function(prev){return prev.map(function(x){return x.id===comMarca.id?comMarca:x;});});
+      setActiveProject(comMarca);setView("results");setActiveTab("roteiros");setVarResults({});
+      var corpo={projeto_id:proj.id,metodo:metodo,formato:formato,quantos:quantos,renomear:o.origem!=="results",contexto:contextoRoteiro(ff,proj.rodadas||[],metodo),imagens:(o.imgs||[]).map(function(im){return {media_type:im.source.media_type,data:im.source.data};})};
+      var tk=await tokenAtual(),pid=proj.id;
+      setGenerating(false);
+      fetch("/api/roteiros",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tk},body:JSON.stringify(corpo)})
+        .then(function(r){return r.json().catch(function(){return {};}).then(function(d){
+          if(!r.ok)throw new Error(d.error||("Erro "+r.status));
+          esperandoRef.current=null;recarregarProjeto(pid);
+          if(d.faltaram)showToast(d.roteiros+" roteiros prontos. "+(d.faltaram===1?"1 não saiu":d.faltaram+" não saíram")+": toque em Gerar o que faltou.","err");
+          else showToast("Roteiros prontos!");
+        });})
+        .catch(function(e){
+          esperandoRef.current=null;recarregarProjeto(pid);
+          // a tela apagou ou a internet caiu: o servidor continua e os roteiros aparecem aqui sozinhos
+          if(/failed to fetch|networkerror|load failed|abort/i.test(String(e&&e.message)))return;
+          avisarErro(e,"Não consegui gerar os roteiros agora.");
+        });
+    }catch(e){setGenerating(false);avisarErro(e,"Não consegui começar os roteiros agora.",function(){iniciarGeracao(o);});}
   }
   function pedirDirecao(metodo){
     if(somenteLeitura())return;
     if(!activeProject||generating)return;
+    if(rodadaEmAndamento(activeProject)){showToast("O time ainda está escrevendo os roteiros deste projeto. Espere terminar.","err");return;}
     if((activeProject.rodadas||[]).length>=MAX_RODADAS){showToast("Limite de "+MAX_RODADAS+" gerações por projeto atingido.","err");return;}
-    var tok=++dirTok.current;
-    montarDirecao({origem:"results",metodo:metodo,ff:activeProject.form,imgs:null},tok);
+    iniciarGeracao({origem:"results",metodo:metodo,formato:formatoDoProjeto(activeProject)});
   }
-  function refazerDirecao(){var d=direcao;if(!d||d.loading)return;var tok=++dirTok.current;montarDirecao({origem:d.origem,metodo:d.metodo,ff:d.ff,imgs:d.imgs},tok);}
-  function cancelarDirecao(){dirTok.current++;setDirecao(null);}
-  function editarCampoDirecao(k,v){setDirecao(function(d){if(!d)return d;var c=Object.assign({},d.campos||{});c[k]=v;return Object.assign({},d,{campos:c});});}
-  function confirmarDirecao(){var d=direcao;if(!d||d.loading)return;dirTok.current++;setDirecao(null);if(d.origem==="briefing")handleGenerate(d);else handleNextRound(d.metodo,d.campos);}
-
-  async function handleGenerate(dir){
-    if(somenteLeitura())return;
-    setGenerating(true);
-    try{
-      var ff=dir.ff,metodo=dir.metodo,campos=dir.campos||null;
-      var hist=[];
-      var rodada=1;
-      var messages;
-      if(dir.imgs&&dir.imgs.length){
-        var txtExtra=ff.produto?" Informacoes adicionais: "+ff.produto:"";
-        messages=[{role:"user",content:dir.imgs.concat([{type:"text",text:"Analise as imagens do produto."+txtExtra+" Destino: "+ff.objetivo+". "+buildP(Object.assign({},ff,{produto:"[Produto nas imagens]"+txtExtra}),rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo).texto)}])}];
-      }else{
-        messages=[{role:"user",content:buildP(ff,rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo).texto)}];
-      }
-      // Analise + geracao numa unica chamada (Opus faz a analise profunda internamente)
-      if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
-      setGenStep(1);setLiveText("");
-      var raw=(await streamGeneration(messages,function(t){setLiveText(t);})).replace(/```json|```/g,"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"").trim();
-      var parsed;
-      try{
-        try{parsed=JSON.parse(raw);}
-        catch(ex1){
-          var st=raw.indexOf("{"),en=raw.lastIndexOf("}");
-          if(st>-1&&en>-1){
-            var chunk=raw.substring(st,en+1);
-            try{parsed=JSON.parse(chunk);}
-            catch(ex2){
-              // Tentar reparar JSON com aspas nao escapadas
-              var repaired=chunk.replace(/([^\\])"([^":{},\[\]\n]+)"([^":{},\[\]\n]*)"([^":{},\[\]])/g,function(m,a,b,c,d){return a+'"'+b+c.replace(/"/g,"'")+'"'+d;});
-              parsed=JSON.parse(repaired);
-            }
-          } else throw new Error("Erro ao processar resposta da IA");
-        }
-      }catch(ex){throw new Error("Erro ao processar resposta da IA: "+ex.message);}
-      setGenStep(2);
-      if(parsed&&Array.isArray(parsed.roteiros)&&parsed.roteiros.length){var _dst={mensagens:"chamar no WhatsApp ou Direct",seguidores:"seguir o perfil",site:"ir para o site ou link"}[ff.objetivo]||"";parsed.roteiros=await revisarRoteiros(parsed.roteiros,_dst);}
-      prepararRoteiros(parsed,hist,metodo);
-      var nr={numero:rodada,metodo:metodo,direcao:campos,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
-      var proj;
-      var nomeProjeto=((campos&&campos.nome)||ff.produto||ff.url||"Novo projeto").substring(0,40);
-      var insertResult=await supaClient.from("projetos").insert({nome:nomeProjeto,objetivo:form.objetivo,form:(ff=Object.assign({},ff,campos&&campos.nicho?{nicho:campos.nicho}:{})),rodadas:[nr],user_id:currentUser.id}).select().single();
-      if(insertResult.error){throw new Error("Erro ao salvar projeto: "+insertResult.error.message);}
-      proj={id:insertResult.data.id,name:nomeProjeto,objetivo:form.objetivo,date:new Date().toLocaleDateString("pt-BR"),form:ff,rodadas:[nr]};
-      setProjects(function(prev){return [proj].concat(prev);});
-      setActiveProject(proj);setLiveText("");setGenerating(false);setView("results");setActiveTab(metodo);var _ab={};((parsed&&parsed.roteiros)||[]).forEach(function(s){_ab[s.id]=true;});setOpenScripts(_ab);setVarResults({});
-      showToast("Projeto gerado!");
-    }catch(e){
-      setLiveText("");setGenerating(false);
-      avisarErro(e,"Não consegui gerar os roteiros agora.");
-    }
+  // rodada que parou no meio ou que ficou faltando roteiro: pede so o que faltou
+  async function tentarRodadaDeNovo(rd){
+    if(somenteLeitura()||!activeProject)return;
+    var feitos=((rd.resultado&&rd.resultado.roteiros)||[]).length,faltam=Math.max(1,(rd.quantos||POR_RODADA)-feitos);
+    var rods=(activeProject.rodadas||[]).filter(function(x){return !x.local&&!(x.rid===rd.rid&&!feitos);}).map(function(x){return x.rid===rd.rid?Object.assign({},x,{gerando:false,faltaram:0,erro:false}):x;});
+    var proj=Object.assign({},activeProject,{rodadas:rods});
+    if(!(await salvarRodadas(proj,activeProject,false)))return;
+    iniciarGeracao({origem:"results",proj:proj,metodo:rd.metodo,formato:rd.formato,quantos:faltam});
   }
-
-  function prepararRoteiros(parsed,hist,metodo){
-    if(!parsed||!Array.isArray(parsed.roteiros))return;
-    var maxId=0;(hist||[]).forEach(function(r){((r.resultado&&r.resultado.roteiros)||[]).forEach(function(s){if(Number(s.id)>maxId)maxId=Number(s.id);});});
-    parsed.roteiros=parsed.roteiros.slice(0,POR_RODADA);
-    parsed.roteiros.forEach(function(s,i){limparRoteiro(s);s.id=maxId+i+1;s.metodo=metodo;if(s.funil)s.funil=String(s.funil).toLowerCase().trim();});
+  function avisoRodada(rd,i){
+    var feitos=((rd.resultado&&rd.resultado.roteiros)||[]).length,faltam=Math.max(0,(rd.quantos||POR_RODADA)-feitos),nome=metodoInfo(rd.metodo).amigo;
+    var caixa={background:"var(--sur)",border:"1px solid var(--bo)",borderRadius:14,padding:"14px 16px",marginBottom:12};
+    if(rd.gerando&&!rodadaParada(rd))return ce("div",{key:"av"+i,role:"status"},
+      ce("div",{style:Object.assign({},caixa,{borderLeft:"3px solid var(--pu)"})},ce("div",{style:{fontWeight:700,fontSize:14.5,marginBottom:4}},"✍️ O time está escrevendo "+(faltam===1?"1 roteiro":faltam+" roteiros")+(rd.formato==="curto"?" de vídeo curto":"")+" · "+nome),ce("div",{style:{fontSize:13,color:"var(--mu2)",lineHeight:1.5}},"Leva cerca de 1 minuto e cada roteiro aparece aqui assim que fica pronto. Pode fechar o app: eles ficam salvos em Roteiros.")),
+      Array.from({length:faltam}).map(function(_,k){return ce("div",{key:k,className:"esqueleto",style:{height:64,marginBottom:10}});}));
+    if(rodadaParada(rd)||rd.erro||(!rd.gerando&&rd.faltaram>0&&faltam>0))return ce("div",{key:"av"+i,style:Object.assign({},caixa,{borderLeft:"3px solid var(--ac2)"})},
+      ce("div",{style:{fontWeight:700,fontSize:14.5,marginBottom:4}},feitos?(faltam===1?"1 roteiro não saiu":faltam+" roteiros não saíram")+" · "+nome:"Os roteiros de "+nome+" não saíram"),
+      ce("div",{style:{fontSize:13,color:"var(--mu2)",lineHeight:1.5,marginBottom:10}},"A geração parou no meio. Pode tentar de novo, o que já ficou pronto continua salvo."),
+      verComo?null:ce("button",{className:"btn-pri",style:{width:"auto",minHeight:44},disabled:generating,onClick:function(){tentarRodadaDeNovo(rd);}},feitos?"Gerar o que faltou":"Tentar de novo"));
+    return null;
+  }
+  // o roteiro pronto para gravar (os antigos, sem cenas, continuam com gancho, corpo e CTA)
+  function corpoRoteiro(s){
+    function bl(lbl,cls,conteudo){return ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl"+(cls?" "+cls:"")},lbl),conteudo);}
+    if(!(s.cenas||[]).length)return ce("div",null,bl("Gancho","",ce("div",{className:"sc-bl-txt"},s.gancho)),bl("Corpo","b",ce("div",{className:"sc-bl-txt"},s.corpo)),bl("CTA","c",ce("div",{className:"sc-bl-txt"},s.cta)));
+    var curto=s.formato==="curto",leg=(s.legenda||"")+((s.hashtags||[]).length?"\n\n"+s.hashtags.join(" "):"");
+    return ce("div",null,
+      bl(curto?"Primeiro segundo":"Gancho","",ce("div",{className:"sc-bl-txt",style:{fontWeight:700}},s.gancho)),
+      (s.aberturas_extras||[]).length?bl("Outras aberturas para testar","",ce("div",{className:"sc-bl-txt"},s.aberturas_extras.map(function(a,i){return ce("div",{key:i,style:{marginBottom:4}},(i+2)+". "+a);}),ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:4}},"Grave as 3 aberturas e veja qual segura mais gente nos 3 primeiros segundos."))):null,
+      bl("Como gravar","b",ce("ol",{className:"cenas"},s.cenas.map(function(c,i){return ce("li",{key:i,className:"cena"},c.fala?ce("div",{className:"cena-f"},"\u201C"+c.fala+"\u201D"):null,c.na_tela?ce("div",{className:"cena-t"},ce("b",null,"Na tela: "),c.na_tela):null,c.texto_tela?ce("div",{className:"cena-t"},ce("b",null,"Texto por cima: "),c.texto_tela):null);}))),
+      s.texto_capa?bl("Texto da capa","c",ce("div",{className:"sc-bl-txt",style:{fontWeight:700}},s.texto_capa)):null,
+      s.legenda?bl("Legenda do post","c",ce("div",{className:"sc-bl-txt"},ce("div",{style:{whiteSpace:"pre-wrap"}},s.legenda),(s.hashtags||[]).length?ce("div",{style:{marginTop:6,color:"var(--ac2)"}},s.hashtags.join(" ")):null,ce("div",{style:{marginTop:8}},ce("button",{className:"cbtn",onClick:function(e){e.stopPropagation();copiarOuMostrar("Legenda",leg,function(){showToast("Legenda copiada!");});}},"Copiar legenda")))):null);
   }
   // grava as rodadas do projeto; se nao salvar (sem internet), desfaz na tela e avisa
   async function salvarRodadas(proj,antes,msgOk){
     setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});setActiveProject(proj);
-    var r;try{r=await supaClient.from("projetos").update({rodadas:proj.rodadas}).eq("id",proj.id);}catch(e){r={error:e};}
+    var r;try{r=await supaClient.from("projetos").update({rodadas:(proj.rodadas||[]).filter(function(x){return !x.local;})}).eq("id",proj.id);}catch(e){r={error:e};}
     if(r&&r.error){
       if(antes){setProjects(function(prev){return prev.map(function(p){return p.id===antes.id?antes:p;});});setActiveProject(function(a){return a&&a.id===antes.id?antes:a;});}
       if(msgOk!==false)showToast("Não consegui salvar. Confira a internet e tente de novo.","err");
@@ -1042,47 +968,23 @@ function App(){
     var proj=Object.assign({},activeProject,{rodadas:rods});
     salvarRodadas(proj,activeProject,novo?"Marcado como gravado!":"Desmarcado.");
   }
-  async function handleEditScript(s,instrucao){if(somenteLeitura())return;setEditGenerating(true);try{var msg=[{role:"user",content:"Copywriter expert. Roteiro: GANCHO:"+s.gancho+" CORPO:"+s.corpo+" CTA:"+s.cta+" TITULO:"+s.titulo+" Instrucao:"+instrucao+" Reescreva aplicando a instrucao. Responda APENAS com JSON sem markdown: {gancho:...,corpo:...,cta:...,titulo:...}"}];var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({funcao:"ajuste",messages:msg,max_tokens:6000,model:"claude-sonnet-5",effort:"medium"})});var data=await res.json();var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();var parsed;try{parsed=JSON.parse(raw);}catch(e1){var st=raw.indexOf("{"),en=raw.lastIndexOf("}");if(st<0||en<0)throw new Error("resposta invalida");parsed=JSON.parse(raw.substring(st,en+1));}var novo=limparRoteiro(Object.assign({},s,{gancho:parsed.gancho||s.gancho,corpo:parsed.corpo||s.corpo,cta:parsed.cta||s.cta,titulo:parsed.titulo||s.titulo,editado:true}));var _aj=[String(instrucao).trim().substring(0,140)].concat(((perfil&&perfil.ajustes)||[]).filter(function(a){return a!==String(instrucao).trim().substring(0,140);})).slice(0,10);salvarPerfilSilencioso(Object.assign({},perfil||{},{ajustes:_aj}));var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(sc){return sc.id===s.id?novo:sc;})})});});var proj=Object.assign({},activeProject,{rodadas:rods});if(await salvarRodadas(proj,activeProject,"Roteiro atualizado!")){setEditingScript(novo);setEditInstr("");}}catch(e){avisarErro(e,"Não consegui ajustar o roteiro agora.");}setEditGenerating(false);}
-  async function handleNextRound(metodo,campos){
-    if(somenteLeitura())return;
-    if(!activeProject||generating)return;
-    campos=campos||null;
-    metodo=metodo||"fftopo";
-    setGenerating(true);
+  // "Ajustar": o servidor reescreve o roteiro inteiro (cenas, capa e legenda junto)
+  async function handleEditScript(s,instrucao){
+    if(somenteLeitura()||!activeProject)return;
+    setEditGenerating(true);
     try{
-      var ff=activeProject.form;
-      var hist=activeProject.rodadas||[];
-      var rodada=hist.length+1;
-      if(rodada>MAX_RODADAS){showToast("Limite de "+MAX_RODADAS+" gerações por projeto atingido.","err");setLiveText("");setGenerating(false);return;}
-      var messages=[{role:"user",content:buildP(ff,rodada,hist,[],metodo,campos,memoriaAgente(projects,perfil,metodo).texto)}];
-      // Analise + geracao numa unica chamada (Opus faz a analise profunda internamente)
-      if(ff.pesquisarMercado){var _mkt=await pesquisarMercado(ff);if(_mkt&&messages[0]){if(typeof messages[0].content==="string")messages[0]=Object.assign({},messages[0],{content:messages[0].content+_mkt});else if(Array.isArray(messages[0].content)){var _li=messages[0].content[messages[0].content.length-1];if(_li&&_li.type==="text")_li.text+=_mkt;}}}
-      setGenStep(1);setLiveText("");
-      var raw=(await streamGeneration(messages,function(t){setLiveText(t);})).replace(/```json|```/g,"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"").trim();
-      var parsed;
-      try{parsed=JSON.parse(raw);}
-      catch(ex1){
-        var st=raw.indexOf("{"),en=raw.lastIndexOf("}");
-        if(st>-1&&en>-1){parsed=JSON.parse(raw.substring(st,en+1));}
-        else throw new Error("Erro ao processar resposta da IA");
-      }
-      setGenStep(2);prepararRoteiros(parsed,hist,metodo);
-      var nr={numero:rodada,metodo:metodo,direcao:campos,resultado:parsed,data:new Date().toLocaleDateString("pt-BR")};
-      var novasRodadas=hist.concat([nr]);
-      var proj=Object.assign({},activeProject,{rodadas:novasRodadas});
-      await supaClient.from("projetos").update({rodadas:novasRodadas}).eq("id",activeProject.id);
-      setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});
-      setActiveProject(proj);
-      setLiveText("");setGenerating(false);
-      setActiveTab(metodo);
-      var _ab={};(parsed.roteiros||[]).forEach(function(s){_ab[s.id]=true;});setOpenScripts(_ab);
-      showToast(POR_RODADA+" roteiros gerados ("+metodoInfo(metodo).amigo+")! "+contarRoteiros(proj)+" no total.");
-    }catch(e){
-      setLiveText("");setGenerating(false);
-      avisarErro(e,"Não consegui gerar os roteiros agora.");
-    }
+      var tk=await tokenAtual(),pid=activeProject.id;
+      var r=await fetch("/api/roteiros",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tk},body:JSON.stringify({acao:"ajustar",projeto_id:pid,roteiro_id:s.id,instrucao:instrucao})});
+      var d={};try{d=await r.json();}catch(_){}
+      if(!r.ok)throw new Error(d.error||("Erro "+r.status));
+      var _aj=[String(instrucao).trim().substring(0,140)].concat(((perfil&&perfil.ajustes)||[]).filter(function(a){return a!==String(instrucao).trim().substring(0,140);})).slice(0,10);
+      salvarPerfilSilencioso(Object.assign({},perfil||{},{ajustes:_aj}));
+      await recarregarProjeto(pid);
+      setEditingScript(Object.assign({},s,d.roteiro||{}));setEditInstr("");ajusteRef.current="";
+      showToast("Roteiro ajustado!");
+    }catch(e){avisarErro(e,"Não consegui ajustar o roteiro agora.",function(){handleEditScript(s,instrucao);});}
+    setEditGenerating(false);
   }
-
   async function genVar(tipo){
     if(somenteLeitura())return;
     if(!activeProject){showToast("Abra um projeto primeiro.","err");return;}
@@ -1150,23 +1052,16 @@ function App(){
     }catch(e){setImgModal(null);avisarErro(e,"Não consegui gerar a imagem agora.",function(){gerarCriativo(s,estilo);});}
   }
   async function regenerarRoteiro(s){
-    if(somenteLeitura())return;
-    if(!activeProject)return;
+    if(somenteLeitura()||!activeProject)return;
     setRegenId(s.id);
     try{
-      var f=activeProject.form||{};
-      var _m=metodoInfo(metodoDoRoteiro(s));var prompt="Escreva UM novo roteiro para Reels seguindo o METODO "+_m.lb+" (codigo "+_m.id+") da sua base de metodos, pilar "+(s.pilar||"")+" (funil "+(s.funil||"")+"), para este negocio. Produto: "+(f.produto||"")+". Publico: "+(f.descricao||"")+". Diferenciais: "+(f.diferenciais||"")+". Crie algo DIFERENTE do roteiro atual (gancho atual: "+s.gancho+"). Gancho hiper-especifico nos 3 primeiros segundos, linguagem de pessoa real sem cara de IA e sem traco longo, corpo com argumento concreto e CTA conectado a dor. Responda APENAS com JSON sem markdown: {titulo:texto, gancho:texto, corpo:texto, cta:texto}. Sem aspas duplas dentro dos textos.";
-      prompt+=memoriaAgente(projects,perfil,metodoDoRoteiro(s)).texto;
-      var res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__authToken||"")},body:JSON.stringify({funcao:"refazer",messages:[{role:"user",content:prompt}],max_tokens:6000,model:"claude-sonnet-5",effort:"medium"})});
-      var data=await res.json();
-      if(data.error)throw new Error(data.error.message||data.error);
-      var raw=(data.content||[]).map(function(b){return b.text||"";}).join("").replace(/```json|```/g,"").trim();
-      var parsed;try{parsed=JSON.parse(raw);}catch(e1){var st=raw.indexOf("{"),en=raw.lastIndexOf("}");parsed=JSON.parse(raw.substring(st,en+1));}
-      var novo=limparRoteiro(Object.assign({},s,{gancho:parsed.gancho||s.gancho,corpo:parsed.corpo||s.corpo,cta:parsed.cta||s.cta,titulo:parsed.titulo||s.titulo,editado:true,liked:false,vendeu:false,copiado:0}));
+      var tk=await tokenAtual(),pid=activeProject.id;
+      var r=await fetch("/api/roteiros",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tk},body:JSON.stringify({acao:"refazer",projeto_id:pid,roteiro_id:s.id,contexto:contextoRoteiro(activeProject.form||{},activeProject.rodadas||[],metodoDoRoteiro(s))})});
+      var d={};try{d=await r.json();}catch(_){}
+      if(!r.ok)throw new Error(d.error||("Erro "+r.status));
       if(s.gancho)salvarPerfilSilencioso(Object.assign({},perfil||{},{descartados:[s.gancho].concat(((perfil&&perfil.descartados)||[]).filter(function(g){return g!==s.gancho;})).slice(0,10)}));
-      var rods=activeProject.rodadas.map(function(rod){return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:(rod.resultado.roteiros||[]).map(function(sc){return sc.id===s.id?novo:sc;})})});});
-      var proj=Object.assign({},activeProject,{rodadas:rods});
-      await salvarRodadas(proj,activeProject,"Roteiro refeito!");
+      await recarregarProjeto(pid);
+      showToast("Roteiro refeito!");
     }catch(e){avisarErro(e,"Não consegui refazer o roteiro agora.",function(){regenerarRoteiro(s);});}
     setRegenId(null);
   }
@@ -1184,8 +1079,8 @@ function App(){
   function copiarOuMostrar(titulo,txt,aoCopiar){copiarTexto(txt).then(function(ok){if(ok){if(aoCopiar)aoCopiar();}else setCopiaManual({titulo:titulo,texto:txt});});}
   function copySc(s){copiarOuMostrar(s.titulo,textoRoteiro(s),function(){registrarCopia(s);setCopiedId(s.id);setTimeout(function(){setCopiedId(null);},2000);showToast("Roteiro copiado!");});}
   function copyAll(){if(!activeProject)return;var t=[],n=0;(activeProject.rodadas||[]).forEach(function(rod){((rod.resultado&&rod.resultado.roteiros)||[]).forEach(function(s){n++;t.push("ROTEIRO "+n+"\n"+textoRoteiro(s));});});copiarOuMostrar(activeProject.name,t.join("\n\n----------\n\n"),function(){showToast(n+" roteiros copiados!");});}
-  function baixarRoteiros(){if(!activeProject)return;var txt="ROTEIROS - "+activeProject.name+"\n\n";var n=0;(activeProject.rodadas||[]).forEach(function(rod){((rod.resultado&&rod.resultado.roteiros)||[]).forEach(function(s){n++;txt+="=== ROTEIRO "+n+(s.pilar?" ("+s.pilar+")":"")+" ===\nGANCHO: "+s.gancho+"\n\nCORPO: "+s.corpo+"\n\nCTA: "+s.cta+"\n\n----------------------------------------\n\n";});});var blob=new Blob([txt],{type:"text/plain;charset=utf-8;"});var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download=(activeProject.name||"roteiros").substring(0,40).replace(/[^a-zA-Z0-9-_ ]/g,"").trim()+".txt";a.click();URL.revokeObjectURL(url);showToast("Arquivo baixado!");}
-  function getScs(){if(!activeProject)return[];var all=[];var num=0;activeProject.rodadas.forEach(function(rod){(rod.resultado&&rod.resultado.roteiros||[]).forEach(function(s){num++;all.push(Object.assign({},s,{numGlobal:num}));});});if(activeTab==="topo")return all.filter(function(s){return s.funil==="topo";});if(activeTab==="meio")return all.filter(function(s){return s.funil==="meio";});if(activeTab==="fundo")return all.filter(function(s){return s.funil==="fundo";});if(activeTab==="ugc")return all.filter(function(s){return s.funil==="ugc";});if(METODOS.some(function(m){return m.id===activeTab;}))return all.filter(function(s){return metodoDoRoteiro(s)===activeTab;});return all;}
+  function baixarRoteiros(){if(!activeProject)return;var n=0,txt="ROTEIROS - "+activeProject.name+"\n\n";(activeProject.rodadas||[]).forEach(function(rod){((rod.resultado&&rod.resultado.roteiros)||[]).forEach(function(s){n++;txt+="=== ROTEIRO "+n+" ===\n"+textoRoteiro(s)+"\n\n----------------------------------------\n\n";});});var blob=new Blob([txt],{type:"text/plain;charset=utf-8;"});var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download=(activeProject.name||"roteiros").substring(0,40).replace(/[^a-zA-Z0-9-_ ]/g,"").trim()+".txt";a.click();URL.revokeObjectURL(url);showToast("Arquivo baixado!");}
+  function getScs(){if(!activeProject)return[];var all=[];var num=0;activeProject.rodadas.forEach(function(rod,ri){(rod.resultado&&rod.resultado.roteiros||[]).forEach(function(s){num++;all.push(Object.assign({},s,{numGlobal:num,_rod:ri}));});});all.sort(function(a,b){return b._rod-a._rod;});if(activeTab==="topo")return all.filter(function(s){return s.funil==="topo";});if(activeTab==="meio")return all.filter(function(s){return s.funil==="meio";});if(activeTab==="fundo")return all.filter(function(s){return s.funil==="fundo";});if(activeTab==="ugc")return all.filter(function(s){return s.funil==="ugc";});if(METODOS.some(function(m){return m.id===activeTab;}))return all.filter(function(s){return metodoDoRoteiro(s)===activeTab;});return all;}
   function avisoReferencia(){
     if(!referencia)return null;
     return ce("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"rgba(45,222,152,.08)",border:"1px solid rgba(45,222,152,.3)",borderRadius:12,padding:"12px 14px",marginBottom:16,fontSize:13}},ce("span",null,"🎬"),ce("div",{style:{flex:1,minWidth:180}},ce("b",null,referencia.length>1?referencia.length+" vídeos de referência: ":"Referência ativa: "),titulosRef(),ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:2}},(referencia.length>1?"Os próximos roteiros juntam o que estes vídeos têm de bom.":"Os próximos roteiros partem deste vídeo.")+" Se não quiser, nem precisa descrever o produto.")),ce("button",{className:"abtn",onClick:function(){setReferencia(null);}},"Remover"));
@@ -1383,7 +1278,7 @@ function App(){
         insp&&(insp.link||insp.miniatura)?bloco("Inspirado no seu "+(insp.tipo==="anuncio"?"anúncio":"post"),ce("a",{className:"ideia-insp",href:insp.link?linkIG(insp.link):undefined,target:"_blank",rel:"noopener"},insp.miniatura?ce("span",{className:"thumb",style:{width:44,height:58,borderRadius:8,flexShrink:0}},img(insp.miniatura)):null,ce("span",{style:{fontSize:12.5,color:"var(--mu2)",lineHeight:1.4}},insp.legenda||"Ver no Instagram"))):null,
         ideia.por_que?ce("div",{style:{fontSize:12.5,lineHeight:1.5,color:"var(--mu2)"}},ideia.por_que):null,
         bloco("Como saber se deu certo",ideia.metrica?ce("div",{style:{fontSize:13}},ideia.metrica):null),
-        ideiaNarrada(ideia)?ce("div",null,ce("button",{className:"chip on",style:{height:40,fontSize:13},onClick:function(){ideiaParaRoteiro(ideia);}},"Criar roteiro a partir desta ideia")):null):null);
+        verComo?null:ce("div",null,ce("button",{className:"chip on",style:{minHeight:44,fontSize:13},onClick:function(){ideiaParaRoteiro(ideia);}},fmt==="curto"?"Criar o roteiro deste vídeo":"Criar roteiro a partir desta ideia"))):null);
   }
   function atualizandoIdeias(){return !!(contaMeta&&/^Analisando/.test(contaMeta.status||""));}
   // o que a loja quer vender agora: a versao da dona vale mais que a da consultoria nas ideias
@@ -1661,7 +1556,7 @@ function App(){
               ce("div",{className:"hi-inf",style:{minWidth:0}},
                 ce("div",{className:"hi-n",style:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},p.name),
                 ce("div",{className:"hi-m"},p.date+(mets.length?" · "+mets.join(", "):"")),
-                ce("div",{style:{display:"flex",gap:6,marginTop:7,flexWrap:"wrap"}},g>0?ce("span",{className:"pill-s pill-ok"},g+(g===1?" gravado":" gravados")):null,(n-g)>0?ce("span",{className:"pill-s pill-mu"},(n-g)+" para gravar"):null,temRecado?ce("span",{className:"pill-s",style:{background:"rgba(255,77,0,.14)",color:"var(--ac2)"}},"Recado"):null)),
+                ce("div",{style:{display:"flex",gap:6,marginTop:7,flexWrap:"wrap"}},g>0?ce("span",{className:"pill-s pill-ok"},g+(g===1?" gravado":" gravados")):null,(n-g)>0?ce("span",{className:"pill-s pill-mu"},(n-g)+" para gravar"):null,temRecado?ce("span",{className:"pill-s",style:{background:"rgba(255,77,0,.14)",color:"var(--ac2)"}},"Recado"):null,rodadaEmAndamento(p)?ce("span",{className:"pill-s",style:{background:"rgba(155,142,255,.16)",color:"#C3BBFF"}},"Escrevendo..."):null)),
               ce("button",{onClick:function(e){renameProject(p.id,e);},title:"Renomear","aria-label":"Renomear",style:btnP},"✏️"),
               ce("button",{onClick:function(e){duplicarProjeto(p,e);},title:"Duplicar","aria-label":"Duplicar",style:btnP},"📋"),
               ce("button",{onClick:function(e){deleteProject(p.id,e);},title:"Apagar","aria-label":"Apagar",style:btnP},"🗑️"));
@@ -1853,6 +1748,10 @@ function App(){
           avisoReferencia(),
           blocoReferencias(),
           ce("div",{className:"sec"},
+            ce("div",{className:"sec-t"},"Tipo de vídeo"),
+            ce("div",{className:"obj-g"},[{id:"narrado",ic:"🗣️",lb:"Narrado",ds:"Você fala para a câmera, mostrando a peça."},{id:"curto",ic:"⚡",lb:"Curto, sem fala",ds:"De 7 a 15 segundos, cortes rápidos e texto na tela. Leva a loja a quem ainda não conhece."}].map(function(o){return ce("div",{key:o.id,className:"obj-o"+(formatoRot===o.id?" on":""),role:"button",tabIndex:0,"aria-pressed":formatoRot===o.id,onClick:function(){setFormatoRot(o.id);if(o.id==="curto")setMetodoSel("fftopo");}},ce("div",{className:"obj-ic"},o.ic),ce("div",null,ce("div",{className:"obj-lbl"},o.lb),ce("div",{className:"obj-ds"},o.ds)));}))
+          ),
+          ce("div",{className:"sec"},
             ce("div",{className:"sec-t"},"01 - Qual o objetivo do vídeo?"),
             ce("div",{className:"obj-q"},"Cada clique gera "+POR_RODADA+" roteiros com o objetivo escolhido. Depois você pode gerar os outros no mesmo projeto."),
             ce("div",{className:"obj-g met"},METODOS.map(function(m){return ce("div",{key:m.id,className:"obj-o"+(metodoSel===m.id?" on":""),onClick:function(){setMetodoSel(m.id);}},ce("div",{className:"obj-ic"},m.ic),ce("div",null,ce("div",{className:"obj-lbl"},m.amigo),ce("div",{style:{fontSize:10.5,color:"var(--mu2)",marginBottom:3}},m.sub),ce("div",{className:"obj-ds"},m.ds)));}))
@@ -1876,13 +1775,13 @@ function App(){
             ce("div",{className:"obj-q"},"Cada destino muda o jeito do roteiro e da chamada final."),
             ce("div",{className:"obj-g"},OBJS.map(function(o){return ce("div",{key:o.id,className:"obj-o"+(form.objetivo===o.id?" on":""),onClick:function(){setForm(function(f){return Object.assign({},f,{objetivo:o.id});}); }},ce("div",{className:"obj-ic"},o.ic),ce("div",null,ce("div",{className:"obj-lbl"},o.lb),ce("div",{className:"obj-ds"},o.ds)));}))
           ),
-          ce("button",{className:"gbtn",onClick:iniciarBriefing,disabled:!form.objetivo||(!referencia&&((!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)))},"Gerar "+POR_RODADA+" roteiros: "+metodoInfo(metodoSel).amigo),
+          ce("button",{className:"gbtn",onClick:iniciarBriefing,disabled:generating||!form.objetivo||(!referencia&&((!inputModes.texto&&!inputModes.url&&!inputModes.imagem)||(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)||(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)||(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)))},generating?"Preparando...":"Gerar "+POR_RODADA+" roteiros: "+metodoInfo(metodoSel).amigo),
           (function(){var f=[];if(!form.objetivo)f.push("escolher o destino (passo 03)");if(referencia){}else if(!inputModes.texto&&!inputModes.url&&!inputModes.imagem)f.push("contar sobre a peça (passo 02)");else{if(inputModes.texto&&!form.produto&&!inputModes.url&&!inputModes.imagem)f.push("contar sobre a peça");if(inputModes.url&&!form.url&&!inputModes.texto&&!inputModes.imagem)f.push("colar a URL");if(inputModes.imagem&&imageFiles.length===0&&!inputModes.texto&&!inputModes.url)f.push("enviar ao menos uma foto");}return f.length?ce("div",{style:{marginTop:10,fontSize:12.5,color:"var(--ac2)",textAlign:"center"}},"Falta: "+f.join(" e ")):null;})()
         )
       ),
       view==="results"&&activeProject&&function(){
-        var dirAtual=null;if(METODOS.some(function(m){return m.id===activeTab;})){for(var _i=activeProject.rodadas.length-1;_i>=0;_i--){var _r=activeProject.rodadas[_i];if(_r.direcao&&_r.metodo===activeTab){dirAtual=_r.direcao;break;}}}
-        var rod=activeProject.rodadas[activeProject.rodadas.length-1],resultado=rod.resultado,scripts=getScs(),vars=(resultado&&resultado.variacoes)||{};
+        var dirAtual=null,dirMet=activeTab,ehMetodo=METODOS.some(function(m){return m.id===activeTab;});for(var _i=activeProject.rodadas.length-1;_i>=0;_i--){var _r=activeProject.rodadas[_i];if(_r.direcao&&(!ehMetodo||_r.metodo===activeTab)){dirAtual=_r.direcao;dirMet=_r.metodo;break;}}
+        var rod=activeProject.rodadas[activeProject.rodadas.length-1]||{resultado:{},data:""},resultado=rod.resultado||{},scripts=getScs(),vars=(resultado&&resultado.variacoes)||{};
         var objLb=(OBJS.find(function(o){return o.id===activeProject.objetivo;})||{}).lb||activeProject.objetivo||"";
         return ce("div",{className:"content"},
           ce("button",{className:"back",onClick:function(){voltar(function(){irPara("history");});}},ico("voltar",22),"Roteiros"),
@@ -1896,17 +1795,16 @@ function App(){
           activeTab==="conversa"&&painelChat("roteiros"),
           activeTab!=="conversa"&&ce("div",null,
             (scripts.length===0&&METODOS.some(function(m){return m.id===activeTab;}))&&ce("div",{className:"emp",style:{padding:"30px 10px"}},ce("div",{className:"emp-h"},"Nenhum roteiro de "+metodoInfo(activeTab).amigo.toLowerCase()+" ainda"),ce("div",{className:"emp-p",style:{marginBottom:14}},metodoInfo(activeTab).ds),activeProject.rodadas.length<MAX_RODADAS&&ce("button",{className:"abtn pr",onClick:function(){pedirDirecao(activeTab);},disabled:generating},generating?"Gerando...":"Gerar "+POR_RODADA+" roteiros: "+metodoInfo(activeTab).amigo)),
+            (activeProject.rodadas||[]).map(function(rd,i){return avisoRodada(rd,i);}).reverse(),
             scripts.length?avisoGostei():null,
             ce("div",{className:"scripts"},scripts.map(function(s){var gr=gostou("roteiro",activeProject.id+":"+s.id);return ce("div",{key:s.id,className:"sc"},
-              ce("div",{className:"sc-hd",onClick:function(){togSc(s.id);}},ce("div",{className:"sc-n"},s.numGlobal||s.id),ce("div",{className:"sc-inf"},ce("div",{className:"sc-title"},s.titulo),ce("div",{className:"sc-pilar"},s.pilar)),ce("div",{className:"sc-tags"},s.gravado?ce("span",{className:"tag topo"},"GRAVADO"):null,ftag(s.funil),s.duracao_s?ce("span",{className:"tag"},s.duracao_s+" s"):null),ce("span",{style:{color:"var(--mu)",marginLeft:8}},openScripts[s.id]?"v":">")),
+              ce("div",{className:"sc-hd",onClick:function(){togSc(s.id);}},ce("div",{className:"sc-n"},s.numGlobal||s.id),ce("div",{className:"sc-inf"},ce("div",{className:"sc-title"},s.titulo),ce("div",{className:"sc-pilar"},s.pilar)),ce("div",{className:"sc-tags"},s.gravado?ce("span",{className:"tag topo"},"GRAVADO"):null,s.formato==="curto"?ce("span",{className:"tag"},"SEM FALA"):null,ftag(s.funil),s.duracao_s?ce("span",{className:"tag"},s.duracao_s+" s"):null),ce("span",{style:{color:"var(--mu)",marginLeft:8}},openScripts[s.id]?"v":">")),
               ce("div",{className:"sc-body"+(openScripts[s.id]?" op":"")},
-                ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl"},"Gancho"),ce("div",{className:"sc-bl-txt"},s.gancho)),
-                ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl b"},"Corpo"),ce("div",{className:"sc-bl-txt"},s.corpo)),
-                ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl c"},"CTA"),ce("div",{className:"sc-bl-txt"},s.cta)),
+                corpoRoteiro(s),
                 ce("div",{className:"sc-ft",style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},ce("button",{className:"cbtn"+(gr?" cp":""),"aria-pressed":gr,"aria-label":gr?"Tirar o Gostei deste roteiro":"Gostei deste roteiro",onClick:function(e){e.stopPropagation();alternarGostei("roteiro",activeProject.id+":"+s.id,s.titulo,{gancho:s.gancho||"",projeto:activeProject.name||""});}},ce("span",{className:"gostei-b"},coracao(gr,15),"Gostei")),ce("button",{className:"cbtn"+(copiedId===s.id?" cp":""),onClick:function(){copySc(s);}},copiedId===s.id?"Copiado!":"Copiar roteiro"),podeCompartilhar()?ce("button",{className:"cbtn",onClick:function(e){e.stopPropagation();compartilharTexto(s.titulo,textoRoteiro(s));}},"Compartilhar"):null,ce("button",{className:"cbtn"+(s.gravado?" cp":""),"aria-pressed":!!s.gravado,onClick:function(e){e.stopPropagation();marcarGravado(s);}},s.gravado?"✓ Gravado":"Já gravei"),ce("button",{onClick:function(e){e.stopPropagation();regenerarRoteiro(s);},disabled:regenId===s.id,style:{background:"none",border:"1px solid var(--bo)",borderRadius:8,color:"var(--mu2)",padding:"4px 12px",fontSize:12,cursor:regenId===s.id?"wait":"pointer",fontFamily:"inherit"}},regenId===s.id?"Refazendo...":"Refazer"),ce("button",{onClick:function(e){e.stopPropagation();setEditingScript(s);setEditInstr("");},style:{background:"rgba(155,142,255,.1)",border:"1px solid rgba(155,142,255,.3)",color:"#9B8EFF",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Ajustar"),ce("button",{onClick:function(e){e.stopPropagation();setImgModal({roteiro:s,choosing:true});},title:"Gerar uma imagem de anúncio com este gancho",style:{background:"rgba(255,138,80,.12)",border:"1px solid rgba(255,138,80,.35)",color:"var(--ac2)",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"🎨 Imagem"))
               )
             );})),
-            dirAtual&&ce("div",{style:{background:"var(--sur)",border:"1px solid var(--bo)",borderLeft:"3px solid var(--ac)",borderRadius:12,padding:"14px 16px",marginBottom:14}},ce("div",{style:{fontSize:11,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"var(--ac2)",marginBottom:10}},"Por que estes roteiros · "+metodoInfo(activeTab).amigo),ce("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}},DIR_CAMPOS.map(function(f){return ce("div",{key:f.k},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",color:"var(--mu)",marginBottom:3}},f.lb),ce("div",{style:{fontSize:13,lineHeight:1.45}},dirAtual[f.k]||"-"));}))),
+            dirAtual&&ce("div",{style:{background:"var(--sur)",border:"1px solid var(--bo)",borderLeft:"3px solid var(--ac)",borderRadius:12,padding:"14px 16px",marginBottom:14}},ce("div",{style:{fontSize:11,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"var(--ac2)",marginBottom:10}},"Por que estes roteiros · "+metodoInfo(dirMet).amigo),ce("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}},DIR_CAMPOS.map(function(f){return ce("div",{key:f.k},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",color:"var(--mu)",marginBottom:3}},f.lb),ce("div",{style:{fontSize:13,lineHeight:1.45}},dirAtual[f.k]||"-"));}))),
             ce("div",{style:{background:"var(--sur)",border:"1px solid var(--bo)",borderRadius:12,padding:"14px 16px",marginBottom:18}},
               ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}},ce("div",{style:{fontSize:13,fontWeight:600}},"Gerar mais "+POR_RODADA+" roteiros"),ce("div",{style:{fontSize:11.5,color:"var(--mu)"}},activeProject.rodadas.length+" de "+MAX_RODADAS+" gerações usadas neste projeto")),
               activeProject.rodadas.length<MAX_RODADAS
@@ -1928,20 +1826,6 @@ function App(){
     ),
     tabbar,
     boasVindas&&telaBoasVindas(),
-    generating&&ce("div",{className:"ov"},ce("div",{className:"ov-card"},ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Gerando seus roteiros..."),ce("div",{className:"ov-p"},"Leva de 1 a 2 minutos. Não feche esta tela."),ce("div",{className:"ov-steps"},STEPS.map(function(s,i){return ce("div",{key:i,className:"ov-s"+(i<genStep?" dn":i===genStep?" ac":"")},ce("span",{className:"sdot"}),s);})),liveText?ce("div",{style:{marginTop:18,textAlign:"left",background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:10,padding:"12px 14px",maxHeight:170,overflowY:"auto",fontSize:12.5,lineHeight:1.5,color:"var(--mu2)",whiteSpace:"pre-wrap",direction:"rtl"}},ce("div",{style:{direction:"ltr"}},ce("span",{style:{color:"var(--ac2)",fontWeight:600}},"A IA está escrevendo... "),previewClean(liveText))):null)),
-    direcao&&ce("div",{className:"ov",onClick:function(){if(!direcao.loading)cancelarDirecao();}},ce("div",{className:"ov-card",style:{maxWidth:540,textAlign:"left",maxHeight:"92vh",overflowY:"auto"},onClick:function(e){e.stopPropagation();}},
-      direcao.loading
-        ?ce("div",{style:{textAlign:"center"}},ce("div",{className:"spin"}),ce("div",{className:"ov-h"},"Montando a direção do conteúdo..."),ce("div",{className:"ov-p"},direcao.ff?"A IA está definindo objetivo, público, mensagem e chamada para "+metodoInfo(direcao.metodo).amigo.toLowerCase()+".":"Lendo as informações do seu produto..."),ce("button",{className:"abtn",onClick:cancelarDirecao,style:{margin:"18px auto 0",justifyContent:"center"}},"Cancelar"))
-        :ce("div",null,
-          ce("div",{style:{display:"inline-block",fontSize:11.5,fontWeight:600,color:"var(--ac2)",background:"rgba(255,77,0,.1)",border:"1px solid rgba(255,77,0,.25)",borderRadius:20,padding:"3px 11px",marginBottom:12}},metodoInfo(direcao.metodo).ic+" "+metodoInfo(direcao.metodo).amigo),
-          ce("div",{className:"ov-h",style:{marginBottom:6}},"Direção do conteúdo"),
-          direcao.mem&&ce("div",{style:{fontSize:12,color:"var(--ok)",marginBottom:8,lineHeight:1.45}},"🧠 Agente MCP: "+(direcao.mem.conta?"usando o que o time descobriu na sua conta (Instagram e anúncios dos últimos 90 dias)":"usando o que aprendeu com os seus projetos")+(direcao.mem.referencia?" + o vídeo de referência que você escolheu":"")+""),
-          ce("div",{className:"ov-p",style:{marginBottom:18}},direcao.falhou?"Não consegui montar a direção sozinha. Preencha o que quiser ou gere assim mesmo.":"Os "+POR_RODADA+" roteiros vão seguir esta direção. Ajuste o que quiser antes de gerar."),
-          DIR_CAMPOS.map(function(f){return ce("div",{key:f.k,style:{marginBottom:12}},ce("div",{style:{fontSize:10.5,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"var(--mu)",marginBottom:5}},f.lb),ce("textarea",{className:"edit-ta",style:{minHeight:54},placeholder:f.ph,value:(direcao.campos&&direcao.campos[f.k])||"",onChange:function(e){editarCampoDirecao(f.k,e.target.value);}}));}),
-          ce("button",{className:"gbtn",onClick:confirmarDirecao},"Gerar "+POR_RODADA+" roteiros com esta direção"),
-          ce("div",{style:{display:"flex",gap:8,marginTop:8}},ce("button",{className:"abtn",onClick:refazerDirecao,style:{flex:1,justifyContent:"center"}},"Refazer direção"),ce("button",{className:"abtn",onClick:cancelarDirecao,style:{flex:1,justifyContent:"center"}},"Cancelar"))
-        )
-    )),
     toast&&ce("div",{className:"toast"+(toast.type==="err"?" err":""),role:"status","aria-live":"polite"},ce("span",{style:{fontWeight:800,color:toast.type==="err"?"#FF6B5A":"var(--ok)"}},toast.type==="err"?"!":"\u2713"),ce("span",{style:{flex:1,lineHeight:1.4}},toast.msg),toast.tentar?ce("button",{className:"toast-bt",onClick:function(){var f=toast.tentar;setToast(null);f();}},"Tentar de novo"):null),
     copiaManual&&ce("div",{className:"ov",onClick:function(){setCopiaManual(null);}},ce("div",{className:"ov-card",style:{maxWidth:480,textAlign:"left"},onClick:function(e){e.stopPropagation();}},
       ce("div",{className:"ov-h"},"Copie o texto"),

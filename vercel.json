@@ -29,6 +29,9 @@
     },
     "api/conversa.js": {
       "maxDuration": 180
+    },
+    "api/roteiros.js": {
+      "maxDuration": 300
     }
   },
   "crons": [
