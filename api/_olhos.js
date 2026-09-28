@@ -31,12 +31,14 @@ const ESQ_VISUAL = objeto({
     mecanica: texto("A mecânica do vídeo em uma frase de até 10 palavras, sem citar a peça (exemplo: troca de look no pulo em frente ao espelho).")
 });
 
-// ---------- ffmpeg (pacote ffmpeg-static; no servidor pode precisar ir para /tmp para rodar) ----------
+// ---------- ffmpeg (no servidor pode precisar ir para /tmp para poder rodar) ----------
 let binario = null;
 function ffmpeg() {
     if (binario) return binario;
+    // no servidor: o binario vem pronto no pacote @ffmpeg-installer/linux-x64; no computador de teste, ffmpeg-static
     let p = null;
-    try { p = require("ffmpeg-static"); } catch (e) { return null; }
+    try { p = require("path").join(require("path").dirname(require.resolve("@ffmpeg-installer/linux-x64/package.json")), "ffmpeg"); }
+    catch (e) { try { p = require("ffmpeg-static"); } catch (e2) { return null; } }
     if (!p || !fs.existsSync(p)) return null;
     try { fs.accessSync(p, fs.constants.X_OK); binario = p; }
     catch (e) {
