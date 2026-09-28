@@ -17,11 +17,11 @@
     },
     "api/connect.js": {
       "maxDuration": 300,
-      "includeFiles": "node_modules/@ffmpeg-installer/linux-x64/ffmpeg"
+      "includeFiles": "node_modules/@ffmpeg-installer/linux-x64/**"
     },
     "api/atualizar.js": {
       "maxDuration": 300,
-      "includeFiles": "node_modules/@ffmpeg-installer/linux-x64/ffmpeg"
+      "includeFiles": "node_modules/@ffmpeg-installer/linux-x64/**"
     },
     "api/lojas.js": {
       "maxDuration": 60

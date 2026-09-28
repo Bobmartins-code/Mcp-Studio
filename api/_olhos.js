@@ -36,10 +36,11 @@ let binario = null;
 function ffmpeg() {
     if (binario) return binario;
     // no servidor: o binario vem pronto no pacote @ffmpeg-installer/linux-x64; no computador de teste, ffmpeg-static
-    let p = null;
-    try { p = require("path").join(require("path").dirname(require.resolve("@ffmpeg-installer/linux-x64/package.json")), "ffmpeg"); }
-    catch (e) { try { p = require("ffmpeg-static"); } catch (e2) { return null; } }
-    if (!p || !fs.existsSync(p)) return null;
+    const lugares = [path.join(__dirname, "..", "node_modules", "@ffmpeg-installer", "linux-x64", "ffmpeg"), path.join(process.cwd(), "node_modules", "@ffmpeg-installer", "linux-x64", "ffmpeg")];
+    try { lugares.push(path.join(path.dirname(require.resolve("@ffmpeg-installer/linux-x64/package.json")), "ffmpeg")); } catch (e) {}
+    try { lugares.push(require("ffmpeg-static")); } catch (e) {}
+    const p = lugares.find(function (x) { try { return x && fs.existsSync(x); } catch (e) { return false; } });
+    if (!p) return null;
     try { fs.accessSync(p, fs.constants.X_OK); binario = p; }
     catch (e) {
         const tmp = path.join(os.tmpdir(), "ffmpeg-mcp");

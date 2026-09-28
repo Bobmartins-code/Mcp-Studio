@@ -106,7 +106,7 @@ module.exports = async function handler(req, res) {
             });
         }
 
-        return res.status(200).json({ ok: true, atualizadas: feitos.length, falhas: falhas, puladas: puladas.length, analises: analises, falhas_analise: falhasAnalise, na_fila_agora: Math.max(0, agora.length - 1), ms: passou() });
+        return res.status(200).json({ ok: true, atualizadas: feitos.length, falhas: falhas, puladas: puladas.length, analises: analises, falhas_analise: falhasAnalise, na_fila_agora: Math.max(0, agora.length - 1), olhos: require("./_olhos.js").disponivel(), ms: passou() });
     } catch (e) {
         console.error("[atualizar] " + (e && e.message));
         return res.status(500).json({ error: (e && e.message) || "Erro na atualizacao" });

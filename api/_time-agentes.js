@@ -875,7 +875,7 @@ function pedidosRascunhos(ctx, p, anteriores) {
     const base = baseDasIdeias(ctx, p, anteriores);
     return Object.keys(ESPECIALISTAS).map(function (f) {
         const e = ESPECIALISTAS[f];
-        return { chave: "ras_" + f, nome: e.nome + " (rascunhos)", esquema: ESQ_RASCUNHO, cache: true, max: 24000,
+        return { chave: "ras_" + f, nome: e.nome + " (rascunhos)", esquema: ESQ_RASCUNHO, cache: true, max: 24000, effort: "low",
             pedido: [{ type: "text", text: base, cache_control: { type: "ephemeral" } }, { type: "text", text: "SUA TAREFA\n" + e.texto +
                 "\n\nNESTA ETAPA, escreva 12 RASCUNHOS do seu formato, bem diferentes entre si, só com o essencial: título, mecânica, peça, primeiro segundo, prova com número, oportunidade, inspirado_em e tipo. Um avaliador rigoroso vai conferir cada prova nos números e cortar os genéricos, as fórmulas prontas e os repetidos; os escolhidos serão escritos por completo depois. No máximo 3 rascunhos com a mesma mecânica e no máximo 3 com a mesma peça." }] };
     });
