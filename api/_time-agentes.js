@@ -7,10 +7,18 @@
 //    - as ideias de conteudo da tela Ideias
 //
 //  Etapas (cada uma espera a anterior):
-//    1. Agente Organico, Agente de Anuncios e Agente de Publico (este 1 vez por semana)
+//    1. Agente Organico, Agente de Anuncios, Agente de Publico (este 1 vez por semana)
+//       e Agente de Memoria: liga as ideias sugeridas aos posts que a dona publicou,
+//       ve o resultado, olha as capas e guarda o que funciona PARA ESTA LOJA
+//       (contas_meta.memoria), junto com o gosto dela (Gostei e pedidos no chat)
 //    2. Diretor (dossie) e 3 especialistas em ideias: videos curtos (topo),
-//       narrados (meio) e provador (fundo); cada um escreve 8 opcoes
+//       narrados (meio) e provador (fundo); cada um escreve 6 opcoes
 //    3. Curador: escolhe 4 curtos, 3 narrados e 3 provadores e guarda o resto na reserva
+//
+//  Economia: os 3 especialistas recebem o mesmo pacote de dados, gravado no cache
+//  da Anthropic pelo primeiro (os outros pagam 10% por essa parte); e a loja so e
+//  analisada de novo quando ha novidade (post, anuncio ou produto novo), no maximo
+//  a cada 2 noites, e pelo menos a cada 3.
 //
 //  Dois jeitos de rodar as mesmas etapas (estado em contas_meta.dossie_job):
 //    - "lote": a analise diaria da madrugada, pela Batch API da Anthropic (metade do preco);
@@ -118,7 +126,7 @@ const ESQ_ESPECIALISTA = objeto({
             duracao_s: { type: "integer", description: "Duração sugerida em segundos." },
             peca: textoPT("A peça ou produto do vídeo, como está nos dados ou nos produtos do momento. Vazio se não houver informação."),
             inspirado_em: { type: "string", description: "Código do post (P1...) ou anúncio (A1...) desta loja que inspirou a ideia, ou vazio." },
-            por_que: textoPT("Em uma frase, o dado desta loja que sustenta a ideia."),
+            por_que: textoPT("Em uma frase, o dado desta loja que sustenta a ideia. A dona lê este texto: nunca use códigos como P1 ou A1, descreva o post ou anúncio (exemplo: o Reels do vestido azul de 18/09 teve 3,6x a média)."),
             metrica: textoPT("Como a dona sabe se deu certo, em palavras simples."),
             funil: { type: "string", enum: ["topo", "meio", "fundo"] },
             metodo: { type: "string", enum: ["fftopo", "ffmeio", "fffundo", "dsb", "angulo"], description: "O método de roteiro mais próximo, se a ideia virar roteiro." }
@@ -129,6 +137,29 @@ const ESQ_CURADOR = objeto({
     resumo: textoPT("2 frases para a dona: por onde começar esta semana e por quê."),
     principais: { type: "array", items: { type: "string" }, description: "Códigos escolhidos, em ordem de prioridade: 4 curtos (C), 3 narrados (N) e 3 provadores (V)." },
     reserva: { type: "array", items: { type: "string" }, description: "Os outros códigos bons, do melhor para o pior. Fora os fracos ou repetidos." }
+});
+
+const ESQ_MEMORIA = objeto({
+    resumo: textoPT("2 frases para a dona: o que o time aprendeu sobre a loja dela até agora."),
+    vinculos: {
+        type: "array", description: "Cada post recente (R) que seguiu uma ideia sugerida (I).",
+        items: objeto({
+            ideia: { type: "string", description: "Código da ideia (I1...)." },
+            post: { type: "string", description: "Código do post (R1...)." },
+            confianca: confianca,
+            resultado: { type: "string", enum: ["acima", "na_media", "abaixo", "sem_dado"] }
+        })
+    },
+    aprendizados: {
+        type: "array", description: "A memória atualizada, no máximo 12 itens, do mais forte para o mais fraco.",
+        items: objeto({
+            texto: textoPT("Regra prática desta loja, com números (exemplo: provador com espelho e luz natural rende 1,8x a média; fundo branco de estúdio fica abaixo)."),
+            evidencias: textoPT("Os posts que provam, pela data e uma descrição curta (exemplo: Reels de 18/09 do conjunto azul e Reels de 25/09 do cropped)."),
+            forca: { type: "string", enum: ["pista", "media", "forte"] }
+        })
+    },
+    visual: listaPT("De 2 a 6 padrões visuais das capas: o que se repete nos melhores e nos piores posts (cenário, luz, enquadramento, rosto, texto na capa, peça em destaque)."),
+    gosto: listaPT("O gosto e os limites da dona: o que ela marca como Gostei, o que pede no chat, o que escolhe gravar. Lista vazia se não houver sinal.")
 });
 
 // ---------- chamada da IA ----------
@@ -150,7 +181,7 @@ function corpoDe(p) {
     return {
         model: MODELO,
         max_tokens: p.max || 12000,
-        system: [{ type: "text", text: SISTEMA_TIME }],
+        system: [{ type: "text", text: p.sistema || SISTEMA_TIME }],
         messages: [{ role: "user", content: p.pedido }],
         output_config: { effort: "medium", format: { type: "json_schema", schema: p.esquema } }
     };
@@ -164,21 +195,52 @@ function lerResposta(nome, d) {
     return semTravessao(JSON.parse(bloco.text));
 }
 
-// p = { chave, nome, pedido, esquema, max }
-async function perguntar(userId, p) {
-    const corpo = corpoDe(p);
+// le a resposta em pedacos (streaming): assim da para saber quando a IA comecou a responder
+async function lerStream(r, aoComecar) {
+    const leitor = r.body.getReader(), dec = new TextDecoder();
+    let buf = "", texto = "", usage = {}, stop = null, erro = null, comecou = false;
+    for (;;) {
+        const lido = await leitor.read();
+        if (lido.done) break;
+        buf += dec.decode(lido.value, { stream: true }).replace(/\r\n/g, "\n");
+        let i;
+        while ((i = buf.indexOf("\n\n")) > -1) {
+            const linha = buf.slice(0, i).split("\n").find(function (l) { return l.indexOf("data:") === 0; });
+            buf = buf.slice(i + 2);
+            if (!linha) continue;
+            let ev; try { ev = JSON.parse(linha.slice(5)); } catch (e) { continue; }
+            if (ev.type === "message_start") { usage = Object.assign({}, ev.message && ev.message.usage); if (!comecou) { comecou = true; if (aoComecar) aoComecar(); } }
+            else if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta") texto += ev.delta.text;
+            else if (ev.type === "message_delta") { if (ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason; if (ev.usage) Object.assign(usage, ev.usage); }
+            else if (ev.type === "error") erro = (ev.error && ev.error.message) || "falha na resposta";
+        }
+    }
+    if (erro) throw new Error(erro);
+    return { content: [{ type: "text", text: texto }], stop_reason: stop, usage: usage };
+}
+
+// p = { chave, nome, pedido, esquema, max }; aoComecar: chamada quando a IA comeca a responder
+async function perguntar(userId, p, aoComecar) {
+    const corpo = Object.assign(corpoDe(p), { stream: true });
     for (let t = 0; t < 3; t++) {
-        let r;
+        let r, d;
         try {
-            r = await fetch(API + "/messages", { method: "POST", headers: cabecalhos(), body: JSON.stringify(corpo), signal: AbortSignal.timeout(150000) });
+            r = await fetch(API + "/messages", { method: "POST", headers: cabecalhos(), body: JSON.stringify(corpo), signal: AbortSignal.timeout(170000) });
         } catch (e) {
             if (t < 2) { await espera(1500 * (t + 1)); continue; }
             throw new Error(p.nome + ": " + (e.name === "TimeoutError" || e.name === "AbortError" ? "a IA demorou demais" : "falha de rede"));
         }
-        const d = await r.json().catch(function () { return {}; });
-        // 429, 529 e 5xx podem passar na proxima tentativa
-        if ((r.status === 429 || r.status >= 500) && t < 2) { await espera(2000 * (t + 1)); continue; }
-        if (!r.ok) throw new Error(p.nome + ": " + ((d.error && d.error.message) || ("erro " + r.status)));
+        if (!r.ok) {
+            const e = await r.json().catch(function () { return {}; });
+            // 429, 529 e 5xx podem passar na proxima tentativa
+            if ((r.status === 429 || r.status >= 500) && t < 2) { await espera(2000 * (t + 1)); continue; }
+            throw new Error(p.nome + ": " + ((e.error && e.error.message) || ("erro " + r.status)));
+        }
+        try { d = await lerStream(r, aoComecar); }
+        catch (e) {
+            if (t < 2) { await espera(2000 * (t + 1)); continue; }
+            throw new Error(p.nome + ": " + (e.name === "TimeoutError" || e.name === "AbortError" ? "a IA demorou demais" : (e.message || "falha na resposta")));
+        }
         await registrarUso(userId, p.nome, MODELO, d.usage, false);
         return lerResposta(p.nome, d);
     }
@@ -224,7 +286,7 @@ function postsDaLoja(met) {
 }
 function linhaPost(p, i) {
     return "P" + (i + 1) + ") " + (p.tipo || "Post") + " de " + String(p.data || "").slice(0, 10) + (p.recente ? " (últimos 30 dias)" : "") +
-        " | " + String(arred(p.indice, 2)).replace(".", ",") + "x a média | alcance " + p.alcance + " | visualizações " + (p.visualizacoes || 0) +
+        " | " + (p.pouco_alcance ? "ALCANCE MUITO BAIXO, número pouco confiável" : String(arred(p.indice, 2)).replace(".", ",") + "x a média") + " | alcance " + p.alcance + " | visualizações " + (p.visualizacoes || 0) +
         (p.tempo_medio_s ? " | tempo médio assistido " + String(p.tempo_medio_s).replace(".", ",") + " s" : "") +
         (p.retencao_3s != null ? " | ficaram nos 3 primeiros segundos " + String(p.retencao_3s).replace(".", ",") + "%" : "") +
         " | curtidas " + p.curtidas + " | comentários " + p.comentarios + " | salvamentos " + p.salvamentos + " | compartilhamentos " + p.compartilhamentos +
@@ -360,13 +422,16 @@ function vozEGanchos(met, comentarios) {
 // ---------- contexto de uma loja (lido de novo a cada etapa) ----------
 async function carregar(userId) {
     const id = encodeURIComponent(userId);
-    const [contas, lojas, projetos] = await Promise.all([
-        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job"),
+    const desde = encodeURIComponent(new Date(Date.now() - 60 * DIA_MS).toISOString());
+    const [contas, lojas, projetos, gostei, conversas] = await Promise.all([
+        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job,memoria"),
         banco("lojas?user_id=eq." + id + "&select=nome,nicho,site,produtos_dona,produtos_dona_em,produtos_admin,publico_admin").catch(function () { return []; }),
-        banco("projetos?user_id=eq." + id + "&select=nome,form&order=criado_em.desc&limit=5").catch(function () { return []; })
+        banco("projetos?user_id=eq." + id + "&select=nome,form&order=criado_em.desc&limit=5").catch(function () { return []; }),
+        banco("gostei?user_id=eq." + id + "&criado_em=gte." + desde + "&select=tipo,titulo,conteudo,criado_em&order=criado_em.desc&limit=30").catch(function () { return []; }),
+        banco("conversas?user_id=eq." + id + "&criado_em=gte." + desde + "&select=area,pedido,criado_em&order=criado_em.desc&limit=15").catch(function () { return []; })
     ]);
     const conta = (contas && contas[0]) || {};
-    return { userId: userId, conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [] };
+    return { userId: userId, conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, gostei: gostei || [], conversas: conversas || [] };
 }
 // comMeta: consulta a Meta (so na primeira etapa); nas outras usa o que ja foi guardado
 async function preparar(ctx, comMeta) {
@@ -409,7 +474,111 @@ function dadosEmTexto(ctx, nPosts, nAds, nCom) {
         (ctx.comentarios.length ? "\n\nCOMENTÁRIOS REAIS DAS SEGUIDORAS:\n" + ctx.comentarios.slice(0, nCom).map(function (c) { return "- " + c; }).join("\n") : "");
 }
 
-// ---------- etapa 1: organico, anuncios e publico ----------
+// ---------- memoria da loja (IA que aprende com o proprio resultado) ----------
+const SUGERIDAS_MS = 35 * DIA_MS;
+// guarda as ideias mostradas para a dona, para o Agente de Memoria achar depois quais viraram post
+function comSugeridas(memoria, ideias) {
+    const agora = Date.now(), vistas = {};
+    const novas = (ideias || []).map(function (x) { return { t: corta(x.titulo, 160), f: x.formato || "", g: corta(x.gancho, 200), p: corta(x.peca, 80), em: new Date(agora).toISOString() }; });
+    const todas = novas.concat((memoria && memoria.sugeridas) || []).filter(function (x) {
+        if (!x.t || vistas[x.t] || agora - new Date(x.em).getTime() > SUGERIDAS_MS) return false;
+        vistas[x.t] = 1; return true;
+    });
+    return Object.assign({}, memoria || {}, { sugeridas: todas.slice(0, 60) });
+}
+function dataBR(iso) { return iso ? dataCurta(iso) : "sem data"; }
+// o que a dona marcou como Gostei e o que pediu no chat (sinais do gosto dela)
+function textoGosto(ctx) {
+    const g = (ctx.gostei || []).slice(0, 20).map(function (x) { return "- " + (x.tipo === "roteiro" ? "roteiro" : "ideia") + " de " + dataBR(x.criado_em) + ": " + corta(x.titulo, 140) + (x.conteudo && x.conteudo.gancho ? " (gancho: " + corta(x.conteudo.gancho, 140) + ")" : ""); });
+    const c = (ctx.conversas || []).slice(0, 12).map(function (x) { return "- " + dataBR(x.criado_em) + ", no chat de " + x.area + ": " + corta(x.pedido, 220); });
+    return (g.length ? "\nIDEIAS E ROTEIROS QUE A DONA MARCOU COMO GOSTEI:\n" + g.join("\n") : "") +
+        (c.length ? "\nPEDIDOS DA DONA NO CHAT COM O TIME:\n" + c.join("\n") : "");
+}
+// a memoria em texto, para o diretor, os especialistas, o curador e o chat
+function textoMemoria(mem) {
+    mem = mem || {};
+    const ap = mem.aprendizados || [], vis = mem.visual || [], gos = mem.gosto || [], vin = (mem.vinculos || []).filter(function (v) { return v.confianca !== "baixa"; });
+    if (!ap.length && !vis.length && !gos.length && !vin.length) return "";
+    const RES = { acima: "acima da média", na_media: "na média", abaixo: "abaixo da média", sem_dado: "ainda sem resultado" };
+    return "\n\nO QUE O TIME JÁ APRENDEU COM ESTA LOJA (memória, confirmada com os resultados dos posts dela)" +
+        (ap.length ? "\nAPRENDIZADOS:\n" + ap.map(function (a) { return "- " + a.texto + " [" + (a.forca || "pista") + "; " + a.evidencias + "]"; }).join("\n") : "") +
+        (vis.length ? "\nNAS CAPAS:\n" + vis.map(function (v) { return "- " + v; }).join("\n") : "") +
+        (gos.length ? "\nGOSTO DA DONA:\n" + gos.map(function (v) { return "- " + v; }).join("\n") : "") +
+        (vin.length ? "\nIDEIAS DO TIME QUE VIRARAM POST:\n" + vin.slice(0, 10).map(function (v) { return "- " + corta(v.ideia, 120) + ": " + (RES[v.resultado] || v.resultado) + (v.indice ? " (" + String(v.indice).replace(".", ",") + "x a média)" : ""); }).join("\n") : "");
+}
+async function imagemBase64(url) {
+    try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) return null;
+        const tipo = String(r.headers.get("content-type") || "").split(";")[0].trim();
+        if (!/^image\/(jpeg|png|webp|gif)$/.test(tipo)) return null;
+        const buf = Buffer.from(await r.arrayBuffer());
+        if (buf.length > 1500000) return null;
+        return { type: "image", source: { type: "base64", media_type: tipo, data: buf.toString("base64") } };
+    } catch (e) { return null; }
+}
+async function pedidoMemoria(ctx) {
+    const desde = Date.now() - SUGERIDAS_MS;
+    const recentes = (ctx.postsTodos || []).filter(function (p) { return p.data && new Date(p.data).getTime() >= desde; })
+        .sort(function (a, b) { return String(b.data).localeCompare(String(a.data)); }).slice(0, 25);
+    if (recentes.length < 2) return null;
+    const mem = ctx.memoria || {}, sugeridas = (mem.sugeridas || []).slice(0, 40);
+    const mapa = { ideias: {}, posts: {} };
+    sugeridas.forEach(function (s, i) { mapa.ideias["I" + (i + 1)] = s.t; });
+    recentes.forEach(function (p, i) { mapa.posts["R" + (i + 1)] = { id: p.id, link: p.link || "", miniatura: p.miniatura || "", data: p.data, indice: p.pouco_alcance ? null : p.indice, legenda: corta(p.legenda, 90) }; });
+    ctx.mapaMem = mapa;
+    function linha(p, i) {
+        return "R" + (i + 1) + ") " + (p.tipo || "Post") + " de " + dataBR(p.data) + " | " + (p.pouco_alcance ? "alcance muito baixo, número pouco confiável" : String(arred(p.indice, 2)).replace(".", ",") + "x a média") +
+            (p.anunciado ? " | foi impulsionado" : "") + " | alcance " + p.alcance + (p.tempo_medio_s ? " | tempo médio " + String(p.tempo_medio_s).replace(".", ",") + " s" : "") +
+            (p.retencao_3s != null ? " | ficaram nos 3 primeiros segundos " + String(p.retencao_3s).replace(".", ",") + "%" : "") +
+            " | curtidas " + p.curtidas + " | comentários " + p.comentarios + " | salvamentos " + p.salvamentos + " | compartilhamentos " + p.compartilhamentos +
+            " | legenda: " + corta(p.legenda, 160) + (p.transcricao ? " | o que é falado no vídeo (transcrito pelo time, não é legenda): " + corta(p.transcricao, 300) : "");
+    }
+    const texto = "Você é o AGENTE DE MEMÓRIA do time. Seu trabalho é descobrir o que funciona DE VERDADE para esta loja, comparando o que o time sugeriu com o que a dona publicou e com o resultado de cada post. O que você guardar vira a base das próximas ideias.\n\n" +
+        "TAREFAS\n" +
+        "A) Ligue cada post recente (R) à ideia sugerida (I) que ele seguiu. Só ligue quando o post repete o gancho, a estrutura ou a peça da ideia; ser do mesmo tema não basta. Na dúvida, não ligue.\n" +
+        "B) Julgue o resultado de cada ideia gravada: acima (1,3x a média ou mais), na média, abaixo (0,7x ou menos) ou sem dado (post de menos de 2 dias ou com alcance muito baixo). Desconte post impulsionado e data especial antes de concluir.\n" +
+        "C) Atualize a MEMÓRIA ATUAL: confirme um aprendizado quando surgir mais uma evidência, enfraqueça quando um resultado contradisser e remova o que ficou sem sustentação. Aprendizado com 2 posts ou mais como prova pode ser médio ou forte; com 1 post só, entra como pista. No máximo 12, do mais forte para o mais fraco. Cada um é uma regra prática desta loja, com números. Cite os posts pela data e por uma descrição curta, nunca pelo código, porque os outros agentes não veem os códigos R e I.\n" +
+        "D) Olhe as CAPAS: anote padrões visuais que se repetem nos melhores e nos piores posts (cenário, luz, enquadramento, rosto, texto na capa, peça em destaque).\n" +
+        "E) Registre o gosto da dona: o que ela marcou como Gostei, o que pediu no chat e que tipo de ideia escolhe gravar. Ideia não gravada, sem outro sinal, é só uma pista fraca: pode ter sido falta de tempo.\n\n" +
+        "REGRAS\n- Nada de dica genérica de marketing: só o que os dados DESTA loja mostram.\n- Um post sozinho é pista, não regra.\n- Em resumo, 2 frases para a dona sobre o que o time aprendeu com a loja dela.\n\n" +
+        ctx.sobreLoja +
+        "\n\nMEMÓRIA ATUAL:\n" + ((mem.aprendizados || []).map(function (a, i) { return "M" + (i + 1) + ") " + a.texto + " [" + a.forca + "; " + a.evidencias + "]"; }).join("\n") || "vazia (primeira vez)") +
+        ((mem.visual || []).length ? "\nPADRÕES VISUAIS JÁ ANOTADOS: " + mem.visual.join(" | ") : "") +
+        "\n\nIDEIAS SUGERIDAS PELO TIME NOS ÚLTIMOS 35 DIAS:\n" + (sugeridas.map(function (s, i) { return "I" + (i + 1) + ") " + dataBR(s.em) + " | " + (NOME_FORMATO_TXT[s.f] || "vídeo") + " | " + s.t + (s.g ? " | gancho: " + s.g : "") + (s.p ? " | peça: " + s.p : ""); }).join("\n") || "nenhuma registrada ainda") +
+        textoGosto(ctx) +
+        "\n\nPOSTS PUBLICADOS NOS ÚLTIMOS 35 DIAS (do mais novo para o mais antigo):\n" + recentes.map(linha).join("\n");
+    // capas: os 4 melhores e os 3 piores posts recentes (so os de alcance normal)
+    const medidos = recentes.map(function (p, i) { return { p: p, cod: "R" + (i + 1) }; }).filter(function (x) { return x.p.miniatura && !x.p.pouco_alcance; })
+        .sort(function (a, b) { return (b.p.indice || 0) - (a.p.indice || 0); });
+    const escolhidos = medidos.length > 7 ? medidos.slice(0, 4).concat(medidos.slice(-3)) : medidos;
+    const imgs = await Promise.all(escolhidos.map(function (x) { return imagemBase64(x.p.miniatura).then(function (im) { return im ? [x, im] : null; }); }));
+    const blocos = [{ type: "text", text: texto }];
+    imgs.filter(Boolean).forEach(function (par) { blocos.push({ type: "text", text: "Capa de " + par[0].cod + " (" + String(arred(par[0].p.indice, 2)).replace(".", ",") + "x a média):" }, par[1]); });
+    return { chave: "mem", nome: "Agente de Memoria", esquema: ESQ_MEMORIA, pedido: blocos, max: 10000 };
+}
+const NOME_FORMATO_TXT = { curto: "vídeo curto", narrado: "vídeo narrado", provador: "provador" };
+// a memoria nova (ou a de antes) + as ideias que acabaram de ser sugeridas
+function memoriaNova(ctx, p, mapaMem, ideias) {
+    const antes = ctx.memoria || {};
+    let mem = Object.assign({}, antes);
+    if (p.mem) {
+        const m = p.mem, ideiasMap = (mapaMem && mapaMem.ideias) || {}, postsMap = (mapaMem && mapaMem.posts) || {};
+        const vinculos = (m.vinculos || []).map(function (v) {
+            const ideia = ideiasMap[String(v.ideia).trim().toUpperCase()], post = postsMap[String(v.post).trim().toUpperCase()];
+            if (!ideia || !post) return null;
+            return { ideia: ideia, post_link: post.link, miniatura: post.miniatura, data: post.data, indice: post.indice, confianca: v.confianca, resultado: v.resultado };
+        }).filter(Boolean);
+        // guarda as ligacoes antigas que nao voltaram (o post saiu da janela de 35 dias)
+        const ja = {};
+        vinculos.forEach(function (v) { ja[v.ideia + "|" + v.post_link] = 1; });
+        const velhas = (antes.vinculos || []).filter(function (v) { return !ja[v.ideia + "|" + v.post_link]; });
+        mem = Object.assign(mem, { resumo: m.resumo, aprendizados: (m.aprendizados || []).slice(0, 12), visual: m.visual || [], gosto: m.gosto || [], vinculos: vinculos.concat(velhas).slice(0, 40), aprendeu_em: new Date().toISOString() });
+    }
+    return comSugeridas(mem, ideias);
+}
+
+// ---------- etapa 1: organico, anuncios, publico e memoria ----------
 async function pedidosEtapa1(ctx) {
     const pedidos = [], ads = ctx.ads, posts = ctx.posts, met = ctx.met;
     if (posts.length) pedidos.push({
@@ -448,6 +617,8 @@ async function pedidosEtapa1(ctx) {
             max: 14000
         });
     }
+    const mem = await pedidoMemoria(ctx);
+    if (mem) pedidos.push(mem);
     return pedidos;
 }
 
@@ -488,28 +659,31 @@ function regrasDasIdeias(ctx, anteriores) {
         "- Cada ideia se apoia num dado desta loja: um post (P) ou anúncio (A) que funcionou, com o código em inspirado_em; um comentário; uma dor ou situação do MAPA DE PÚBLICO; um produto do momento; ou uma data do calendário.\n" +
         "- Use as peças dos PRODUTOS E OFERTAS DO MOMENTO sempre que fizer sentido. Sem produto informado, use a peça como aparece nos posts que funcionaram ou escreva 'a peça que você quer vender'.\n" +
         "- Fale com a faixa de idade que mais segue a loja e com as situações do dia a dia dela.\n" +
+        "- Se vier O QUE O TIME JÁ APRENDEU COM ESTA LOJA, parta disso: repita com variação o que deu resultado aqui, evite o que ficou abaixo, siga os padrões das capas que funcionaram e respeite o gosto da dona. Ideias parecidas com as que ela marcou como Gostei têm prioridade.\n" +
         "- Hoje é " + hoje + ". Datas do varejo das próximas semanas: " + (datas.join(", ") || "nenhuma") + ".\n\n" +
         "REGRAS\n" +
         "- Preço, promoção, estoque, depoimento e número só entram se estiverem nos dados ou nos produtos informados. Urgência e escassez só com estoque baixo informado.\n" +
         "- Antes e depois só do look. Fale da peça e da situação, não do corpo da cliente (a calça que não marca, e não você que tem barriga), porque a Meta reprova anúncio que aponta característica pessoal e porque assim a cliente se sente bem.\n" +
         "- Tudo gravável só com o celular pela dona ou pela equipe.\n" +
-        "- Entregue 8 ideias diferentes entre si (peças, situações e ganchos distintos)." +
+        "- Entregue 6 ideias diferentes entre si (peças, situações e ganchos distintos)." +
         (anteriores.length ? "\n- Estas ideias já foram sugeridas; traga outras: " + anteriores.slice(0, 40).join(" | ") : "");
 }
 function contextoDasIdeias(ctx, p) {
     const pub = p.pub || ctx.dossie.publico;
-    return "\n\n" + ctx.sobreLoja +
+    return textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
         "\nDADOS DE SEGUIDORES: " + (ctx.demografia || "não disponível") +
         "\nMAPA DE PÚBLICO: " + resumoRel(pub) +
         "\nRELATÓRIO ORGÂNICO (com os formatos-mãe): " + resumoRel(p.org) +
         "\nRELATÓRIO DE ANÚNCIOS: " + resumoRel(p.ads) +
         dadosEmTexto(ctx, 20, 12, 30);
 }
+// o pacote de dados vem primeiro e igual para os 3: o primeiro grava no cache e os outros leem por 10% do preco
 function pedidosEspecialistas(ctx, p, anteriores) {
-    const base = regrasDasIdeias(ctx, anteriores) + contextoDasIdeias(ctx, p);
+    const base = (regrasDasIdeias(ctx, anteriores) + contextoDasIdeias(ctx, p)).trim();
     return Object.keys(ESPECIALISTAS).map(function (f) {
         const e = ESPECIALISTAS[f];
-        return { chave: "esp_" + f, nome: e.nome, esquema: ESQ_ESPECIALISTA, pedido: e.texto + base, max: 16000 };
+        return { chave: "esp_" + f, nome: e.nome, esquema: ESQ_ESPECIALISTA, cache: true, max: 16000,
+            pedido: [{ type: "text", text: base, cache_control: { type: "ephemeral" } }, { type: "text", text: "SUA TAREFA\n" + e.texto }] };
     });
 }
 function pedidoDiretor(ctx, p) {
@@ -519,7 +693,8 @@ function pedidoDiretor(ctx, p) {
             "- texto: até 1400 caracteres, denso e específico, para o Agente MCP: quem é o público e como fala, os formatos-mãe desta conta, o que dá resultado nos anúncios, os produtos do momento (se houver), de 3 a 5 ganchos modelo no estilo do que já funcionou e o que evitar.\n" +
             "- resumo_loja: 2 ou 3 frases curtas para a dona ler no celular, sem jargão: o que mais tem dado certo e o que gravar a seguir.\n" +
             "- por_metodo: para cada um dos 5 métodos abaixo, 1 ou 2 frases de como aplicar nesta loja com base nos dados.\n" +
-            "- nicho: o nicho desta loja.\n\n" + METODOS_RESUMO + "\n\n" + ctx.sobreLoja +
+            "- nicho: o nicho desta loja.\n" +
+            "- Se vier O QUE O TIME JÁ APRENDEU COM ESTA LOJA, isso vale mais que as leituras gerais: coloque no texto os aprendizados fortes e o gosto da dona.\n\n" + METODOS_RESUMO + textoMemoria(p.mem || ctx.memoria) + "\n\n" + ctx.sobreLoja +
             "\nRELATÓRIO ORGÂNICO: " + resumoRel(p.org) + "\nRELATÓRIO DE ANÚNCIOS: " + resumoRel(p.ads) + "\nMAPA DE PÚBLICO: " + resumoRel(p.pub || ctx.dossie.publico)
     };
 }
@@ -548,9 +723,10 @@ function pedidoCurador(ctx, p) {
             "2. primeiro segundo forte e fácil de entender sem som;\n" +
             "3. executável só com o celular;\n" +
             "4. diferentes entre si: sem duas com o mesmo tema, peça ou gancho;\n" +
-            "5. sem preço, promoção ou número que não esteja nos dados.\n" +
+            "5. sem preço, promoção ou número que não esteja nos dados;\n" +
+            "6. de acordo com o que o time já aprendeu com esta loja e com o gosto da dona, quando houver.\n" +
             "Depois ordene as que sobraram em reserva, da melhor para a pior, deixando de fora as fracas ou repetidas. Em resumo, 2 frases para a dona: por onde começar esta semana e por quê.\n\n" +
-            ctx.sobreLoja + "\nMAPA DE PÚBLICO (resumo): " + (((p.pub || ctx.dossie.publico) || {}).resumo || "não disponível") +
+            ctx.sobreLoja + "\nMAPA DE PÚBLICO (resumo): " + (((p.pub || ctx.dossie.publico) || {}).resumo || "não disponível") + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) +
             "\n\nOPÇÕES:\n" + cands.map(function (c) { return c.codigo + ") " + JSON.stringify(c.ideia); }).join("\n")
     };
 }
@@ -584,7 +760,7 @@ function montarIdeias(p, mapa) {
 }
 
 // ---------- dossie final ----------
-async function salvarDossie(ctx, p, motivo, mapa) {
+async function salvarDossie(ctx, p, motivo, mapa, mapaMem) {
     const met = ctx.met, dossieAnt = ctx.dossie, posts = ctx.posts, ads = ctx.ads;
     const dir = p.dir || {};
     const ideias = montarIdeias(p, mapa);
@@ -605,7 +781,8 @@ async function salvarDossie(ctx, p, motivo, mapa) {
         demografia: ctx.cacheMeta && ctx.cacheMeta.demografia ? ctx.demografia : "",
         meta: ctx.cacheMeta ? { em: ctx.cacheMeta.em, erro: ctx.cacheMeta.erro, comentarios: ctx.comentarios.length } : null
     };
-    await banco("contas_meta?user_id=eq." + encodeURIComponent(ctx.userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie: dossie, dossie_job: null, status: "Analisada", atualizado_em: dossie.gerado_em } });
+    const memoria = memoriaNova(ctx, p, mapaMem, ideias.lista);
+    await banco("contas_meta?user_id=eq." + encodeURIComponent(ctx.userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie: dossie, dossie_job: null, memoria: memoria, status: "Analisada", atualizado_em: dossie.gerado_em } });
     return dossie;
 }
 
@@ -617,19 +794,33 @@ function salvarJob(userId, job) {
     return banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie_job: job } });
 }
 async function pedidosDaEtapa(ctx, job) {
-    if (job.etapa === 1) return pedidosEtapa1(ctx);
+    if (job.etapa === 1) { const ped = await pedidosEtapa1(ctx); if (ctx.mapaMem) job.mapaMem = ctx.mapaMem; return ped; }
     if (job.etapa === 2) { job.mapa = mapaDeCodigos(ctx); return pedidosEtapa2(ctx, job.parciais); }
     return candidatas(job.parciais).length ? [pedidoCurador(ctx, job.parciais)] : [];
 }
 // roda na hora os pedidos que faltam (modo "agora", ou o que falhou no lote)
 async function rodarAgora(ctx, pedidos, parciais) {
-    const r = await Promise.all(pedidos.map(function (p) {
-        return perguntar(ctx.userId, p).then(function (x) { return [p.chave, x]; }).catch(function (e) {
-            // sem diretor ou sem os relatorios nao da para seguir; ideia de um especialista pode faltar
-            if (/^esp_|^cur/.test(p.chave)) { console.error("[time] " + p.nome + ": " + (e && e.message)); return [p.chave, null]; }
+    function um(p, aoComecar) {
+        return perguntar(ctx.userId, p, aoComecar).then(function (x) { return [p.chave, x]; }).catch(function (e) {
+            // sem diretor ou sem os relatorios nao da para seguir; ideia de um especialista (ou a memoria) pode faltar
+            if (/^esp_|^cur|^mem/.test(p.chave)) { console.error("[time] " + p.nome + ": " + (e && e.message)); return [p.chave, null]; }
             throw e;
         });
-    }));
+    }
+    // os especialistas dividem o mesmo pacote de dados: o primeiro vai sozinho e grava o cache;
+    // os outros saem quando ele comeca a responder e leem o cache (10% do preco dessa parte)
+    const juntos = pedidos.filter(function (p) { return p.cache; });
+    const tarefas = pedidos.filter(function (p) { return !p.cache; }).map(function (p) { return um(p); });
+    if (juntos.length) {
+        let libera;
+        const comecou = new Promise(function (ok) { libera = ok; });
+        const primeiro = um(juntos[0], libera);
+        primeiro.then(libera, libera);
+        tarefas.push(primeiro);
+        tarefas.push(Promise.race([comecou, espera(20000)]).then(function () { return Promise.all(juntos.slice(1).map(function (p) { return um(p); })); }));
+    }
+    const r = [];
+    (await Promise.all(tarefas)).forEach(function (x) { if (Array.isArray(x[0])) x.forEach(function (y) { r.push(y); }); else r.push(x); });
     r.forEach(function (x) { if (x[1]) parciais[x[0]] = x[1]; });
 }
 
@@ -667,7 +858,7 @@ async function avancarEtapa(ctx, job) {
     }
     // prepara a proxima etapa (ou a primeira)
     if (!ctx.posts) await preparar(ctx, false);
-    if (job.etapa > 3) { await salvarDossie(ctx, job.parciais, job.motivo, job.mapa); return { status: "pronta" }; }
+    if (job.etapa > 3) { await salvarDossie(ctx, job.parciais, job.motivo, job.mapa, job.mapaMem); return { status: "pronta" }; }
     const pedidos = await pedidosDaEtapa(ctx, job);
     if (!pedidos.length) { job.etapa++; return avancarEtapa(ctx, job); }
     if (job.modo === "lote") {
@@ -761,13 +952,19 @@ async function gerarMaisIdeias(userId) {
         lista: novas.map(function (i) { return Object.assign({}, i, { nova: true }); }).concat((ant.lista || []).map(function (i) { const c = Object.assign({}, i); delete c.nova; return c; })).slice(0, 60),
         reserva: reserva, levas_dia: hoje, levas: levas + 1
     });
-    await banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie: Object.assign({}, dossie, { ideias: ideias }) } });
+    await banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { dossie: Object.assign({}, dossie, { ideias: ideias }), memoria: comSugeridas(ctx.memoria, novas) } });
     return { ok: true, novas: novas.length, total: ideias.lista.length, restam_hoje: MAX_LEVAS_DIA - levas - 1 };
 }
 
 // ---------- quando cada loja e analisada (usado por api/atualizar.js) ----------
 // c: linha de contas_meta (status, atualizado_em, assinatura, dossie_versao, dossie_em, tem_job);
 // acessoEm: ultima vez que a dona abriu o app; ativaDesde: quando a loja entrou (conexao no Reportei)
+// novidade desde a ultima analise: post novo, anuncio novo ou produtos do momento atualizados
+const NOVIDADE_MS = 44 * HORA_MS;        // com novidade: no maximo a cada 2 noites
+const SEM_NOVIDADE_MS = 68 * HORA_MS;    // sem novidade: pelo menos a cada 3 noites
+function depois(a, b) { return !!(a && b && new Date(a).getTime() > new Date(b).getTime()); }
+function temNovidade(c) { return depois(c.ultimo_post, c.dossie_em) || !!(c.assinatura && c.dossie_assinatura && c.assinatura !== c.dossie_assinatura); }
+function produtosNovos(c) { return depois(c.produtos_em, c.dossie_em); }
 function situacao(c, agora, acessoEm, ativaDesde) {
     const acesso = acessoEm ? new Date(acessoEm).getTime() : 0, entrou = ativaDesde ? new Date(ativaDesde).getTime() : 0;
     const ativa = agora - Math.max(acesso, entrou) < ATIVA_MS;
@@ -782,18 +979,21 @@ function precisaAnalisarAgora(c, agora, acessoEm, ativaDesde) {
     if (/^Erro/.test(c.status || "") && desde < (/credit balance/i.test(c.status || "") ? 10 * 60000 : 2 * HORA_MS)) return false;
     if (String(c.dossie_versao) !== String(VERSAO) || !c.dossie_em) return true;
     const s = situacao(c, agora, acessoEm, ativaDesde);
-    if (s.acessouAgora && s.idade >= DIA_MS) return true;                    // voltou depois de parada: atualiza enquanto ela usa
-    return s.ativa && s.idade >= 30 * HORA_MS;                               // ativa e o lote da madrugada nao rodou
+    if (s.acessouAgora && s.idade >= SEM_NOVIDADE_MS + 4 * HORA_MS) return true;  // voltou depois de parada: atualiza enquanto ela usa
+    return s.ativa && s.idade >= SEM_NOVIDADE_MS + 8 * HORA_MS;                    // ativa e o lote da madrugada nao rodou
 }
-// entra no lote da madrugada? (loja ativa, analise com mais de 20 horas)
+// entra no lote da madrugada? loja ativa e: produtos novos (desde ontem), novidade (a cada 2 noites) ou 3 noites sem analise
 function entraNoLote(c, agora, acessoEm, ativaDesde) {
     if (!c || !c.assinatura || c.tem_job || /^Analisando/.test(c.status || "")) return false;
     if (String(c.dossie_versao) !== String(VERSAO)) return false;
     const s = situacao(c, agora, acessoEm, ativaDesde);
-    return s.ativa && s.idade >= 20 * HORA_MS;
+    if (!s.ativa) return false;
+    return s.idade >= SEM_NOVIDADE_MS || (s.idade >= NOVIDADE_MS && temNovidade(c)) || (s.idade >= 20 * HORA_MS && produtosNovos(c));
 }
 
 module.exports = {
     analisarLoja, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO,
+    conversa: { FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
+    _teste: { pedidoMemoria, memoriaNova },
     _interno: { vozEGanchos, primeiraFrase, postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, datasDoVarejo, montarIdeias, candidatas, ESQ_DIRETOR, ESQ_ESPECIALISTA, ESQ_CURADOR, SISTEMA_TIME }
 };

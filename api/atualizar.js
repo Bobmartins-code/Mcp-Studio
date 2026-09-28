@@ -8,7 +8,8 @@
 //  2. Analises em andamento (contas_meta.dossie_job): confere o lote da
 //     Anthropic ou roda a proxima etapa na hora.
 //  3. Madrugada (3h as 7h): as lojas ativas (acesso nos ultimos 14 dias)
-//     entram no lote diario, pela metade do preco.
+//     entram no lote, pela metade do preco, quando ha novidade (post, anuncio
+//     ou produto novo; no maximo a cada 2 noites) ou a cada 3 noites.
 //  4. Na hora: primeira analise, versao nova do time, loja que voltou depois
 //     de parada (a dona abriu o app) ou loja ativa que ficou sem o lote.
 // =====================================================================
@@ -62,10 +63,15 @@ module.exports = async function handler(req, res) {
         await Promise.all(Array.from({ length: Math.min(JUNTAS, fila.length) }, trabalhador));
 
         // estado das analises
-        const estado = await banco("contas_meta?select=user_id,status,atualizado_em,assinatura:metricas->>assinatura,dossie_versao:dossie->>versao,dossie_em:dossie->>gerado_em,job_modo:dossie_job->>modo");
+        const [estado, lojasRows] = await Promise.all([
+            banco("contas_meta?select=user_id,status,atualizado_em,assinatura:metricas->>assinatura,ultimo_post:metricas->organico->posts->0->>data,dossie_versao:dossie->>versao,dossie_em:dossie->>gerado_em,dossie_assinatura:dossie->>assinatura,job_modo:dossie_job->>modo"),
+            banco("lojas?select=user_id,produtos_dona_em").catch(function () { return []; })
+        ]);
+        const produtosEm = {};
+        (lojasRows || []).forEach(function (l) { produtosEm[l.user_id] = l.produtos_dona_em; });
         const ativas = {};
         (clientes || []).forEach(function (c) { ativas[c.user_id] = 1; });
-        const lojas = (estado || []).filter(function (c) { return ativas[c.user_id]; }).map(function (c) { return Object.assign({}, c, { tem_job: !!c.job_modo }); });
+        const lojas = (estado || []).filter(function (c) { return ativas[c.user_id]; }).map(function (c) { return Object.assign({}, c, { tem_job: !!c.job_modo, produtos_em: produtosEm[c.user_id] || null }); });
         const analises = [], falhasAnalise = [];
         async function tentar(uid, oque, fn) {
             try { const r = await fn(); analises.push({ user_id: uid, oque: oque, status: r && r.status }); }

@@ -203,6 +203,27 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .itile .scr{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.65),rgba(0,0,0,0) 45%)}
 .itile .vw{position:absolute;left:7px;bottom:6px;color:#fff;font-size:12.5px;font-weight:700;display:flex;gap:4px;align-items:center}
 .itile .vw.eng{right:6px;gap:8px;flex-wrap:wrap;font-size:11.5px}.eng-i{display:inline-flex;align-items:center;gap:3px}
+.itile .vw.num{font-size:15px;gap:5px}
+.itile .ix.mu{background:rgba(10,10,15,.78);color:#fff;font-weight:700}
+.per{display:flex;border:1px solid var(--boh);border-radius:12px;overflow:hidden;margin-bottom:8px}
+.per button{flex:1 1 auto;min-width:0;height:38px;padding:0 6px;background:none;border:none;border-left:1px solid var(--boh);color:var(--mu2);font-size:13px;font-family:inherit;cursor:pointer;white-space:nowrap}
+.per button:first-child{border-left:none}.per button.on{background:var(--tx);color:var(--bg);font-weight:700}
+.ords{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:10px}
+.ords .chip{width:100%;padding:0 8px;overflow:hidden;text-overflow:ellipsis}
+.qtd{font-size:12.5px;color:var(--mu2);margin:2px 0 10px}
+.ideia-h{display:flex;align-items:stretch}.ideia-h .ideia-t{flex:1;min-width:0}
+.gostei{flex-shrink:0;display:flex;align-items:center;justify-content:center;width:50px;background:none;border:none;border-left:1px solid var(--bo);cursor:pointer;color:var(--mu2)}
+.gostei-b{display:inline-flex;align-items:center;gap:6px}
+.chat{display:flex;flex-direction:column;gap:12px}
+.msg{max-width:92%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.5;white-space:pre-wrap}
+.msg.dona{background:#D43D00;color:#fff;border-bottom-right-radius:4px}
+.msg.time{background:var(--sur2);border:1px solid var(--bo);border-bottom-left-radius:4px}
+.chat-in{display:flex;gap:8px;align-items:flex-end}
+.chat-in textarea{flex:1;min-width:0;min-height:48px;max-height:160px;resize:vertical;background:var(--sur2);border:1px solid var(--boh);border-radius:12px;color:var(--tx);font-family:inherit;font-size:15px;padding:12px}
+.sugs{display:flex;flex-wrap:wrap;gap:8px}.sugs .chip{height:auto;min-height:36px;white-space:normal;text-align:left;padding:8px 14px}
+.rot-chat{width:100%;background:var(--sur);border:1px solid var(--bo);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;font-size:13.5px;line-height:1.5}
+@media(min-width:769px){.ords{display:flex;flex-wrap:wrap}.ords .chip{width:auto;padding:0 14px}}
+@media(max-width:380px){.per button{font-size:12px;padding:0 3px}}
 .itile .ix{position:absolute;top:6px;right:6px;background:var(--ac);color:#0A0A0F;font-size:11px;font-weight:800;border-radius:20px;padding:2px 7px}
 .itile .tp{position:absolute;left:6px;top:6px;color:#fff;font-size:10.5px;font-weight:600;background:rgba(0,0,0,.5);border-radius:6px;padding:1px 6px}
 .legenda{display:flex;align-items:center;gap:8px;padding:12px 0;font-size:12.5px;color:var(--mu2)}
@@ -615,6 +636,11 @@ function App(){
   var sRc=useState([]),recados=sRc[0],setRecados=sRc[1];
   var sFr=useState("todos"),filtroRot=sFr[0],setFiltroRot=sFr[1];
   var sBv=useState(false),boasVindas=sBv[0],setBoasVindas=sBv[1];
+  var sGo=useState({}),gostos=sGo[0],setGostos=sGo[1];
+  var sIab=useState("lista"),ideiasAba=sIab[0],setIdeiasAba=sIab[1];
+  var sCv=useState({}),conversas=sCv[0],setConversas=sCv[1];
+  var sCt=useState(""),chatTxt=sCt[0],setChatTxt=sCt[1];
+  var sCe=useState(false),chatEnviando=sCe[0],setChatEnviando=sCe[1];
   var souAdmin=!!(currentUser&&currentUser.id==="1c4d2a2b-c60b-4e99-982b-5b4a09e8cc0f");
   var s17=useState({produto:"",descricao:"",objetivo:"",diferenciais:"",preco:"",url:"",tons:[]}),form=s17[0],setForm=s17[1];
   var stepRef=useRef(null),fileRef=useRef(null);
@@ -627,6 +653,35 @@ function App(){
   },[generating]);
 
   useEffect(function(){carregarProjetos();carregarPerfil();carregarContaMeta();carregarLoja(currentUser.id,true);carregarRecados(currentUser.id);try{supaClient.rpc("registrar_acesso").then(function(){},function(){});}catch(e){}},[]);
+  // botao voltar do celular: cada tela entra no historico do navegador
+  var navRef=useRef({pop:false,primeira:true,n:0});
+  navRef.current.projetos=projects;
+  var chaveNav=view+"|"+(videoSel?1:0)+"|"+(activeProject?activeProject.id:"");
+  useEffect(function(){
+    var st={mcp:1,v:view,sel:videoSel||null,proj:activeProject?activeProject.id:null};
+    navRef.current.atual=chaveNav;
+    if(navRef.current.primeira){navRef.current.primeira=false;try{history.replaceState(st,"");}catch(e){}return;}
+    if(navRef.current.pop){navRef.current.pop=false;return;}
+    try{history.pushState(st,"");navRef.current.n++;}catch(e){}
+  },[chaveNav]);
+  useEffect(function(){
+    function volta(e){
+      var s=e.state;if(!s||!s.mcp)return;
+      navRef.current.n=Math.max(0,navRef.current.n-1);
+      if(s.v+"|"+(s.sel?1:0)+"|"+(s.proj||"")!==navRef.current.atual)navRef.current.pop=true;
+      setEditingScript(null);setImgModal(null);setSbOpen(false);setVideoSel(s.sel||null);
+      if(s.proj){var p=(navRef.current.projetos||[]).find(function(x){return x.id===s.proj;});if(p)setActiveProject(p);}
+      setView(s.v);
+    }
+    window.addEventListener("popstate",volta);
+    return function(){window.removeEventListener("popstate",volta);};
+  },[]);
+  function voltar(padrao){if(navRef.current.n>0)history.back();else padrao();}
+  // "Gostei" da dona: o Agente de Memoria usa para entender o gosto dela
+  useEffect(function(){
+    var uid=verComo?verComo.id:currentUser.id;setConversas({});
+    supaClient.from("gostei").select("tipo,chave").eq("user_id",uid).limit(1000).then(function(r){var m={};((r&&r.data)||[]).forEach(function(x){m[x.tipo+":"+x.chave]=1;});setGostos(m);},function(){});
+  },[verComo?verComo.id:""]);
   useEffect(function(){
     if(view==="briefing"&&perfil&&!form.produto&&!form.descricao&&!form.diferenciais){setForm(function(f){return Object.assign({},f,{descricao:perfil.descricao||f.descricao,diferenciais:perfil.diferenciais||f.diferenciais,caracteristicas:perfil.caracteristicas||f.caracteristicas,preco:perfil.preco||f.preco,exemploConteudo:perfil.exemploConteudo||f.exemploConteudo});});}
   },[view,perfil]);
@@ -660,7 +715,7 @@ function App(){
       if(m&&m[1]!==currentUser.id)entrarComoCliente(m[1],lista,pj&&pj[1]);
     });
   },[]);
-  var CAMPOS_CONTA="ig_username,ad_account_nome,dossie,atualizado_em,metricas,metricas_em,status";
+  var CAMPOS_CONTA="ig_username,ad_account_nome,dossie,atualizado_em,metricas,metricas_em,status,memoria";
   async function entrarComoCliente(uid,lista,projetoId){
     if(!uid){sairDoModoCliente();return;}
     var u=(lista||listaClientes).find(function(x){return x.id===uid;});
@@ -1132,7 +1187,7 @@ function App(){
       n<total?ce("button",{className:"btn-sec2",onClick:function(){setLimVid({k:chave,n:n+12});}},"Ver mais "+Math.min(12,total-n)):null,
       n<total?ce("button",{className:"btn-sec2",onClick:function(){setLimVid({k:chave,n:total});}},"Ver todos ("+total+")")
         :ce("button",{className:"btn-sec2",onClick:function(){setLimVid({k:chave,n:6});}},"Mostrar só os 6 melhores"));}
-  function chipsPeriodo(){return PERIODOS.map(function(p){return ce("button",{key:"p"+p[0],className:"chip"+(periodo===p[0]?" on":""),onClick:function(){setPeriodo(p[0]);}},p[1]);});}
+  function chipsPeriodo(){return ce("div",{className:"per",role:"group","aria-label":"Período"},PERIODOS.map(function(p){return ce("button",{key:"p"+p[0],className:periodo===p[0]?"on":"","aria-pressed":periodo===p[0],onClick:function(){setPeriodo(p[0]);}},p[1]);}));}
   function avatarLoja(tam){
     var logo=lojaInfo&&lojaInfo.logo_url;
     return ce("div",{className:"hello-av",style:{width:tam,height:tam,fontSize:Math.round(tam/3),overflow:"hidden",flexShrink:0}},logo?ce("img",{src:logo,alt:"Logo da loja",style:{width:"100%",height:"100%",objectFit:"cover"}}):iniciais(nomeDaLoja()));
@@ -1170,17 +1225,137 @@ function App(){
       })),
       itens.length>6?ce("div",{className:"vermais"},refLim<itens.length?ce("button",{className:"btn-sec2",onClick:function(){setRefLim(refLim+12);}},"Ver mais vídeos"):ce("button",{className:"btn-sec2",onClick:function(){setRefLim(6);}},"Mostrar menos")):null);
   }
+  // ---------- GOSTEI ----------
+  function gostou(tipo,chave){return !!gostos[tipo+":"+String(chave).slice(0,200)];}
+  async function alternarGostei(tipo,chave,titulo,conteudo){
+    if(somenteLeitura())return;
+    chave=String(chave).slice(0,200);var k=tipo+":"+chave,on=!gostos[k];
+    function marca(v){setGostos(function(g){var n=Object.assign({},g);if(v)n[k]=1;else delete n[k];return n;});}
+    marca(on);
+    try{
+      var r=on?await supaClient.from("gostei").insert({tipo:tipo,chave:chave,titulo:String(titulo||"").slice(0,300),conteudo:conteudo||null})
+        :await supaClient.from("gostei").delete().eq("user_id",currentUser.id).eq("tipo",tipo).eq("chave",chave);
+      if(r.error&&!/duplicate/i.test(r.error.message||""))throw r.error;
+      if(on)showToast("Anotado! O time vai trazer mais conteúdos nessa linha.");
+    }catch(e){marca(!on);showToast("Não consegui salvar agora. Tente de novo.","err");}
+  }
+  function coracao(on,tam){return ce("svg",{width:tam||20,height:tam||20,viewBox:"0 0 24 24",fill:on?"var(--ac)":"none",stroke:on?"var(--ac)":"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true"},ce("path",{d:ICONES.coracao}));}
+  function avisoGostei(){return ce("div",{className:"legenda",style:{paddingTop:0,marginBottom:4,alignItems:"flex-start",lineHeight:1.45}},ce("span",{style:{flexShrink:0,marginTop:1}},coracao(false,16)),"Toque no coração das ideias e roteiros que você curtiu. O time aprende com isso e os próximos conteúdos ficam mais a sua cara.");}
+
+  // ---------- CONVERSA COM O TIME (ideias e roteiros) ----------
+  function chaveConversa(area){return area==="ideias"?"ideias":"roteiros:"+(activeProject?activeProject.id:"");}
+  async function carregarConversa(area){
+    var chave=chaveConversa(area);if(conversas[chave]!==undefined)return;
+    setConversas(function(c){var n=Object.assign({},c);if(!n[chave])n[chave]=[];return n;});
+    try{
+      var q=supaClient.from("conversas").select("pedido,resposta,criado_em").eq("user_id",verComo?verComo.id:currentUser.id).eq("area",area);
+      if(area==="roteiros")q=q.eq("projeto_id",String(activeProject&&activeProject.id));
+      var r=await q.order("criado_em",{ascending:false}).limit(10);var msgs=[];
+      ((r&&r.data)||[]).slice().reverse().forEach(function(x){
+        var rs=x.resposta||{},ni=(rs.ideias||[]).length,nr=(rs.roteiros||[]).length;
+        msgs.push({papel:"dona",texto:x.pedido});
+        msgs.push({papel:"time",texto:rs.texto||"Pronto!",resumo:ni?(ni===1?"1 ideia entrou na sua lista":ni+" ideias entraram na sua lista"):nr?(nr===1?"1 roteiro sugerido":nr+" roteiros sugeridos"):""});
+      });
+      setConversas(function(c){var n=Object.assign({},c);if(!(n[chave]||[]).length)n[chave]=msgs;return n;});
+    }catch(e){}
+  }
+  async function enviarChat(area,texto){
+    texto=String(texto||"").trim();if(!texto||chatEnviando||somenteLeitura())return;
+    var chave=chaveConversa(area),antes=conversas[chave]||[];
+    var hist=antes.filter(function(m){return !m.erro&&m.texto;}).slice(-6).map(function(m){return {papel:m.papel,texto:m.texto};});
+    function junta(m){setConversas(function(c){var n=Object.assign({},c);n[chave]=(n[chave]||[]).concat([m]);return n;});}
+    junta({papel:"dona",texto:texto});setChatTxt("");setChatEnviando(true);
+    try{
+      var ss=await supaClient.auth.getSession();var tk=ss.data&&ss.data.session&&ss.data.session.access_token;
+      var r=await fetch("/api/conversa",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify({area:area,pedido:texto,historico:hist,projeto_id:area==="roteiros"&&activeProject?activeProject.id:undefined})});
+      var d={};try{d=await r.json();}catch(_){}
+      if(!r.ok)throw new Error(d.error||("Erro "+r.status));
+      junta({papel:"time",texto:d.resposta||"Pronto!",ideias:d.ideias||[],roteiros:d.roteiros||[],resumo:(d.ideias||[]).length?"Estas ideias também entraram na sua lista de ideias.":""});
+      if(area==="ideias"&&(d.ideias||[]).length)carregarContaMeta();
+    }catch(e){junta({papel:"time",erro:true,texto:(e&&e.message)||"Não consegui responder agora. Tente de novo."});}
+    finally{setChatEnviando(false);}
+  }
+  function aplicarRoteiroChat(s,i,k,trocar){
+    if(somenteLeitura()||!activeProject)return;
+    var maxId=0,ult=activeProject.rodadas.length-1;
+    activeProject.rodadas.forEach(function(rod){((rod.resultado&&rod.resultado.roteiros)||[]).forEach(function(x){if(Number(x.id)>maxId)maxId=Number(x.id);});});
+    var novo=limparRoteiro({titulo:s.titulo,gancho:s.gancho,corpo:s.corpo,cta:s.cta,funil:s.funil});
+    var rods=activeProject.rodadas.map(function(rod,ri){
+      var lista=(rod.resultado&&rod.resultado.roteiros)||[];
+      if(trocar)lista=lista.map(function(x){return String(x.id)===String(s.base)?Object.assign({},x,novo,{editado:true}):x;});
+      else if(ri===ult)lista=lista.concat([Object.assign({},novo,{id:maxId+1,metodo:rod.metodo||(lista[0]&&lista[0].metodo),pilar:"Pedido ao time"})]);
+      return Object.assign({},rod,{resultado:Object.assign({},rod.resultado,{roteiros:lista})});
+    });
+    var proj=Object.assign({},activeProject,{rodadas:rods});
+    supaClient.from("projetos").update({rodadas:rods}).eq("id",activeProject.id).then(function(){});
+    setProjects(function(prev){return prev.map(function(p){return p.id===proj.id?proj:p;});});
+    setActiveProject(proj);
+    var chave=chaveConversa("roteiros");
+    setConversas(function(c){var n=Object.assign({},c),ms=(n[chave]||[]).slice();if(ms[i]){var m=Object.assign({},ms[i]);m.roteiros=(m.roteiros||[]).map(function(x,j){return j===k?Object.assign({},x,{aplicado:trocar?"Trocado no projeto":"Adicionado ao projeto"}):x;});ms[i]=m;n[chave]=ms;}return n;});
+    showToast(trocar?"Roteiro "+s.base+" atualizado!":"Roteiro adicionado ao projeto!");
+  }
+  function cartaoRoteiroChat(s,i,k){
+    return ce("div",{key:"r"+k,className:"rot-chat"},
+      ce("div",{style:{fontWeight:700,fontSize:14.5}},(s.base?"Roteiro "+s.base+" ajustado: ":"")+s.titulo),
+      ce("div",null,ce("b",null,"Gancho: "),s.gancho),
+      ce("div",null,ce("b",null,"Corpo: "),s.corpo),
+      ce("div",null,ce("b",null,"CTA: "),s.cta),
+      verComo?null:ce("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+        s.aplicado?ce("span",{className:"pill-s pill-ok"},"✓ "+s.aplicado):[
+          s.base?ce("button",{key:"t",className:"chip on",style:{height:38},onClick:function(){aplicarRoteiroChat(s,i,k,true);}},"Trocar o roteiro "+s.base+" por este"):null,
+          ce("button",{key:"a",className:"chip",style:{height:38},onClick:function(){aplicarRoteiroChat(s,i,k,false);}},"Adicionar ao projeto")]));
+  }
+  function painelChat(area){
+    var msgs=conversas[chaveConversa(area)]||[];
+    var sugestoes=area==="ideias"
+      ?["Ideias para a próxima data comemorativa","Ideias sem aparecer o rosto","Mais ideias de provador","Ideias com as peças que estou vendendo agora","Ideias mais fáceis de gravar sozinha"]
+      :["Deixe os ganchos mais curtos e diretos","Crie um roteiro de provador com esta peça","Deixe o roteiro 1 mais descontraído, do meu jeito","Responda a dúvida de preço sem inventar promoção"];
+    return ce("div",{className:"chat"},
+      ce("div",{style:{fontSize:13.5,lineHeight:1.5,color:"var(--mu2)"}},area==="ideias"?"Peça ao time o que você quer, como se fosse uma conversa: ideias para uma data, com uma peça, sem aparecer o rosto, mais fáceis de gravar. As ideias novas também entram na sua lista.":"Peça ajustes nos roteiros deste projeto ou roteiros novos. Ex.: deixe o gancho do roteiro 2 mais curto."),
+      msgs.map(function(m,i){return ce("div",{key:i,style:{display:"flex",flexDirection:"column",gap:8,alignItems:m.papel==="dona"?"flex-end":"flex-start"}},
+        ce("div",{className:"msg "+(m.papel==="dona"?"dona":"time"),style:m.erro?{borderColor:"var(--ac2)",color:"var(--ac2)"}:null},m.texto),
+        (m.ideias||[]).length?ce("div",{className:"ideias",style:{width:"100%"}},m.ideias.map(function(x,k){return cartaoIdeia(x,k,"c"+i);})):null,
+        (m.roteiros||[]).map(function(s,k){return cartaoRoteiroChat(s,i,k);}),
+        m.resumo?ce("div",{style:{fontSize:12,color:"var(--mu2)"}},m.resumo):null);}),
+      chatEnviando?ce("div",{className:"msg time",style:{color:"var(--mu2)",alignSelf:"flex-start"}},"O time está pensando... (leva até 1 minuto)"):null,
+      verComo?ce("div",{className:"legenda"},"Modo visualização: só a dona conversa com o time."):ce("div",null,
+        !chatEnviando?ce("div",{className:"sugs",style:{marginBottom:10}},sugestoes.map(function(s){return ce("button",{key:s,className:"chip",onClick:function(){enviarChat(area,s);}},s);})):null,
+        ce("div",{className:"chat-in"},
+          ce("textarea",{value:chatTxt,maxLength:1000,rows:2,placeholder:area==="ideias"?"Ex.: quero ideias para vender o conjunto de tricô":"Ex.: deixe o roteiro 2 com um gancho mais forte","aria-label":"Seu pedido para o time",onChange:function(e){setChatTxt(e.target.value);},onKeyDown:function(e){if(e.key==="Enter"&&!e.shiftKey&&window.innerWidth>768){e.preventDefault();enviarChat(area,chatTxt);}}}),
+          ce("button",{className:"btn-pri",style:{width:"auto",minHeight:48,padding:"0 18px"},disabled:chatEnviando||!chatTxt.trim(),onClick:function(){enviarChat(area,chatTxt);}},"Enviar")))
+    );
+  }
+  // o que o Agente de Memoria aprendeu (tela Descobertas)
+  function blocoMemoria(m){
+    if(!m||!((m.aprendizados||[]).length||(m.visual||[]).length))return null;
+    var card={background:"var(--sur)",border:"1px solid var(--bo)",borderRadius:14,padding:14,marginBottom:14};
+    var FORCA={forte:["confirmado","pill-ok"],media:["se repetindo","pill-mu"],pista:["primeira pista","pill-mu"]};
+    var RES={acima:"acima da média",na_media:"na média",abaixo:"abaixo da média",sem_dado:"ainda sem resultado"};
+    var vin=(m.vinculos||[]).filter(function(v){return v.confianca!=="baixa";}).slice(0,6);
+    function rot(t){return ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",letterSpacing:".05em",color:"var(--mu)",margin:"10px 0 6px"}},t);}
+    return ce("div",{style:card},
+      ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:6}},"🧠 O que o time aprendeu com a sua loja"),
+      m.resumo?ce("div",{style:{fontSize:13,color:"var(--mu2)",lineHeight:1.5}},m.resumo):null,
+      (m.aprendizados||[]).length?rot("Aprendizados"):null,
+      (m.aprendizados||[]).map(function(a,i){var f=FORCA[a.forca]||FORCA.pista;return ce("div",{key:i,style:{fontSize:13,lineHeight:1.5,marginBottom:8}},ce("span",{className:"pill-s "+f[1],style:{marginRight:6,fontSize:10.5}},f[0]),a.texto);}),
+      (m.visual||[]).length?rot("Nas capas"):null,
+      (m.visual||[]).map(function(v,i){return ce("div",{key:i,style:{fontSize:13,lineHeight:1.5}},"• "+v);}),
+      vin.length?rot("Ideias do time que você gravou"):null,
+      vin.map(function(v,i){return ce("div",{key:i,style:{display:"flex",gap:10,alignItems:"center",marginBottom:8}},v.miniatura?ce("span",{className:"thumb",style:{width:36,height:48,borderRadius:6,flexShrink:0}},img(v.miniatura)):null,ce("span",{style:{fontSize:13,lineHeight:1.4}},v.ideia,ce("span",{style:{display:"block",fontSize:12,color:v.resultado==="acima"?"var(--ok)":"var(--mu2)",fontWeight:600}},(RES[v.resultado]||"")+(v.indice?" · "+fmtX(v.indice):""))));}),
+      ce("div",{style:{fontSize:11.5,color:"var(--mu)",borderTop:"1px solid var(--bo)",paddingTop:8,marginTop:6,lineHeight:1.5}},ce("b",null,"De onde vem: "),"o time compara as ideias sugeridas com os posts que você publicou e o resultado de cada um, olha as capas e o que você marcou como Gostei. Cada loja aprende só com os próprios dados."));
+  }
   // ---------- IDEIAS DE CONTEUDO (Agente de Ideias) ----------
   function cartaoIdeia(ideia,i,compacto){
     var chave=(compacto?"h:":"i:")+ideia.titulo,aberta=ideiaAberta===chave,fmt=formatoIdeia(ideia);
     function bloco(rot,conteudo){return conteudo?ce("div",{className:"ideia-b"},ce("div",{className:"ideia-r"},rot),conteudo):null;}
-    var insp=ideia.inspirado;
+    var insp=ideia.inspirado,gi=gostou("ideia",ideia.titulo);
     return ce("div",{key:ideia.titulo+i,className:"ideia"+(aberta?" aberta":"")},
-      ce("button",{className:"ideia-t","aria-expanded":aberta,onClick:function(){setIdeiaAberta(aberta?null:chave);}},
+      ce("div",{className:"ideia-h"},ce("button",{className:"ideia-t","aria-expanded":aberta,onClick:function(){setIdeiaAberta(aberta?null:chave);}},
         ce("span",{style:{flex:1,minWidth:0}},
           ce("span",{className:"ideia-fmt"},(NOME_FORMATO[fmt]||"Vídeo")+(ideia.duracao_s?" · "+ideia.duracao_s+" s":"")),
           ce("span",{style:{display:"block"}},ideia.nova?ce("span",{className:"ideia-nova"},"Nova"):null,ideia.titulo)),
         ce("span",{className:"ideia-seta","aria-hidden":"true"},ico("seta",16,"var(--mu2)"))),
+        ce("button",{className:"gostei","aria-pressed":gi,"aria-label":gi?"Tirar o Gostei desta ideia":"Gostei desta ideia",title:gi?"Você gostou desta ideia":"Gostei",onClick:function(){alternarGostei("ideia",ideia.titulo,ideia.titulo,{gancho:ideia.gancho||"",formato:fmt});}},coracao(gi,20))),
       aberta?ce("div",{className:"ideia-c"},
         bloco("Primeiro segundo",ce("div",null,ideia.gancho||ideia.como_fazer||ideia.como_gravar)),
         (ideia.passos||[]).length?bloco("Como gravar",ce("ol",{className:"ideia-ol"},ideia.passos.map(function(p,k){return ce("li",{key:k},p);}))):null,
@@ -1222,11 +1397,15 @@ function App(){
     var filtro=ops.some(function(o){return o.id===ideiaFiltro;})?ideiaFiltro:"todas";
     var vis=lista.filter(function(x){return passa(x,filtro);});
     return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:760}},
-      ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:14}},ce("div",{className:"pg-h",style:{margin:0}},"Ideias de conteúdo"),botaoMaisIdeias()),
-      atualizandoIdeias()?ce("div",{className:"nota"},ce("b",null,"Atualizando suas ideias: "),"o time de agentes está estudando os seus vídeos mais recentes. Leva alguns minutos; enquanto isso, as ideias abaixo continuam valendo."):null,
-      blocoVender(),
-      ce("div",{className:"chips rolar"},ops.map(function(o){var n=lista.filter(function(x){return passa(x,o.id);}).length;if(!n)return null;return ce("button",{key:o.id,className:"chip"+(filtro===o.id?" on":""),onClick:function(){setIdeiaFiltro(o.id);}},o.lb+" ("+n+")");})),
-      vis.length?ce("div",{className:"ideias"},vis.map(function(x,i){return cartaoIdeia(x,i,false);})):ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhuma ideia neste filtro.")));
+      ce("button",{className:"back",onClick:function(){voltar(function(){irPara("home");});}},ico("voltar",22),"Voltar"),
+      ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:10}},ce("div",{className:"pg-h",style:{margin:0}},"Ideias de conteúdo"),ideiasAba==="lista"?botaoMaisIdeias():null),
+      ce("div",{className:"seg"},[{id:"lista",lb:"Ideias"},{id:"chat",lb:"Pedir ao time"}].map(function(a){return ce("button",{key:a.id,className:ideiasAba===a.id?"on":"",onClick:function(){setIdeiasAba(a.id);if(a.id==="chat")carregarConversa("ideias");}},a.lb);})),
+      ideiasAba==="chat"?painelChat("ideias"):ce("div",null,
+        atualizandoIdeias()?ce("div",{className:"nota"},ce("b",null,"Atualizando suas ideias: "),"o time de agentes está estudando os seus vídeos mais recentes. Leva alguns minutos; enquanto isso, as ideias abaixo continuam valendo."):null,
+        blocoVender(),
+        avisoGostei(),
+        ce("div",{className:"chips rolar"},ops.map(function(o){var n=lista.filter(function(x){return passa(x,o.id);}).length;if(!n)return null;return ce("button",{key:o.id,className:"chip"+(filtro===o.id?" on":""),onClick:function(){setIdeiaFiltro(o.id);}},o.lb+" ("+n+")");})),
+        vis.length?ce("div",{className:"ideias"},vis.map(function(x,i){return cartaoIdeia(x,i,false);})):ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhuma ideia neste filtro."))));
   }
   // ---------- INICIO ----------
   function renderHome(){
@@ -1252,7 +1431,7 @@ function App(){
         ce("button",{className:"btn-pri",style:{width:"auto",minHeight:44},onClick:function(){irPara("briefing");}},"Criar roteiro"),
         dos.resumo_loja?ce("button",{className:"chip",onClick:function(){abrirVideo(null,"descobertas");}},"Ver o que o time descobriu"):null));
     // os melhores do periodo: 3 organicos (engajamento em relacao a media) e 3 anuncios (resultado)
-    var topOrg=posts.filter(function(p){return p.alcance>0;}).sort(function(a,b){return (b.indice||0)-(a.indice||0);}).slice(0,3);
+    var topOrg=posts.filter(function(p){return p.alcance>0&&!p.pouco_alcance;}).sort(function(a,b){return (b.indice||0)-(a.indice||0);}).slice(0,3);
     var topAds=ads?(ads.dados.anuncios||[]).slice().sort(function(a,b){return (b.resultados||0)-(a.resultados||0)||(b.gasto||0)-(a.gasto||0);}).slice(0,3):[];
     function bloco(titulo,itens,tipo,aba){
       if(!itens.length)return null;
@@ -1298,28 +1477,32 @@ function App(){
     var todos=dl.posts||[],comData=todos.some(function(p){return p.data;});
     var lista=comData?postsDoPeriodo(dl,periodo):todos;
     // mais engajamento = curtidas, comentarios, salvos e compartilhamentos (valendo dobrado) em relacao a quem viu, comparado com a media da conta
-    var ord={vistos:function(a,b){return (b.visualizacoes||0)-(a.visualizacoes||0);},engaj:function(a,b){return (b.indice||0)-(a.indice||0)||(b.taxa||0)-(a.taxa||0);},
+    var ord={vistos:function(a,b){return (b.visualizacoes||0)-(a.visualizacoes||0);},engaj:function(a,b){return (a.pouco_alcance?1:0)-(b.pouco_alcance?1:0)||(b.indice||0)-(a.indice||0)||(b.taxa||0)-(a.taxa||0);},
       tempo:function(a,b){return (b.tempo_medio_s||0)-(a.tempo_medio_s||0);},gancho:function(a,b){return (b.retencao_3s==null?-1:b.retencao_3s)-(a.retencao_3s==null?-1:a.retencao_3s);},compart:function(a,b){return (b.compartilhamentos||0)-(a.compartilhamentos||0);},recentes:function(a,b){return String(b.data||"").localeCompare(String(a.data||""));}};
     lista=lista.slice().sort(ord[ordemOrg]||ord.vistos);
     var chaveOrg="org:"+ordemOrg+":"+periodo,mostrar=lista.slice(0,limiteDe(chaveOrg));
     return ce("div",null,
+      ce("div",{className:"ords"},[{id:"vistos",lb:"Mais vistos"},{id:"engaj",lb:"Mais engajamento"},{id:"tempo",lb:"Mais tempo assistido",so:"tempo_medio_s"},{id:"gancho",lb:"Melhor gancho",so:"retencao_3s"},{id:"compart",lb:"Mais compartilhados"},{id:"recentes",lb:"Mais recentes"}].filter(function(o){return !o.so||todos.some(function(p){return p[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemOrg===o.id?" on":""),"aria-pressed":ordemOrg===o.id,onClick:function(){setOrdemOrg(o.id);}},o.lb);})),
+      comData?chipsPeriodo():null,
+      comData?ce("div",{className:"qtd"},lista.length+(lista.length===1?" post ":" posts ")+textoPeriodo(periodo)):null,
       ordemOrg==="gancho"?ce("div",{className:"legenda",style:{paddingTop:0}},"Quantas pessoas não pularam o vídeo nos 3 primeiros segundos. Mostra a força do gancho, a abertura do vídeo."):null,
-      ordemOrg==="engaj"?ce("div",{className:"legenda",style:{paddingTop:0}},"Curtidas, comentários, salvamentos e compartilhamentos (que valem dobrado, porque levam o vídeo a quem ainda não segue a loja), divididos por quantas pessoas viram o post e comparados com a média da sua conta. 1x é a média; 2x é o dobro."):null,
-      ce("div",{className:"chips rolar"},[{id:"vistos",lb:"Mais vistos"},{id:"engaj",lb:"Mais engajamento"},{id:"tempo",lb:"Mais tempo assistido",so:"tempo_medio_s"},{id:"gancho",lb:"Melhor gancho",so:"retencao_3s"},{id:"compart",lb:"Mais compartilhados"},{id:"recentes",lb:"Mais recentes"}].filter(function(o){return !o.so||todos.some(function(p){return p[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemOrg===o.id?" on":""),onClick:function(){setOrdemOrg(o.id);}},o.lb);})),
-      comData&&ce("div",{className:"chips"},chipsPeriodo(),ce("span",{style:{marginLeft:"auto",fontSize:12.5,color:"var(--mu2)"}},lista.length+(lista.length===1?" post":" posts"))),
+      ordemOrg==="engaj"?ce("div",{className:"legenda",style:{paddingTop:0}},"Curtidas, comentários, salvamentos e compartilhamentos (que valem dobrado, porque levam o vídeo a quem ainda não segue a loja), divididos por quantas pessoas viram o post e comparados com a média da sua conta. 1x é a média; 2x é o dobro. Post que chegou a muito pouca gente fica no fim da lista, porque com poucos números a conta engana."):null,
+      ordemOrg==="compart"?ce("div",{className:"legenda",style:{paddingTop:0}},"Quantas vezes cada post foi enviado para outras pessoas. É o que mais leva a loja a quem ainda não a conhece."):null,
       lista.length
         ?ce("div",null,ce("div",{className:"igrid"},mostrar.map(function(p,i){return ce("button",{key:(p.id||p.link||"")+i,className:"itile",onClick:function(){setVideoSel({tipo:"org",item:p});},"aria-label":"Abrir post: "+String(p.legenda||p.tipo||"").substring(0,60)},
           !p.miniatura&&ce("span",{style:{position:"absolute",inset:"26px 8px 30px",fontSize:11.5,color:"var(--mu2)",overflow:"hidden",textAlign:"left",lineHeight:1.35}},String(p.legenda||"").substring(0,110)),
           img(p.miniatura),ce("span",{className:"scr"}),
           p.tipo&&p.tipo!=="Reels"?ce("span",{className:"tp"},p.tipo):null,
-          (ordemOrg==="engaj"?p.indice:p.indice>=1.5)?ce("span",{className:"ix"},fmtX(p.indice)):null,
+          ordemOrg==="engaj"&&p.pouco_alcance?ce("span",{className:"ix mu"},"pouco alcance"):(ordemOrg==="engaj"?p.indice:p.indice>=1.5)?ce("span",{className:"ix"},fmtX(p.indice)):null,
           ordemOrg==="engaj"?ce("span",{className:"vw eng","aria-label":(p.curtidas||0)+" curtidas, "+(p.comentarios||0)+" comentários, "+(p.salvamentos||0)+" salvamentos, "+(p.compartilhamentos||0)+" compartilhamentos"},
             [["coracao",p.curtidas],["balao",p.comentarios],["salvo",p.salvamentos],["enviar",p.compartilhamentos]].map(function(x){return ce("span",{key:x[0],className:"eng-i"},ico(x[0],12,"#fff",2.4),compacto(x[1]||0));})):
-          ordemOrg==="compart"?ce("span",{className:"vw"},ico("enviar",13,"#fff",2.4),compacto(p.compartilhamentos||0)+" compartilhamentos"):
+          ordemOrg==="compart"?ce("span",{className:"vw num","aria-label":(p.compartilhamentos||0)+" compartilhamentos"},ico("enviar",16,"#fff",2.4),compacto(p.compartilhamentos||0)):
           ordemOrg==="tempo"&&p.tempo_medio_s?ce("span",{className:"vw"},String(p.tempo_medio_s).replace(".",",")+" s assistidos"):
           ordemOrg==="gancho"&&p.retencao_3s!=null?ce("span",{className:"vw"},String(p.retencao_3s).replace(".",",")+"% passaram do gancho"):ce("span",{className:"vw"},play(),compacto(p.visualizacoes)));})),verMais(chaveOrg,lista.length))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum post "+textoPeriodo(periodo)+"."+(periodo!==90?" Tente 90 dias.":"")),
-      ordemOrg==="engaj"
+      ordemOrg==="compart"
+        ?ce("div",{className:"legenda",style:{display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}},ce("span",{style:{display:"inline-flex",gap:5,alignItems:"center"}},ico("enviar",14,"var(--mu2)"),"compartilhamentos"),lista.some(function(p){return p.indice>=1.5;})?ce("span",{style:{display:"inline-flex",gap:6,alignItems:"center"}},ce("span",{className:"badge-ix"},"2x"),"melhor que a média da conta"):null)
+        :ordemOrg==="engaj"
         ?ce("div",{className:"legenda",style:{display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}},[["coracao","curtidas"],["balao","comentários"],["salvo","salvamentos"],["enviar","compartilhamentos"]].map(function(x){return ce("span",{key:x[0],style:{display:"inline-flex",gap:5,alignItems:"center"}},ico(x[0],14,"var(--mu2)"),x[1]);}))
         :lista.some(function(p){return p.indice>=1.5;})&&ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"2x"),"quantas vezes o post foi melhor que a média da sua conta")
     );
@@ -1336,8 +1519,8 @@ function App(){
       (function(){var cel=t.misto?[["Investido",brl(t.gasto)],["Alcance",numBR(t.alcance||0)],["Cliques",numBR(t.cliques||0)]]:[[plural.charAt(0).toUpperCase()+plural.slice(1),numBR(t.resultados||0)],["Investido",brl(t.gasto)],["Por "+rotRes(tr,1,t.res_nome),t.custo_medio?brl(t.custo_medio):"-"]];
         if(t.receita>0)cel.push(["Valor em vendas",brl(t.receita)]);
         return ce("div",{className:"mgrid",style:cel.length>3?{gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))"}:null},cel.map(function(c){return ce("div",{key:c[0],className:"mcell"},ce("div",{className:"mcell-l"},c[0]),ce("div",{className:"mcell-v"},c[1]),c[2]?ce("div",{className:"mcell-s"},c[2]):null);}));})(),
-      ce("div",{className:"chips rolar"},[{id:"resultado",lb:"Mais "+plural},{id:"gancho",lb:"Melhor gancho",so:"taxa_gancho"},{id:"custo",lb:"Menor custo"},{id:"gasto",lb:"Mais investimento"}].filter(function(o){return !o.so||(a.anuncios||[]).some(function(x){return x[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
-      ce("div",{className:"chips"},chipsPeriodo(),ap.per!==periodo?ce("span",{style:{fontSize:12.5,color:"var(--gold)"}},typeof periodo==="string"?"Os números do mês chegam na próxima atualização. Mostrando os últimos "+ap.per+" dias":"Mostrando os últimos "+ap.per+" dias"):null),
+      ce("div",{className:"ords"},[{id:"resultado",lb:"Mais "+plural},{id:"gancho",lb:"Melhor gancho",so:"taxa_gancho"},{id:"custo",lb:"Menor custo"},{id:"gasto",lb:"Mais investimento"}].filter(function(o){return !o.so||(a.anuncios||[]).some(function(x){return x[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
+      chipsPeriodo(),ce("div",{className:"qtd"},ap.per!==periodo?ce("span",{style:{color:"var(--gold)"}},typeof periodo==="string"?"Os números do mês chegam na próxima atualização. Mostrando os últimos "+ap.per+" dias":"Mostrando os últimos "+ap.per+" dias"):null),
       lista.length
         ?ce("div",null,mostrar.map(function(x,i){return ce("button",{key:(x.id||x.nome)+i,className:"arow",onClick:function(){setVideoSel({tipo:"ad",item:x,ads:a});}},
           ce("span",{className:"thumb",style:{width:58,height:78,borderRadius:8}},img(x.miniatura)),
@@ -1362,7 +1545,8 @@ function App(){
     var poucos=[d.organico&&d.organico.relatorio,d.anuncios&&d.anuncios.relatorio,d.publico].some(function(x){return x&&x.confianca==="baixa";});
     return ce("div",null,
       (d.resumo_loja||d.texto)&&ce("div",{className:"nota"},ce("b",null,"O que o time de agentes descobriu: "),d.resumo_loja||d.texto),
-      d.gerado_em&&ce("div",{style:{fontSize:12,color:"var(--mu2)",margin:"-4px 0 14px"}},"Análise feita "+quando(d.gerado_em)+" com os últimos 90 dias. O time analisa de novo toda madrugada."+(poucos?" Ainda há poucos dados, então algumas conclusões são iniciais.":"")),
+      d.gerado_em&&ce("div",{style:{fontSize:12,color:"var(--mu2)",margin:"-4px 0 14px"}},"Análise feita "+quando(d.gerado_em)+" com os últimos 90 dias. O time analisa de novo de madrugada sempre que entra post ou anúncio novo."+(poucos?" Ainda há poucos dados, então algumas conclusões são iniciais.":"")),
+      blocoMemoria(contaMeta&&contaMeta.memoria),
       blocoRelatorio("👥 Agente de Público",d.publico,{quem_e:"Quem é",idade_genero:"Idade e gênero",regioes:"Regiões",faixas:"Por faixa de idade",quem_compra:"Quem mais compra",dores:"Dores",desejos:"Desejos",objecoes:"Objeções",motivos_compra:"Por que compra",motivos_nao_compra:"Por que desiste",gatilhos:"O que faz comprar nesta loja",situacoes:"Situações do dia a dia",angulos:"Ângulos de comunicação",expressoes_reais:d.publico_fonte==="comentarios"?"Como o público fala (dos comentários)":"Frases que mais engajaram"},
         "idade, gênero e cidades dos seguidores (Meta ou Reportei)"+(d.publico_fonte==="comentarios"?", comentários reais das seguidoras (Meta)":"")+". Quem é, dores, desejos e objeções são leituras do time a partir do que mais engajou."),
       blocoRelatorio("💰 Agente de Anúncios",d.anuncios&&d.anuncios.relatorio,{o_que_vende:"O que vende",ganchos_que_convertem:"Ganchos que convertem",argumentos_e_ofertas:"Argumentos e ofertas",ctas:"Chamadas que funcionam",diagnostico_dos_fracos:"Onde os fracos perdem"},
@@ -1374,7 +1558,7 @@ function App(){
   // ---------- DETALHE de um post ou de um anuncio ----------
   function renderDetalhe(){
     var v=videoSel.item;
-    var topo=ce("button",{className:"back",onClick:function(){setVideoSel(null);}},ico("voltar",22),videoSel.tipo==="ad"?"Anúncio":(v.tipo||"Post")+(v.data?" · "+new Date(v.data).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):""));
+    var topo=ce("button",{className:"back",onClick:function(){voltar(function(){setVideoSel(null);});}},ico("voltar",22),videoSel.tipo==="ad"?"Anúncio":(v.tipo||"Post")+(v.data?" · "+new Date(v.data).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):""));
     if(videoSel.tipo==="org"){
       var dl=dadosLoja(contaMeta),todos=(dl&&dl.posts)||[];
       var campos=[["visualizacoes","visualizações"],["compartilhamentos","compartilhamentos"],["salvamentos","salvamentos"],["comentarios","comentários"],["curtidas","curtidas"]];
@@ -1663,6 +1847,7 @@ function App(){
         var dirAtual=null;if(METODOS.some(function(m){return m.id===activeTab;})){for(var _i=activeProject.rodadas.length-1;_i>=0;_i--){var _r=activeProject.rodadas[_i];if(_r.direcao&&_r.metodo===activeTab){dirAtual=_r.direcao;break;}}}
         var rod=activeProject.rodadas[activeProject.rodadas.length-1],resultado=rod.resultado,scripts=getScs(),intel=resultado.inteligencia||{},personas=resultado.personas||[],vars=(resultado&&resultado.variacoes)||{};
         return ce("div",{className:"content"},
+          ce("button",{className:"back",onClick:function(){voltar(function(){irPara("history");});}},ico("voltar",22),"Roteiros"),
           ce("div",{className:"rh"},
             ce("div",null,ce("div",{className:"rh-title"},activeProject.name),ce("div",{className:"rh-meta"},activeProject.objetivo+" - "+rod.data+" - "+contarRoteiros(activeProject)+" roteiros")),
             ce("div",{className:"rh-acts"},ce("button",{className:"abtn",onClick:copyAll},"Copiar todos"),ce("button",{className:"abtn",onClick:baixarRoteiros},"Baixar"))
@@ -1675,7 +1860,8 @@ function App(){
               ?ce("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},METODOS.map(function(m){return ce("button",{key:m.id,className:"abtn"+(activeTab===m.id?" pr":""),onClick:function(){pedirDirecao(m.id);},disabled:generating,title:m.lb+": "+m.ds},m.ic+" "+m.amigo);}))
               :ce("div",{style:{fontSize:12.5,color:"var(--mu)"}},"Limite de "+MAX_RODADAS+" geracoes atingido. Crie um novo projeto para gerar mais.")
           ),
-          ce("div",{className:"tabs"},[{id:"personas",lb:"Personas"},{id:"roteiros",lb:"Todos"}].concat(METODOS.map(function(m){return {id:m.id,lb:m.amigo};}),[{id:"matriz",lb:"Matriz"}]).map(function(t){return ce("button",{key:t.id,className:"tab"+(activeTab===t.id?" on":""),onClick:function(){setActiveTab(t.id);}},t.lb);})),
+          ce("div",{className:"tabs"},[{id:"roteiros",lb:"Todos"},{id:"conversa",lb:"💬 Pedir ao time"},{id:"personas",lb:"Personas"}].concat(METODOS.map(function(m){return {id:m.id,lb:m.amigo};}),[{id:"matriz",lb:"Matriz"}]).map(function(t){return ce("button",{key:t.id,className:"tab"+(activeTab===t.id?" on":""),onClick:function(){setActiveTab(t.id);if(t.id==="conversa")carregarConversa("roteiros");}},t.lb);})),
+          activeTab==="conversa"&&painelChat("roteiros"),
           activeTab==="personas"&&ce("div",null,
             personas.length===0&&ce("div",{className:"emp-p",style:{marginBottom:14}},"As personas e a inteligencia podem nao ter sido geradas neste projeto. Gere novamente se precisar."),
             ce("div",{className:"ins-box"},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:14}},"Inteligencia Estrategica"),ce("div",{className:"ins-g"},[{lb:"Insight",v:intel.insight,c:"var(--ac2)"},{lb:"Big Idea",v:intel.bigIdea,c:"var(--gold)"},{lb:"Mecanismo",v:intel.mecanismo,c:"var(--ok)"},{lb:"Diferencial",v:intel.diferencial,c:"var(--pu)"}].map(function(item){return ce("div",{key:item.lb,className:"ins-i",style:{borderLeft:"3px solid "+item.c}},ce("div",{className:"ins-l"},item.lb),ce("div",{className:"ins-v"},item.v||"-"));}))),
@@ -1683,7 +1869,7 @@ function App(){
             ce("div",{className:"pg-grid"},personas.map(function(p,i){return ce("div",{key:i,className:"pcard"},ce("div",{className:"pcard-hd"},ce("div",{className:"pav"},p.emoji||"👤"),ce("div",null,ce("div",{className:"pname"},p.nome),ce("div",{className:"ptype"},p.tipo))),[["Motivacao",p.motivacao],["Dor",p.dor],["Objecao",p.objecao],["Comunicacao",p.comunicacao]].map(function(pair){return ce("div",{key:pair[0],className:"prow"},ce("div",{className:"prow-l"},pair[0]),ce("div",{className:"prow-v"},pair[1]||"-"));}));}))
           ),
           activeTab==="matriz"&&ce("div",{className:"mx-g"},[{t:"Dores",v:intel.dores},{t:"Desejos",v:intel.desejos},{t:"Objecoes",v:intel.objecoes},{t:"Gatilhos",v:intel.gatilhos}].map(function(col){return ce("div",{key:col.t,className:"mx-c"},ce("div",{className:"mx-t"},col.t),(col.v||[]).map(function(item,i){return ce("div",{key:i,className:"mx-i"},"- "+item);}));})),
-          (activeTab!=="personas"&&activeTab!=="matriz")&&ce("div",null,
+          (activeTab!=="personas"&&activeTab!=="matriz"&&activeTab!=="conversa")&&ce("div",null,
             ce("div",{className:"var-sec"},
               ce("div",{className:"var-t"},"Gerar mais variacoes"),
               ce("div",{className:"var-g"},[{id:"ganchos",ic:"🎯",lb:"+ 5 Ganchos"},{id:"roteiros",ic:"📝",lb:"+ 5 Roteiros"},{id:"ctas",ic:"🔥",lb:"+ 5 CTAs"}].map(function(v){return ce("button",{key:v.id,className:"var-btn"+(varLoading===v.id?" ld":""),onClick:function(){genVar(v.id);},disabled:!!varLoading},ce("span",{className:"vi"},varLoading===v.id?"...":v.ic),v.lb);})),
@@ -1691,13 +1877,14 @@ function App(){
             ),
             dirAtual&&ce("div",{style:{background:"var(--sur)",border:"1px solid var(--bo)",borderLeft:"3px solid var(--ac)",borderRadius:12,padding:"14px 16px",marginBottom:14}},ce("div",{style:{fontSize:11,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"var(--ac2)",marginBottom:10}},"Direção usada - "+metodoInfo(activeTab).amigo),ce("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}},DIR_CAMPOS.map(function(f){return ce("div",{key:f.k},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",color:"var(--mu)",marginBottom:3}},f.lb),ce("div",{style:{fontSize:13,lineHeight:1.45}},dirAtual[f.k]||"-"));}))),
             (scripts.length===0&&METODOS.some(function(m){return m.id===activeTab;}))&&ce("div",{className:"emp",style:{padding:"30px 10px"}},ce("div",{className:"emp-h"},"Nenhum roteiro de "+metodoInfo(activeTab).amigo.toLowerCase()+" ainda"),ce("div",{className:"emp-p",style:{marginBottom:14}},metodoInfo(activeTab).ds),activeProject.rodadas.length<MAX_RODADAS&&ce("button",{className:"abtn pr",onClick:function(){pedirDirecao(activeTab);},disabled:generating},generating?"Gerando...":"Gerar "+POR_RODADA+" roteiros: "+metodoInfo(activeTab).amigo)),
-            ce("div",{className:"scripts"},scripts.map(function(s){return ce("div",{key:s.id,className:"sc"},
+            scripts.length?avisoGostei():null,
+            ce("div",{className:"scripts"},scripts.map(function(s){var gr=gostou("roteiro",activeProject.id+":"+s.id);return ce("div",{key:s.id,className:"sc"},
               ce("div",{className:"sc-hd",onClick:function(){togSc(s.id);}},ce("div",{className:"sc-n"},s.numGlobal||s.id),ce("div",{className:"sc-inf"},ce("div",{className:"sc-title"},s.titulo),ce("div",{className:"sc-pilar"},s.pilar)),ce("div",{className:"sc-tags"},s.gravado?ce("span",{className:"tag topo"},"GRAVADO"):null,ftag(s.funil),ce("span",{className:"tag"},"30s")),ce("span",{style:{color:"var(--mu)",marginLeft:8}},openScripts[s.id]?"v":">")),
               ce("div",{className:"sc-body"+(openScripts[s.id]?" op":"")},
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl"},"Gancho"),ce("div",{className:"sc-bl-txt"},s.gancho)),
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl b"},"Corpo"),ce("div",{className:"sc-bl-txt"},s.corpo)),
                 ce("div",{className:"sc-bl"},ce("div",{className:"sc-bl-lbl c"},"CTA"),ce("div",{className:"sc-bl-txt"},s.cta)),
-                ce("div",{className:"sc-ft",style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},ce("button",{className:"cbtn"+(copiedId===s.id?" cp":""),onClick:function(){copySc(s);}},copiedId===s.id?"Copiado!":"Copiar roteiro"),ce("button",{className:"cbtn"+(s.gravado?" cp":""),"aria-pressed":!!s.gravado,onClick:function(e){e.stopPropagation();marcarGravado(s);}},s.gravado?"✓ Gravado":"Já gravei"),ce("button",{onClick:function(e){e.stopPropagation();regenerarRoteiro(s);},disabled:regenId===s.id,style:{background:"none",border:"1px solid var(--bo)",borderRadius:8,color:"var(--mu2)",padding:"4px 12px",fontSize:12,cursor:regenId===s.id?"wait":"pointer",fontFamily:"inherit"}},regenId===s.id?"Regenerando...":"Regenerar"),ce("button",{onClick:function(e){e.stopPropagation();setEditingScript(s);setEditInstr("");},style:{background:"rgba(155,142,255,.1)",border:"1px solid rgba(155,142,255,.3)",color:"#9B8EFF",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Ajustar"),ce("button",{onClick:function(e){e.stopPropagation();setImgModal({roteiro:s,choosing:true});},title:"Gerar uma imagem de anuncio com este gancho",style:{background:"rgba(255,138,80,.12)",border:"1px solid rgba(255,138,80,.35)",color:"var(--ac2)",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"🎨 Imagem"))
+                ce("div",{className:"sc-ft",style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},ce("button",{className:"cbtn"+(gr?" cp":""),"aria-pressed":gr,"aria-label":gr?"Tirar o Gostei deste roteiro":"Gostei deste roteiro",onClick:function(e){e.stopPropagation();alternarGostei("roteiro",activeProject.id+":"+s.id,s.titulo,{gancho:s.gancho||"",projeto:activeProject.name||""});}},ce("span",{className:"gostei-b"},coracao(gr,15),"Gostei")),ce("button",{className:"cbtn"+(copiedId===s.id?" cp":""),onClick:function(){copySc(s);}},copiedId===s.id?"Copiado!":"Copiar roteiro"),ce("button",{className:"cbtn"+(s.gravado?" cp":""),"aria-pressed":!!s.gravado,onClick:function(e){e.stopPropagation();marcarGravado(s);}},s.gravado?"✓ Gravado":"Já gravei"),ce("button",{onClick:function(e){e.stopPropagation();regenerarRoteiro(s);},disabled:regenId===s.id,style:{background:"none",border:"1px solid var(--bo)",borderRadius:8,color:"var(--mu2)",padding:"4px 12px",fontSize:12,cursor:regenId===s.id?"wait":"pointer",fontFamily:"inherit"}},regenId===s.id?"Regenerando...":"Regenerar"),ce("button",{onClick:function(e){e.stopPropagation();setEditingScript(s);setEditInstr("");},style:{background:"rgba(155,142,255,.1)",border:"1px solid rgba(155,142,255,.3)",color:"#9B8EFF",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Ajustar"),ce("button",{onClick:function(e){e.stopPropagation();setImgModal({roteiro:s,choosing:true});},title:"Gerar uma imagem de anuncio com este gancho",style:{background:"rgba(255,138,80,.12)",border:"1px solid rgba(255,138,80,.35)",color:"var(--ac2)",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"🎨 Imagem"))
               )
             );}))
           )

@@ -26,6 +26,9 @@
     },
     "api/ideias.js": {
       "maxDuration": 300
+    },
+    "api/conversa.js": {
+      "maxDuration": 180
     }
   },
   "crons": [

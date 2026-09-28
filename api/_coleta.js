@@ -229,8 +229,16 @@ async function coletarOrganico(cli, ig, inicio, fim, avisos) {
         // resultado no organico: engajamento com compartilhamento valendo dobrado, relativo ao alcance
         p.taxa = p.alcance > 0 ? (p.curtidas + p.comentarios + p.salvamentos + p.compartilhamentos * 2) / p.alcance : 0;
     });
-    const med = mediana(posts.filter(function (x) { return x.alcance > 0; }).map(function (x) { return x.taxa; }));
-    posts.forEach(function (p) { p.indice = med > 0 ? arred(p.taxa / med, 2) : 0; p.taxa = arred(p.taxa * 100, 2); });
+    // post que chegou a muito pouca gente (menos de 20% do alcance normal da conta): 5 curtidas em 130 pessoas
+    // viram uma porcentagem enorme que nao quer dizer nada; ele fica marcado e nao passa da media
+    const medAlc = mediana(posts.filter(function (x) { return x.alcance > 0; }).map(function (x) { return x.alcance; }));
+    const pouco = function (x) { return x.alcance > 0 && medAlc > 0 && x.alcance < Math.max(100, medAlc * 0.2); };
+    const med = mediana(posts.filter(function (x) { return x.alcance > 0 && !pouco(x); }).map(function (x) { return x.taxa; }));
+    posts.forEach(function (p) {
+        p.indice = med > 0 ? arred(p.taxa / med, 2) : 0;
+        if (pouco(p)) { p.pouco_alcance = true; p.indice = Math.min(p.indice, 1); }
+        p.taxa = arred(p.taxa * 100, 2);
+    });
     posts.sort(function (a, b) { return String(b.data || "").localeCompare(String(a.data || "")); });
     return {
         conta: { username: ig.nome, seguidores: seguidores },
