@@ -161,7 +161,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .pg-h{font-family:'Syne',sans-serif;font-weight:800;font-size:24px}
 .pg-sub{font-size:13px;color:var(--mu2);margin-top:3px}
 .hello{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-.hello-av{width:44px;height:44px;border-radius:50%;background:#5A4636;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--ac)}
+.hello-av{width:44px;height:44px;border-radius:50%;background:#5A4636;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;border:1px solid var(--bo)}
 .chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .chip{height:36px;padding:0 14px;border-radius:20px;border:1px solid var(--boh);background:transparent;color:var(--mu2);font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .chip:hover{color:var(--tx)}.chip.on{background:var(--tx);border-color:var(--tx);color:var(--bg);font-weight:700}
@@ -655,7 +655,15 @@ function App(){
   var sCv=useState({}),conversas=sCv[0],setConversas=sCv[1];
   var sCt=useState(""),chatTxt=sCt[0],setChatTxt=sCt[1];
   var sCe=useState(false),chatEnviando=sCe[0],setChatEnviando=sCe[1];
-  var souAdmin=!!(currentUser&&currentUser.id==="1c4d2a2b-c60b-4e99-982b-5b4a09e8cc0f");
+  var ehAdmin=!!(currentUser&&currentUser.id==="1c4d2a2b-c60b-4e99-982b-5b4a09e8cc0f");
+  var sML=useState(function(){try{return localStorage.getItem("mcp_modo_lojista")==="1";}catch(e){return false;}}),modoLojista=sML[0],setModoLojista=sML[1];
+  var souAdmin=ehAdmin&&!modoLojista;
+  useEffect(function(){if(ehAdmin&&modoLojista&&/ver=[0-9a-f-]{36}/.test(String(location.hash||"")))trocarModoLojista(false);},[]);
+  function trocarModoLojista(on){
+    if(on&&verComo)sairDoModoCliente();
+    try{if(on)localStorage.setItem("mcp_modo_lojista","1");else localStorage.removeItem("mcp_modo_lojista");}catch(e){}
+    setModoLojista(on);setView("home");setSbOpen(false);
+  }
   function formEstado(){return formAtualRef.current;}
   var s17=useState({produto:"",descricao:"",objetivo:"",diferenciais:"",preco:"",url:"",tons:[]}),form=s17[0],setForm=s17[1];
   var formAtualRef=useRef(null);formAtualRef.current=form;
@@ -728,14 +736,14 @@ function App(){
   }
   // ---------- admin: navegar pela conta de uma cliente, somente leitura ----------
   useEffect(function(){
-    if(!souAdmin)return;
+    if(!souAdmin||listaClientes.length)return;
     supaClient.rpc("get_all_users").then(function(r){
       var lista=(r&&r.data)||[];setListaClientes(lista);
       // o painel admin abre a loja direto: app.html#ver=<id da loja>&projeto=<id do projeto>
       var m=String(location.hash||"").match(/ver=([0-9a-f-]{36})/),pj=String(location.hash||"").match(/projeto=([0-9a-f-]{36})/);
       if(m&&m[1]!==currentUser.id)entrarComoCliente(m[1],lista,pj&&pj[1]);
     });
-  },[]);
+  },[souAdmin]);
   var CAMPOS_CONTA="ig_username,ad_account_nome,dossie,atualizado_em,metricas,metricas_em,status,memoria";
   async function entrarComoCliente(uid,lista,projetoId){
     if(!uid){sairDoModoCliente();return;}
@@ -1600,7 +1608,7 @@ function App(){
     if(!rel)return null;
     var card={background:"var(--sur)",border:"1px solid var(--bo)",borderRadius:14,padding:14,marginBottom:14};
     return ce("div",{style:card},ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:6}},titulo),rel.resumo&&ce("div",{style:{fontSize:13,color:"var(--mu2)",lineHeight:1.5,marginBottom:10}},rel.resumo),
-      Object.keys(rotulos).map(function(k){var v=rel[k];if(!v||(Array.isArray(v)&&!v.length))return null;return ce("div",{key:k,style:{marginBottom:10}},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",letterSpacing:".05em",color:"var(--mu)",marginBottom:4}},rotulos[k]),Array.isArray(v)?v.map(function(t,i){return ce("div",{key:i,style:{fontSize:13,lineHeight:1.5}},"• "+t);}):ce("div",{style:{fontSize:13,lineHeight:1.5}},v));}),
+      Object.keys(rotulos).map(function(k){var v=rel[k];if(!rotulos[k]||!v||(Array.isArray(v)&&!v.length))return null;return ce("div",{key:k,style:{marginBottom:10}},ce("div",{style:{fontSize:10.5,fontWeight:600,textTransform:"uppercase",letterSpacing:".05em",color:"var(--mu)",marginBottom:4}},rotulos[k]),Array.isArray(v)?v.map(function(t,i){return ce("div",{key:i,style:{fontSize:13,lineHeight:1.5}},"• "+t);}):ce("div",{style:{fontSize:13,lineHeight:1.5}},v));}),
       fonte?ce("div",{style:{fontSize:11.5,color:"var(--mu)",borderTop:"1px solid var(--bo)",paddingTop:8,marginTop:4,lineHeight:1.5}},ce("b",null,"De onde vem: "),fonte):null);
   }
   function renderDescobertas(dl){
@@ -1616,7 +1624,7 @@ function App(){
       blocoPerguntas(d),
       blocoRelatorio("👥 Agente de Público",d.publico,{quem_e:"Quem é",idade_genero:"Idade e gênero",regioes:"Regiões",faixas:"Por faixa de idade",quem_compra:"Quem mais compra",dores:"Dores",desejos:"Desejos",objecoes:"Objeções",motivos_compra:"Por que compra",motivos_nao_compra:"Por que desiste",gatilhos:"O que faz comprar nesta loja",situacoes:"Situações do dia a dia",angulos:"Ângulos de comunicação",expressoes_reais:d.publico_fonte==="comentarios"?"Como o público fala (dos comentários)":"Frases que mais engajaram"},
         "idade, gênero e cidades dos seguidores (Meta ou Reportei)"+(d.publico_fonte==="comentarios"?", comentários reais das seguidoras (Meta)":"")+". Quem é, dores, desejos e objeções são leituras do time a partir do que mais engajou."),
-      blocoRelatorio("💰 Agente de Anúncios",d.anuncios&&d.anuncios.relatorio,{o_que_vende:"O que vende",ganchos_que_convertem:"Ganchos que convertem",argumentos_e_ofertas:"Argumentos e ofertas",ctas:"Chamadas que funcionam",diagnostico_dos_fracos:"Onde os fracos perdem"},
+      blocoRelatorio("💰 Agente de Anúncios",d.anuncios&&d.anuncios.relatorio,{o_que_vende:"O que vende",ganchos_que_convertem:"Ganchos que convertem",argumentos_e_ofertas:"Argumentos e ofertas",ctas:"Chamadas que funcionam",diagnostico_dos_fracos:souAdmin?"Onde os fracos perdem (só você vê)":null},
         "números dos anúncios (Reportei)"+(d.anuncios&&d.anuncios.com_texto?", texto do anúncio e fala do vídeo (Meta)":"")+"."));
   }
 
@@ -1837,6 +1845,8 @@ function App(){
         souAdmin&&ce("a",{href:"/admin.html",className:"card2-r",style:{color:"var(--ac2)",textDecoration:"none",fontWeight:600}},ce("span",null,"Painel Admin"),ico("seta",18)),
         souAdmin&&listaClientes.length>0&&ce("div",{className:"card2-r"},ce("span",null,"Ver como cliente"),ce("select",{"aria-label":"Ver como cliente",value:(verComo&&verComo.id)||"",onChange:function(e){entrarComoCliente(e.target.value);},style:{maxWidth:200,background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:8,color:"var(--tx)",fontSize:12,padding:"7px 8px",fontFamily:"inherit"}},ce("option",{value:""},"Minha conta"),listaClientes.filter(function(u){return u.id!==currentUser.id;}).map(function(u){return ce("option",{key:u.id,value:u.id},u.email);}))),
         verComo?ce("button",{className:"card2-r",style:Object.assign({},linhaBtn,{color:"var(--ac2)",fontWeight:600}),onClick:sairDoModoCliente},ce("span",null,"Voltar para minha conta de admin")):null,
+        souAdmin&&!verComo?ce("button",{className:"card2-r",style:Object.assign({},linhaBtn,{color:"var(--ac2)",fontWeight:600}),onClick:function(){trocarModoLojista(true);}},ce("span",null,"Usar o app como lojista"),ico("seta",18)):null,
+        ehAdmin&&modoLojista?ce("button",{className:"card2-r",style:Object.assign({},linhaBtn,{color:"var(--ac2)",fontWeight:600}),onClick:function(){trocarModoLojista(false);}},ce("span",null,"Voltar ao modo admin")):null,
         ce("button",{className:"card2-r",style:Object.assign({},linhaBtn,{borderBottom:"none",color:"#FF6B5A"}),onClick:doLogout},ce("span",null,"Sair da conta")))
     ));
   }
@@ -1866,7 +1876,8 @@ function App(){
       return ce("button",{key:t.id,className:"tb-it"+(on?" on":""),"aria-current":on?"page":undefined,onClick:function(){irPara(t.id);}},ico(t.ic,24,on?"var(--ac)":"currentColor"),t.lb);
     }));
 
-  return ce("div",{className:"app"+(verComo?" vc":"")},
+  return ce("div",{className:"app"+(verComo||(ehAdmin&&modoLojista)?" vc":"")},
+    ehAdmin&&modoLojista&&ce("div",{style:{position:"fixed",top:0,left:0,right:0,zIndex:400,background:"#FFB020",color:"#0A0A0F",fontSize:13,fontWeight:600,padding:"calc(6px + env(safe-area-inset-top)) 12px 6px",minHeight:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",gap:10}},ce("span",{style:{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"Modo lojista: o app como a dona vê"),ce("button",{onClick:function(){trocarModoLojista(false);},style:{flexShrink:0,background:"#0A0A0F",color:"#fff",border:"none",borderRadius:6,padding:"6px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Voltar ao modo admin")),
     verComo&&ce("div",{style:{position:"fixed",top:0,left:0,right:0,zIndex:400,background:"#2DDE98",color:"#0A0A0F",fontSize:13,fontWeight:600,padding:"calc(6px + env(safe-area-inset-top)) 12px 6px",minHeight:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",gap:10}},ce("span",{style:{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"👁 Vendo "+nomeDaLoja()),ce("button",{onClick:sairDoModoCliente,style:{flexShrink:0,background:"#0A0A0F",color:"#fff",border:"none",borderRadius:6,padding:"6px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Voltar para minha conta")),
     ce("div",{className:"sb-ov"+(sbOpen?" op":""),onClick:function(){setSbOpen(false);}}),
     ce("aside",{className:"sb"+(sbOpen?" op":"")},

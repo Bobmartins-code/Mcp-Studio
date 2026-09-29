@@ -106,13 +106,13 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
   <!-- TELA NOVA SENHA -->
   <div id="screen-nova-senha" class="screen">
     <div class="card">
-      <div class="card-title" id="ns-titulo">Nova senha</div>
-      <div class="card-sub" id="ns-sub">Digite sua nova senha abaixo.</div>
+      <div class="card-title" id="ns-titulo">Crie sua senha</div>
+      <div class="card-sub" id="ns-sub">Escolha uma senha para entrar no MCP Studio. Nas próximas vezes, é só entrar com seu e-mail e essa senha.</div>
       <div class="err" id="ns-err"></div>
       <div class="ok" id="ns-ok"></div>
       <div class="fi"><label>Nova senha</label><input type="password" id="ns-senha" placeholder="Mínimo de 8 caracteres"/><button type="button" class="link" style="align-self:flex-end;font-size:11px;margin-top:2px" onclick="togglePw('ns-senha',this)">mostrar</button></div>
       <div class="fi"><label>Confirmar nova senha</label><input type="password" id="ns-senha2" placeholder="Repita a senha"/><button type="button" class="link" style="align-self:flex-end;font-size:11px;margin-top:2px" onclick="togglePw('ns-senha2',this)">mostrar</button></div>
-      <button class="btn" id="btn-ns" onclick="salvarNovaSenha()">Salvar nova senha</button>
+      <button class="btn" id="btn-ns" onclick="salvarNovaSenha()">Salvar e entrar</button>
     </div>
   </div>
 
@@ -192,13 +192,13 @@ async function salvarNovaSenha(){
   var senha2=document.getElementById("ns-senha2").value;
   if(!senha||senha.length<8){showErr("ns-err","A senha deve ter pelo menos 8 caracteres.");return;}
   if(senha!==senha2){showErr("ns-err","As senhas não são iguais.");return;}
-  var rotulo=veioDeConvite?"Entrar na minha loja":"Salvar nova senha";
+  var rotulo=veioDeConvite?"Entrar na minha loja":"Salvar e entrar";
   setLoad("btn-ns",true,rotulo);
   var sess=await supa.auth.getSession();
-  if(!sess.data||!sess.data.session){showErr("ns-err","Este link expirou. Peca um novo link para a equipe do MCP Studio.");setLoad("btn-ns",false,rotulo);return;}
+  if(!sess.data||!sess.data.session){showErr("ns-err","Este link expirou. Peça um novo link para a equipe do MCP Studio.");setLoad("btn-ns",false,rotulo);return;}
   var r=await supa.auth.updateUser({password:senha});
   if(r.error){showErr("ns-err",traduzErro(r.error.message));setLoad("btn-ns",false,rotulo);}
-  else{criandoSenha=false;showOk("ns-ok",veioDeConvite?"Senha criada! Abrindo sua loja...":"Senha alterada com sucesso!");setTimeout(function(){window.location.href="app.html";},1200);}
+  else{criandoSenha=false;showOk("ns-ok","Senha criada! Abrindo sua loja...");setTimeout(function(){window.location.href="app.html";},1200);}
 }
 
 document.addEventListener("keydown",function(e){
