@@ -1800,6 +1800,41 @@ function App(){
       else showToast(/same|different/i.test((e&&e.message)||"")?"A senha nova precisa ser diferente da atual.":"Não consegui trocar a senha agora.","err");
     }finally{setSalvandoConta("");}
   }
+  // admin vendo a loja: define a senha da dona e copia a mensagem pronta para o WhatsApp
+  function sugerirSenhaDona(){
+    var p=String(nomeDaLoja()||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z ]/g," ").trim().split(/\s+/)[0]||"Loja";
+    p=p.charAt(0).toUpperCase()+p.slice(1,8).toLowerCase();if(p.length<4)p=(p+"Loja").slice(0,8);
+    var n=new Uint32Array(1);crypto.getRandomValues(n);return p+String(1000+(n[0]%9000));
+  }
+  async function definirSenhaDona(){
+    if(!editaPerfilComoAdmin())return;
+    var s=String(campoConta("senhaDona","")).trim();
+    if(s.length<8){showToast("A senha precisa ter pelo menos 8 caracteres.","err");return;}
+    setSalvandoConta("senhaDona");
+    try{
+      var ss=await supaClient.auth.getSession();var tk=ss.data&&ss.data.session&&ss.data.session.access_token;
+      var r=await fetch("/api/lojas",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify({acao:"senha",user_id:verComo.id,senha:s})});
+      var d=await r.json().catch(function(){return {};});if(!r.ok)throw new Error(d.error||"erro");
+      var msg="Seu acesso ao MCP Studio está pronto!\n\nEntre em: "+location.origin+"\nE-mail: "+(d.email||verComo.email)+"\nSenha: "+s+"\n\nDepois de entrar, se quiser, troque a senha na aba Conta.";
+      mudaConta("msgDona",msg);mudaConta("senhaDona",undefined);
+      var ok=await copiarTexto(msg);showToast(ok?"Senha salva e mensagem copiada. Cole no WhatsApp da dona.":"Senha salva. Copie a mensagem abaixo e mande para a dona.");
+    }catch(e){showToast(e.message&&e.message!=="erro"?e.message:"Não consegui salvar a senha agora.","err");}
+    finally{setSalvandoConta("");}
+  }
+  function blocoAcessoDona(){
+    var msg=campoConta("msgDona","");
+    return ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Acesso da dona"),
+      ce("div",{style:{fontSize:12.5,color:"var(--mu2)",padding:"0 16px 6px",lineHeight:1.5}},"Ela entra com o e-mail e a senha abaixo. Ao salvar, a senha antiga deixa de valer e a mensagem para o WhatsApp já fica copiada."),
+      ce("div",{className:"conta-ed"},ce("label",null,"E-mail"),ce("div",{style:{fontSize:14,padding:"4px 0"}},verComo.email)),
+      ce("div",{className:"conta-ed"},ce("label",{htmlFor:"ed-senhaDona"},"Nova senha da dona"),
+        ce("div",{className:"conta-ed-l"},
+          ce("input",{id:"ed-senhaDona",type:"text",value:campoConta("senhaDona",""),placeholder:"Pelo menos 8 caracteres",autoComplete:"off",onChange:function(e){mudaConta("senhaDona",e.target.value);}}),
+          ce("button",{className:"chip",style:{height:40},disabled:!!salvandoConta,onClick:function(){mudaConta("senhaDona",sugerirSenhaDona());}},"Sugerir"),
+          ce("button",{className:"chip on",style:{height:40},disabled:!!salvandoConta,onClick:definirSenhaDona},salvandoConta==="senhaDona"?"Salvando...":"Salvar"))),
+      msg?ce("div",{className:"conta-ed"},ce("label",null,"Mensagem para a dona"),
+        ce("textarea",{readOnly:true,value:msg,rows:7,style:{width:"100%",background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:8,color:"var(--tx)",fontSize:13,padding:10,fontFamily:"inherit",boxSizing:"border-box"}}),
+        ce("button",{className:"chip on",style:{height:40,marginTop:8},onClick:function(){copiarTexto(msg).then(function(ok){showToast(ok?"Mensagem copiada.":"Não consegui copiar. Selecione o texto e copie.",ok?undefined:"err");});}},"Copiar mensagem")):null);
+  }
   function linhaEdit(rot,k,padrao,tipo,salvar,dica){
     var travado=!!verComo&&!(k==="loja"&&editaPerfilComoAdmin());
     return ce("div",{className:"conta-ed"},
@@ -1826,7 +1861,7 @@ function App(){
             lojaInfo&&lojaInfo.logo_url?ce("button",{className:"chip",style:{height:40},disabled:!!salvandoConta||(!!verComo&&!editaPerfilComoAdmin()),onClick:removerLogo},"Remover"):null),
           ce("div",{style:{fontSize:12,color:"var(--mu2)",marginTop:6}},"PNG, JPG ou WEBP, até 2 MB. Fica melhor quadrada.")),
         linhaEdit("Nome da loja","loja",(lojaInfo&&lojaInfo.nome)||"","text",salvarNomeLoja)),
-      ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Seus dados de acesso"),
+      editaPerfilComoAdmin()?blocoAcessoDona():ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Seus dados de acesso"),
         linhaEdit("Seu nome","nome",(currentUser&&currentUser.user_metadata&&(currentUser.user_metadata.nome||currentUser.user_metadata.name))||"","text",salvarMeuNome),
         linhaEdit("E-mail","email",verComo?verComo.email:userEmail,"email",salvarEmail),
         verComo?null:linhaEdit("Nova senha","senha","","password",null,"Pelo menos 8 caracteres"),
