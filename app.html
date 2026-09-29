@@ -269,7 +269,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .ref .thumb{width:104px;height:132px;margin-bottom:6px}
 .ref.on .thumb{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--tx)}
 .tabbar{display:none}
-.app.vc{padding-top:38px}
+.app.vc{padding-top:calc(40px + env(safe-area-inset-top))}
 .boas{position:fixed;inset:0;background:var(--bg);z-index:250;display:flex;justify-content:center;overflow-y:auto}
 .boas-in{width:100%;max-width:440px;padding:64px 24px 32px;display:flex;flex-direction:column;gap:22px}
 .boas-i{display:flex;gap:14px;align-items:center;background:var(--sur);border:1px solid var(--bo);border-radius:14px;padding:14px}
@@ -1582,7 +1582,7 @@ function App(){
       (function(){var cel=t.misto?[["Investido",brl(t.gasto)],["Alcance",numBR(t.alcance||0)],["Cliques",numBR(t.cliques||0)]]:[[plural.charAt(0).toUpperCase()+plural.slice(1),numBR(t.resultados||0)],["Investido",brl(t.gasto)],["Por "+rotRes(tr,1,t.res_nome),t.custo_medio?brl(t.custo_medio):"-"]];
         if(t.receita>0)cel.push(["Valor em vendas",brl(t.receita)]);
         return ce("div",{className:"mgrid",style:cel.length>3?{gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))"}:null},cel.map(function(c){return ce("div",{key:c[0],className:"mcell"},ce("div",{className:"mcell-l"},c[0]),ce("div",{className:"mcell-v"},c[1]),c[2]?ce("div",{className:"mcell-s"},c[2]):null);}));})(),
-      ce("div",{className:"ords"},[{id:"resultado",lb:"Mais "+plural},{id:"gancho",lb:"Melhor gancho",so:"taxa_gancho"},{id:"custo",lb:"Menor custo"},{id:"gasto",lb:"Mais investimento"}].filter(function(o){return !o.so||(a.anuncios||[]).some(function(x){return x[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
+      ce("div",{className:"ords"},[{id:"resultado",lb:"Mais "+plural},{id:"gancho",lb:"Melhor gancho",so:"taxa_gancho"},{id:"custo",lb:"Menor custo"}].filter(function(o){return !o.so||(a.anuncios||[]).some(function(x){return x[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
       chipsPeriodo(),ce("div",{className:"qtd"},ap.per!==periodo?ce("span",{style:{color:"var(--gold)"}},typeof periodo==="string"?"Os números do mês chegam na próxima atualização. Mostrando os últimos "+ap.per+" dias":"Mostrando os últimos "+ap.per+" dias"):null),
       lista.length
         ?ce("div",null,mostrar.map(function(x,i){return ce("button",{key:(x.id||x.nome)+i,className:"arow",onClick:function(){setVideoSel({tipo:"ad",item:x,ads:a});}},
@@ -1836,6 +1836,7 @@ function App(){
       ce("div",{className:"card2"},ce("div",{className:"card2-t"},"Sua conta"),
         souAdmin&&ce("a",{href:"/admin.html",className:"card2-r",style:{color:"var(--ac2)",textDecoration:"none",fontWeight:600}},ce("span",null,"Painel Admin"),ico("seta",18)),
         souAdmin&&listaClientes.length>0&&ce("div",{className:"card2-r"},ce("span",null,"Ver como cliente"),ce("select",{"aria-label":"Ver como cliente",value:(verComo&&verComo.id)||"",onChange:function(e){entrarComoCliente(e.target.value);},style:{maxWidth:200,background:"var(--sur2)",border:"1px solid var(--bo)",borderRadius:8,color:"var(--tx)",fontSize:12,padding:"7px 8px",fontFamily:"inherit"}},ce("option",{value:""},"Minha conta"),listaClientes.filter(function(u){return u.id!==currentUser.id;}).map(function(u){return ce("option",{key:u.id,value:u.id},u.email);}))),
+        verComo?ce("button",{className:"card2-r",style:Object.assign({},linhaBtn,{color:"var(--ac2)",fontWeight:600}),onClick:sairDoModoCliente},ce("span",null,"Voltar para minha conta de admin")):null,
         ce("button",{className:"card2-r",style:Object.assign({},linhaBtn,{borderBottom:"none",color:"#FF6B5A"}),onClick:doLogout},ce("span",null,"Sair da conta")))
     ));
   }
@@ -1866,7 +1867,7 @@ function App(){
     }));
 
   return ce("div",{className:"app"+(verComo?" vc":"")},
-    verComo&&ce("div",{style:{position:"fixed",top:0,left:0,right:0,zIndex:200,background:"#2DDE98",color:"#0A0A0F",fontSize:13,fontWeight:600,padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"center",gap:12,flexWrap:"wrap"}},"👁 Vendo a conta de "+verComo.email+" · somente leitura",ce("button",{onClick:sairDoModoCliente,style:{background:"#0A0A0F",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Voltar para minha conta")),
+    verComo&&ce("div",{style:{position:"fixed",top:0,left:0,right:0,zIndex:400,background:"#2DDE98",color:"#0A0A0F",fontSize:13,fontWeight:600,padding:"calc(6px + env(safe-area-inset-top)) 12px 6px",minHeight:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",gap:10}},ce("span",{style:{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"👁 Vendo "+nomeDaLoja()),ce("button",{onClick:sairDoModoCliente,style:{flexShrink:0,background:"#0A0A0F",color:"#fff",border:"none",borderRadius:6,padding:"6px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Voltar para minha conta")),
     ce("div",{className:"sb-ov"+(sbOpen?" op":""),onClick:function(){setSbOpen(false);}}),
     ce("aside",{className:"sb"+(sbOpen?" op":"")},
       ce("div",{className:"sb-logo"},ce("div",{className:"sb-mark"},"M"),ce("div",{className:"sb-name"},"MCP",ce("span",null,"Studio"))),
