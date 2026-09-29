@@ -821,7 +821,7 @@ function renderLojas(){
     var conectar='<button class="lk" onclick="conectarLoja(\''+u.id+'\')">Conectar →</button>';
     var ig=ct.username?'<span class="ch ch-ok">@'+escHtml(String(ct.username).replace(/^@/,""))+'</span>':n.ig_username?'<span class="ch ch-ok">@'+escHtml(n.ig_username)+'</span>':cc?'<span class="ch ch-av">Falta autorizar</span><div class="mini">'+conectar+'</div>':conectar;
     var ads=ct.anuncios?'<span class="ch ch-ok">'+escHtml(ct.anuncios)+'</span>':n.ad_account_nome?'<span class="ch ch-ok">'+escHtml(n.ad_account_nome)+'</span>':cc?'<span class="ch ch-av">Falta autorizar</span>':'<span class="ch ch-mu">Não conectada</span>';
-    var acesso=u.last_sign_in_at?'<span class="ch ch-ok">Ativo</span><div class="mini">Entrou '+fmtCurto(u.last_sign_in_at)+'</div>':'<span class="ch ch-av">Aguardando 1º acesso</span><div class="mini"><button class="lk" onclick="copiarLinkAcesso(\''+u.id+'\')">Copiar link de acesso</button></div>';
+    var acesso=u.last_sign_in_at?'<span class="ch ch-ok">Ativo</span><div class="mini">Entrou '+fmtCurto(u.last_sign_in_at)+'</div>':'<span class="ch ch-av">Aguardando 1º acesso</span><div class="mini"><button class="lk" onclick="definirSenha(\''+u.id+'\')">Definir senha</button></div>';
     var t90=n.ads90||null;
     var num=n.metricas_em?fmtCurto(n.metricas_em)+'<div class="mini">'+(n.posts!=null?n.posts+" posts":"")+(t90&&t90.gasto!=null?(n.posts!=null?" · ":"")+"R$ "+Math.round(t90.gasto).toLocaleString("pt-BR")+" em 90d":"")+'</div>':'<span class="mini" style="margin:0">Ainda sem números</span>';
     num+=linhaAnalise(n);
@@ -853,7 +853,7 @@ function abrirMenu(uid,btn){
   var m=document.getElementById("menu-loja");
   if(menuUid===uid&&m.style.display==="block"){fecharMenu();return;}
   menuUid=uid;
-  var itens=[["editar","Editar dados da loja"],["link","Copiar link de acesso da dona"],["conectar","Conectar Instagram e anúncios"],["atualizar","Atualizar dados agora"],["analisar","Analisar com o time de agentes"],["recado","Mandar recado para a loja"]];
+  var itens=[["editar","Editar dados da loja"],["senha","Definir senha da dona"],["conectar","Conectar Instagram e anúncios"],["atualizar","Atualizar dados agora"],["analisar","Analisar com o time de agentes"],["recado","Mandar recado para a loja"]];
   if(uid!==ADMIN_ID)itens.push(["-"],["remover","Remover loja"]);
   m.innerHTML=itens.map(function(i){return i[0]==="-"?"<hr>":'<button role="menuitem"'+(i[0]==="remover"?' class="perigo"':'')+' onclick="acaoLoja(\''+i[0]+'\')">'+i[1]+'</button>';}).join("");
   m.style.display="block";
@@ -868,12 +868,35 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"){fecharMenu(
 async function acaoLoja(a){
   var uid=menuUid;fecharMenu();if(!uid)return;
   if(a==="editar")abrirDrawerLoja(uid);
+  else if(a==="senha")definirSenha(uid);
   else if(a==="link")copiarLinkAcesso(uid);
   else if(a==="conectar")conectarLoja(uid);
   else if(a==="atualizar")atualizarNumeros(uid);
   else if(a==="analisar"){await analisarConta(uid);carregarLojas();}
   else if(a==="recado")mandarRecado(uid);
   else if(a==="remover")removerLoja(uid);
+}
+// senha facil de ditar: primeira palavra da loja + 4 numeros (ex.: Lilu4827)
+function sugerirSenha(nome){
+  var p=String(nome||"").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z ]/g," ").trim().split(/\s+/)[0]||"Loja";
+  p=p.charAt(0).toUpperCase()+p.slice(1,8).toLowerCase();if(p.length<4)p=(p+"Loja").slice(0,8);
+  var n=new Uint32Array(1);crypto.getRandomValues(n);return p+String(1000+(n[0]%9000));
+}
+function mensagemAcesso(email,senha){return "Seu acesso ao MCP Studio está pronto!\n\nEntre em: https://mcp-studio-zeta.vercel.app\nE-mail: "+email+"\nSenha: "+senha+"\n\nDepois de entrar, se quiser, troque a senha na aba Conta.";}
+async function definirSenha(uid){
+  var email=emailMap[uid]||"";
+  var senha=window.prompt("Nova senha para "+nomeLoja(uid)+" ("+email+").\nPelo menos 8 caracteres. Pode trocar a sugestão:",sugerirSenha(nomeLoja(uid)));
+  if(senha===null)return;
+  senha=String(senha).trim();
+  if(senha.length<8){avisar("A senha precisa ter pelo menos 8 caracteres.",true);return;}
+  setStatusLoja(uid,"Salvando a senha...");
+  try{
+    var d=await apiLojas({acao:"senha",user_id:uid,senha:senha});
+    setStatusLoja(uid,"");
+    var msg=mensagemAcesso(d.email||email,senha);
+    try{await copiarTexto(msg);avisar("Senha salva e mensagem copiada. Cole no WhatsApp da dona.");}
+    catch(e){window.prompt("Senha salva. Copie a mensagem para a dona:",msg);}
+  }catch(e){setStatusLoja(uid,"");avisar("Nao consegui salvar a senha: "+e.message,true);}
 }
 async function copiarLinkAcesso(uid){
   setStatusLoja(uid,"Gerando link...");
@@ -936,8 +959,8 @@ function abrirDrawerLoja(uid){
       +'<div class="dica" style="margin-top:6px">Os agentes usam isso nas próximas ideias. Se a dona contar algo diferente no app, vale a versão dela. O público é refeito na próxima análise.</div></section>':'')
     +'<section><div class="passo"><span>2</span>Acesso da dona</div>'
     +'<label class="campo">E-mail da dona da loja<input id="lj-email" type="email" value="'+escHtml(email)+'"'+(uid?' readonly':'')+' placeholder="dona@loja.com"/></label>'
-    +'<div class="dica" style="margin-top:8px">Quando ela entrar com esse e-mail, cai direto na loja já pronta: vídeos, anúncios e roteiros. Se ela já usa o app, a loja é ligada à conta dela.</div>'
-    +(uid?'':'<label class="marca" style="margin-top:6px"><input type="checkbox" id="lj-enviar"/>Enviar o convite por e-mail agora (senão você recebe um link para mandar pelo WhatsApp)</label>')
+    +'<div class="dica" style="margin-top:8px">Quando ela entrar com esse e-mail, cai direto na loja já pronta: vídeos, anúncios e roteiros. Se ela já usa o app, a loja é ligada à conta dela.'+(uid?' Para trocar a senha dela, use o menu da loja: Definir senha da dona.':'')+'</div>'
+    +(uid?'':'<label class="campo" style="margin-top:10px">Senha da dona (pelo menos 8 caracteres)<input id="lj-senha" value="'+escHtml(sugerirSenha(""))+'" maxlength="72" autocomplete="off"/></label><div class="dica" style="margin-top:6px">Já vem uma sugestão, pode trocar. Depois de criar, você copia uma mensagem pronta com o endereço, o e-mail e a senha para mandar pelo WhatsApp. Se o e-mail já usa o app, a senha dela não muda.</div>')
     +'</section>'
     +'<section><div class="passo"><span>3</span>Instagram e anúncios</div><div class="dica">Depois de salvar, clique em <b>Conectar Instagram e anúncios</b>: abre a tela do Reportei para autorizar as contas da loja (você mesmo ou mandando o link para a dona). Os números passam a ser atualizados a cada 5 minutos.</div></section>'
     +'<div id="lj-erro" style="color:var(--ac2);font-size:13px" role="alert"></div>'
@@ -958,18 +981,23 @@ async function salvarLoja(){
       if(up.error)throw up.error;
       fecharDrawerLoja();avisar("Loja salva.");await carregarLojas();return;
     }
-    var enviar=!!(document.getElementById("lj-enviar")&&document.getElementById("lj-enviar").checked);
-    var d=await apiLojas({acao:"criar",nome:nome,nicho:nicho,site:site,email:email,enviar_email:enviar});
+    var senha=val("lj-senha");
+    if(senha.length<8){erro.textContent="A senha precisa ter pelo menos 8 caracteres.";btn.disabled=false;return;}
+    var d=await apiLojas({acao:"criar",nome:nome,nicho:nicho,site:site,email:email,senha:senha});
     await loadData();
-    mostrarLojaCriada(d,email,nome);
+    mostrarLojaCriada(d,email,nome,senha);
   }catch(e){erro.textContent="Erro: "+((e&&e.message)||e);btn.disabled=false;}
 }
-function mostrarLojaCriada(d,email,nome){
+function mostrarLojaCriada(d,email,nome,senha){
   drawerUid=d.user_id;
   var corpo=document.getElementById("dr-corpo"),rod=document.getElementById("dr-rodape");
   var acesso=d.ja_entrou?'<div class="dica">'+escHtml(email)+' já usa o app: a loja foi ligada à conta dela. Na próxima vez que ela entrar, já vê tudo.</div>'
     :d.email_enviado?'<div class="dica">Enviamos o convite para <b>'+escHtml(email)+'</b>. Se não chegar em alguns minutos (peça para olhar o spam), gere um link abaixo e mande pelo WhatsApp.</div>':'';
-  var link=d.link?'<label class="campo">Link para a dona criar a senha<input id="lj-link" readonly value="'+escHtml(d.link)+'"/></label><button class="btn-out" style="height:44px" onclick="copiarTexto(document.getElementById(\'lj-link\').value).then(function(){avisar(\'Link copiado. Mande para a dona pelo WhatsApp ou e-mail.\');})">Copiar link</button><div class="dica">O link vale por tempo limitado. Se expirar, gere outro no menu ⋯ da loja.</div>'
+  if(d.senha_definida){
+    acesso='<div class="dica">Mande esta mensagem para a dona pelo WhatsApp:</div><textarea id="lj-msg" readonly rows="7" style="width:100%;margin-top:8px">'+escHtml(mensagemAcesso(email,senha))+'</textarea>';
+    d.link=null;d.ja_entrou=true;
+  }
+  var link=d.senha_definida?'<button class="btn-out" style="height:44px" onclick="copiarTexto(document.getElementById(\'lj-msg\').value).then(function(){avisar(\'Mensagem copiada. Cole no WhatsApp da dona.\');})">Copiar mensagem</button>':d.link?'<label class="campo">Link para a dona criar a senha<input id="lj-link" readonly value="'+escHtml(d.link)+'"/></label><button class="btn-out" style="height:44px" onclick="copiarTexto(document.getElementById(\'lj-link\').value).then(function(){avisar(\'Link copiado. Mande para a dona pelo WhatsApp ou e-mail.\');})">Copiar link</button><div class="dica">O link vale por tempo limitado. Se expirar, gere outro no menu ⋯ da loja.</div>'
     :(!d.ja_entrou?'<button class="btn-out" style="height:44px" onclick="copiarLinkAcesso(\''+d.user_id+'\')">Gerar link para mandar pelo WhatsApp</button>':'');
   corpo.innerHTML='<div style="display:flex;gap:12px;align-items:center"><div class="av" style="background:rgba(45,222,152,.14);color:var(--ok)">✓</div><div><div style="font-weight:700;font-size:17px">'+escHtml(nome)+' criada</div><div class="mini">'+escHtml(email)+'</div></div></div>'
     +'<section><div class="passo"><span>1</span>Acesso da dona</div>'+acesso+'<div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">'+link+'</div></section>'
