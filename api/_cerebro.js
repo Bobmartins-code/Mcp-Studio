@@ -138,12 +138,12 @@ const ESQ_CADERNO = objeto({
     a_testar: { type: "array", items: ITEM, description: "O que apareceu em 1 campeão só: pista que vale testar. No máximo 6." },
     nao_funciona: { type: "array", items: ITEM, description: "O que aparece nos vídeos fracos e não aparece nos campeões. No máximo 5. Lista vazia se os dados não mostram." },
     publico: { type: "array", items: { type: "string" }, description: "De 2 a 5 frases sobre o público que os campeões confirmam (a dúvida que o campeão respondeu, a situação que prendeu, a faixa de idade que mais comprou)." + PT },
-    mudou: { type: "boolean", description: "true só se entrou, saiu ou mudou de força algum item em relação ao CADERNO ATUAL; false se ficou praticamente igual." }
+    mudou: { type: "boolean", description: "true só se entrou, saiu ou mudou de força algum item em relação ao CÉREBRO ATUAL; false se ficou praticamente igual." }
 });
 function textoCaderno(c) {
     if (!c || !((c.comprovado || []).length || (c.a_testar || []).length || (c.nao_funciona || []).length)) return "";
     function lin(x) { return "- " + x.texto + (x.provas ? " [" + x.provas + "]" : ""); }
-    return "\n\nCADERNO DA LOJA (o que o time já sabe, tirado dos vídeos campeões desta loja cruzados com o público; é a base mais segura para ideias e roteiros)" +
+    return "\n\nCÉREBRO DA LOJA (o que o time já sabe, tirado dos vídeos campeões desta loja cruzados com o público; é a base mais segura para ideias e roteiros)" +
         ((c.comprovado || []).length ? "\nCOMPROVADO (repita com peça, situação ou ângulo novos):\n" + c.comprovado.map(lin).join("\n") : "") +
         ((c.a_testar || []).length ? "\nA TESTAR (apareceu em 1 campeão; vale testar de novo):\n" + c.a_testar.map(lin).join("\n") : "") +
         ((c.nao_funciona || []).length ? "\nNÃO FUNCIONA NESTA LOJA (evite):\n" + c.nao_funciona.map(lin).join("\n") : "") +

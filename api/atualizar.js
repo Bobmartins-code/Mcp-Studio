@@ -118,7 +118,7 @@ module.exports = async function handler(req, res) {
             .sort(function (a, b) { return (usando(b.user_id) ? 1 : 0) - (usando(a.user_id) ? 1 : 0) || idadeCerebro(b) - idadeCerebro(a); });
         for (const c of cerebroFila.slice(0, CEREBRO_POR_RODADA)) {
             if (passou() > CEREBRO_ATE_MS) break;
-            await tentar(c.user_id, "cerebro", function () { return cerebroDaLoja(c.user_id, inicio + LIMITE_MS).then(function (x) { return { status: (x.status || "ok") + " | fichas " + (x.fichas || 0) + " | faltam " + (x.faltam || 0) + (x.caderno ? " | caderno" + (x.mudou ? " mudou" : " igual") : "") }; }); });
+            await tentar(c.user_id, "cerebro", function () { return cerebroDaLoja(c.user_id, inicio + LIMITE_MS).then(function (x) { return { status: (x.status || "ok") + " | fichas " + (x.fichas || 0) + " | faltam " + (x.faltam || 0) + (x.caderno ? " | cérebro" + (x.mudou ? " mudou" : " igual") : "") }; }); });
         }
 
         return res.status(200).json({ ok: true, atualizadas: feitos.length, falhas: falhas, puladas: puladas.length, analises: analises, falhas_analise: falhasAnalise, na_fila_agora: Math.max(0, agora.length - 1), olhos: require("./_olhos.js").disponivel(), ms: passou() });

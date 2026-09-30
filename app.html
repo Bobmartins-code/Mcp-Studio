@@ -1348,7 +1348,7 @@ function App(){
       var itemC=function(x,i,pill){return ce("div",{key:i,style:{fontSize:13,lineHeight:1.5,marginBottom:9}},ce("span",{className:"pill-s "+pill[1],style:{marginRight:6,fontSize:10.5}},pill[0]),x.texto,x.provas?ce("span",{style:{display:"block",fontSize:12,color:"var(--mu2)",marginTop:2}},x.provas):null);};
       var nv=cad.campeoes&&cad.campeoes.videos_com_ficha;
       return ce("div",{style:card},
-        ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:6}},"🧠 O que o time já sabe da sua loja"),
+        ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:6}},"🧠 Cérebro da sua loja"),
         cad.resumo?ce("div",{style:{fontSize:13,color:"var(--mu2)",lineHeight:1.5}},cad.resumo):null,
         (cad.comprovado||[]).length?rotC("Comprovado"):null,
         (cad.comprovado||[]).map(function(x,i){return itemC(x,i,["comprovado","pill-ok"]);}),

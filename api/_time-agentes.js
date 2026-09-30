@@ -852,7 +852,7 @@ function regrasDasIdeias(ctx, anteriores) {
     const hoje = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
     const datas = datasDoVarejo(new Date());
     return "\n\nCOMO USAR OS DADOS DESTA LOJA\n" +
-        "- O PILAR É O CADERNO DA LOJA E O MAPA DOS CAMPEÕES: o que está COMPROVADO no caderno é o ponto de partida (repita com peça, situação ou ângulo novos); o A TESTAR entra em no máximo 1 ideia de cada formato; o NÃO FUNCIONA fica de fora.\n" +
+        "- O PILAR É O CÉREBRO DA LOJA E O MAPA DOS CAMPEÕES: o que está COMPROVADO no cérebro é o ponto de partida (repita com peça, situação ou ângulo novos); o A TESTAR entra em no máximo 1 ideia de cada formato; o NÃO FUNCIONA fica de fora.\n" +
         "- COMECE PELAS OPORTUNIDADES CRUZADAS: a maior parte das ideias parte de uma delas (diga o número em oportunidade). Elas juntam o formato que prende no orgânico, a peça ou o argumento que vende nos anúncios e a dúvida ou a dor do público. Uma boa ideia usa as três: o jeito de gravar que já prendeu aqui, com a peça que já vende, respondendo ao que a cliente pergunta.\n" +
         "- Olhe o MAPA DOS CAMPEÕES, não só o engajamento: o mais visto mostra o que chega a gente nova, o de mais engajamento o que puxa interação, o de mais tempo assistido o que prende até o fim, o melhor gancho a abertura que segura, o mais compartilhado o que a cliente manda para a amiga; nos anúncios, o que mais vende (ou traz conversa e visita ao perfil) e o gancho que faz parar.\n" +
         "- Regra 80/20: a maior parte das ideias repete, com peça e situação novas, os FORMATOS-MÃE que já provaram resultado nesta conta; o resto testa um formato novo. Repetir o que funcionou com variação é o que dá constância.\n" +
@@ -940,7 +940,7 @@ function pedidosAvaliador(ctx, p, anteriores) {
         "- sem_cruzamento: a prova não junta pelo menos 2 fontes (orgânico, anúncios, público) com número;\n" +
         "- inventa_dado: cita preço, promoção, estoque, reposição, esgotou, lançamento ou número que não está nos DADOS. Confira cada número da prova nos dados; se não bater, corte;\n" +
         "- dificil_de_gravar: a dona não consegue gravar sozinha só com o celular.\n" +
-        "Prefira as ideias que partem do que está COMPROVADO no CADERNO DA LOJA; ideia que repete o que o caderno diz que NÃO FUNCIONA é generica.\n" +
+        "Prefira as ideias que partem do que está COMPROVADO no CÉREBRO DA LOJA; ideia que repete o que o cérebro diz que NÃO FUNCIONA é generica.\n" +
         (anteriores.length ? "\nJÁ SUGERIDAS NOS ÚLTIMOS 35 DIAS (título [mecânica | peça]):\n" + anteriores.slice(0, 40).join("\n") + "\n" : "") +
         cerebro.textoCaderno(ctx.caderno) + textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
         "\nPERGUNTAS DAS CLIENTES: " + JSON.stringify(((p.pub || ctx.dossie.publico || {}).perguntas_clientes) || []) +
@@ -983,8 +983,8 @@ function pedidoDiretor(ctx, p) {
             "- resumo_loja: 2 ou 3 frases curtas para a dona ler no celular, sem jargão: o que mais tem dado certo e o que gravar a seguir.\n" +
             "- por_metodo: para cada um dos 5 métodos abaixo, 1 ou 2 frases de como aplicar nesta loja com base nos dados.\n" +
             "- nicho: o nicho desta loja.\n" +
-            "- oportunidades: o seu trabalho mais importante. Parta do CADERNO DA LOJA (o comprovado vem primeiro) e CRUZE as três fontes: (1) no orgânico, o formato, o gancho e o assunto que mais prendem, olhando o MAPA DOS CAMPEÕES (mais vistos, mais engajamento, mais tempo assistido, melhor gancho, mais compartilhados) e não só o engajamento; (2) nos anúncios, a peça, o argumento e a oferta que mais vendem; (3) no público, as dúvidas dos comentários, as dores, as objeções e as situações do dia a dia. Cada oportunidade junta pelo menos 2 fontes, de preferência as 3, sempre com o número que prova. Procure também as lacunas: peça que vende nos anúncios e nunca apareceu num formato que prende no orgânico; formato campeão do orgânico que nunca virou anúncio; dúvida frequente que nenhum vídeo respondeu ainda. Nada de oportunidade genérica que serviria para qualquer loja.\n" +
-            "- O CADERNO DA LOJA e O QUE O TIME JÁ APRENDEU COM ESTA LOJA valem mais que as leituras gerais: coloque no texto o que está comprovado, o que não funciona e o gosto da dona.\n\n" + METODOS_RESUMO + cerebro.textoCaderno(ctx.caderno) + textoMemoria(p.mem || ctx.memoria) + "\n\n" + ctx.sobreLoja +
+            "- oportunidades: o seu trabalho mais importante. Parta do CÉREBRO DA LOJA (o comprovado vem primeiro) e CRUZE as três fontes: (1) no orgânico, o formato, o gancho e o assunto que mais prendem, olhando o MAPA DOS CAMPEÕES (mais vistos, mais engajamento, mais tempo assistido, melhor gancho, mais compartilhados) e não só o engajamento; (2) nos anúncios, a peça, o argumento e a oferta que mais vendem; (3) no público, as dúvidas dos comentários, as dores, as objeções e as situações do dia a dia. Cada oportunidade junta pelo menos 2 fontes, de preferência as 3, sempre com o número que prova. Procure também as lacunas: peça que vende nos anúncios e nunca apareceu num formato que prende no orgânico; formato campeão do orgânico que nunca virou anúncio; dúvida frequente que nenhum vídeo respondeu ainda. Nada de oportunidade genérica que serviria para qualquer loja.\n" +
+            "- O CÉREBRO DA LOJA e O QUE O TIME JÁ APRENDEU COM ESTA LOJA valem mais que as leituras gerais: coloque no texto o que está comprovado, o que não funciona e o gosto da dona.\n\n" + METODOS_RESUMO + cerebro.textoCaderno(ctx.caderno) + textoMemoria(p.mem || ctx.memoria) + "\n\n" + ctx.sobreLoja +
             "\nRELATÓRIO ORGÂNICO: " + resumoRel(p.org) + "\nRELATÓRIO DE ANÚNCIOS: " + resumoRel(p.ads) + "\nMAPA DE PÚBLICO: " + resumoRel(p.pub || ctx.dossie.publico) +
             dadosEmTexto(ctx, 20, 12, 30),
         max: 16000
@@ -1285,7 +1285,7 @@ async function pedidoCaderno(ctx, prazo) {
     const gravadas = (mem.vinculos || []).filter(function (v) { return v.confianca !== "baixa"; }).slice(0, 12).map(function (v) { return "- ideia \"" + corta(v.ideia, 120) + "\" virou o post de " + dataBR(v.data) + ": " + (RES[v.resultado] || v.resultado); })
         .concat((mem.vinculos_roteiros || []).filter(function (v) { return v.confianca !== "baixa"; }).slice(0, 12).map(function (v) { return "- roteiro \"" + corta(v.titulo, 120) + "\" virou o post de " + dataBR(v.data) + ": " + (RES[v.resultado] || v.resultado); }));
     const atual = { comprovado: cad.comprovado || [], a_testar: cad.a_testar || [], nao_funciona: cad.nao_funciona || [], publico: cad.publico || [] };
-    const texto = "Você é o AGENTE DO CADERNO do time. Você mantém o CADERNO DA LOJA: o que esta loja já sabe que funciona, com prova. O caderno é a base de todas as ideias e roteiros do time, então só entra o que os dados desta loja mostram.\n\n" +
+    const texto = "Você é o AGENTE DO CÉREBRO do time. Você mantém o CÉREBRO DA LOJA: o que esta loja já sabe que funciona, com prova. O cérebro é a base de todas as ideias e roteiros do time, então só entra o que os dados desta loja mostram.\n\n" +
         "COMO TRABALHAR\n" +
         "- Estude os VÍDEOS CAMPEÕES (os 5 melhores de cada critério no orgânico e nos anúncios). Em cada um, olhe a FALA e COMO É O VÍDEO: primeiro segundo, cenário, quem aparece, onde fica o celular, sequência, transições, texto na tela, ritmo, duração, peça e argumento.\n" +
         "- Compare os campeões entre si: o que se repete em 2 ou mais é o que funciona aqui. Diga em que critério eles ganham (um jeito que prende no gancho pode não vender).\n" +
@@ -1293,10 +1293,10 @@ async function pedidoCaderno(ctx, prazo) {
         "- Cruze com o PÚBLICO: a dúvida, a dor, o desejo ou a situação que cada campeão respondeu, de preferência com um comentário real.\n" +
         "- Olhe os VÍDEOS FRACOS para achar o que não funciona (o que eles têm e os campeões não têm).\n" +
         "- Use as IDEIAS E ROTEIROS DO TIME QUE A DONA GRAVOU: resultado acima da média confirma; abaixo enfraquece.\n" +
-        "- Atualize o CADERNO ATUAL em vez de começar do zero: mantenha o que continua valendo, suba de a testar para comprovado quando aparecer mais uma prova, rebaixe ou tire o que os dados não sustentam mais.\n" +
+        "- Atualize o CÉREBRO ATUAL em vez de começar do zero: mantenha o que continua valendo, suba de a testar para comprovado quando aparecer mais uma prova, rebaixe ou tire o que os dados não sustentam mais.\n" +
         "- comprovado: 2 ou mais campeões (ou 1 campeão e um pedido real das clientes). a_testar: 1 campeão só. Cada item é uma regra prática desta loja, concreta o bastante para virar vídeo, com o número que prova.\n" +
         "- Cite os vídeos pela data e por uma descrição curta, nunca pelo código (P1, A1).\n" +
-        "- mudou: true só se o caderno mudou de verdade em relação ao CADERNO ATUAL.\n\n" +
+        "- mudou: true só se o cérebro mudou de verdade em relação ao CÉREBRO ATUAL.\n\n" +
         ctx.sobreLoja + "\nDADOS DE SEGUIDORES: " + (ctx.demografia || "não disponível") +
         "\nMAPA DE PÚBLICO: " + resumoDoPublico(ctx.dossie.publico) +
         textoCampeoes(ctx) +
@@ -1304,13 +1304,13 @@ async function pedidoCaderno(ctx, prazo) {
         (campeoesA.length ? "\n\nANÚNCIOS CAMPEÕES (resultado = " + nomeResultado(ctx.ads.tipo) + "):\n" + campeoesA.map(function (x) { return linhaAnuncio(ctx.ads.tipo, x.a, x.i); }).join("\n") : "") +
         (fracos.length ? "\n\nVÍDEOS FRACOS (menos interações entre os posts de 3 dias ou mais):\n" + fracos.map(function (x) { return linhaPost(x.p, x.i); }).join("\n") : "") +
         (gravadas.length ? "\n\nIDEIAS E ROTEIROS DO TIME QUE A DONA GRAVOU:\n" + gravadas.join("\n") : "") +
-        "\n\nCADERNO ATUAL:\n" + (cad.atualizado_em ? JSON.stringify(atual) : "vazio (primeira vez)");
+        "\n\nCÉREBRO ATUAL:\n" + (cad.atualizado_em ? JSON.stringify(atual) : "vazio (primeira vez)");
     // fotos e carrosseis campeoes nao tem video para assistir: vai a capa
     const fotos = campeoesP.filter(function (x) { return !cerebro.ehVideoPost(x.p) && x.p.miniatura; }).slice(0, 5);
     const imgs = await Promise.all(fotos.map(function (x) { return imagemBase64(x.p.miniatura).then(function (im) { return im ? [x, im] : null; }); }));
     const blocos = [{ type: "text", text: texto }];
     imgs.filter(Boolean).forEach(function (par) { blocos.push({ type: "text", text: "Imagem do post campeão P" + (par[0].i + 1) + " (" + (par[0].p.tipo || "post") + " de " + dataBR(par[0].p.data) + "):" }, par[1]); });
-    return { chave: "caderno", nome: "Agente do Caderno", esquema: cerebro.ESQ_CADERNO, pedido: blocos, max: 14000, prazo: prazo };
+    return { chave: "caderno", nome: "Agente do Cérebro", esquema: cerebro.ESQ_CADERNO, pedido: blocos, max: 14000, prazo: prazo };
 }
 function salvarCaderno(userId, caderno) {
     return banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { caderno: caderno } });
@@ -1425,7 +1425,7 @@ async function gerarMaisIdeias(userId) {
 // ---------- quando cada loja e analisada (usado por api/atualizar.js) ----------
 // c: linha de contas_meta (status, atualizado_em, assinatura, dossie_versao, dossie_em, tem_job);
 // acessoEm: ultima vez que a dona abriu o app; ativaDesde: quando a loja entrou (conexao no Reportei)
-// novidade desde a ultima analise: o caderno mudou de verdade (campeao novo, resultado de ideia gravada)
+// novidade desde a ultima analise: o cérebro mudou de verdade (campeao novo, resultado de ideia gravada)
 // ou a dona contou produtos novos; sem caderno ainda, vale o post novo (como antes)
 const NOVIDADE_MS = 44 * HORA_MS;                 // com novidade: no maximo a cada 2 noites
 const SEM_NOVIDADE_MS = 7 * DIA_MS - 4 * HORA_MS; // sem novidade: 1 vez por semana
