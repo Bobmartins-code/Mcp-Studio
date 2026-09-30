@@ -513,7 +513,7 @@ function aplicarMeta(met, cache) {
         const vis = cache.visitas && cache.visitas[per], bloco = met.anuncios && met.anuncios[per];
         if (vis && bloco) {
             let total = 0;
-            (bloco.anuncios || []).forEach(function (a) { a.visitas = num(vis[a.id]); total += a.visitas; });
+            (bloco.anuncios || []).forEach(function (a) { a.visitas = Math.max(num(a.visitas), num(vis[a.id])); total += a.visitas; });
             if (bloco.totais) bloco.totais.visitas = total;
         }
     });

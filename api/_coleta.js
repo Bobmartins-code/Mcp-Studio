@@ -306,6 +306,8 @@ function montarAnuncios(linhas, objetivo) {
         if (a.retencao != null && med.retencao) dg.push(a.thru / a.v3 >= med.retencao ? "corpo segura" : "corpo perde gente");
         if (a.impressoes && a.cliques && med.ctr) dg.push(a.cliques / a.impressoes >= med.ctr ? "CTA puxa clique" : "CTA fraco");
         a.diagnostico = dg.join(", ");
+        // campanha de visitas ao perfil: o resultado dela sao as visitas
+        if (a.res_nome && /visitas? ao perfil/.test(a.res_nome[1])) a.visitas = a.resultados_brutos;
         a.gasto = arred(a.gasto, 2);
         delete a.ctr_bruto; delete a.v3; delete a.thru; delete a.resultados_brutos;
     });
@@ -321,7 +323,7 @@ function montarAnuncios(linhas, objetivo) {
     }
     return {
         tipo_resultado: tipo, objetivo: objetivo || "auto",
-        totais: { gasto: arred(tot.gasto, 2), resultados: totalRes, res_nome: resNome, misto: misto, custo_medio: totalRes > 0 ? arred(tot.gasto / totalRes, 2) : null, compras: tot.compras, conversas: tot.conversas, receita: arred(tot.receita, 2), roas: tot.gasto && tot.receita ? arred(tot.receita / tot.gasto, 2) : null, alcance: tot.alcance, cliques: tot.cliques },
+        totais: { visitas: lista.reduce(function (s, a) { return s + (a.visitas || 0); }, 0), gasto: arred(tot.gasto, 2), resultados: totalRes, res_nome: resNome, misto: misto, custo_medio: totalRes > 0 ? arred(tot.gasto / totalRes, 2) : null, compras: tot.compras, conversas: tot.conversas, receita: arred(tot.receita, 2), roas: tot.gasto && tot.receita ? arred(tot.receita / tot.gasto, 2) : null, alcance: tot.alcance, cliques: tot.cliques },
         medias: { taxa_gancho: arred(med.gancho * 100, 1), retencao: arred(med.retencao * 100, 1), ctr: arred(med.ctr * 100, 2) },
         anuncios: lista.slice(0, 40)
     };
