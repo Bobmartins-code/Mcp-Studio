@@ -87,7 +87,7 @@ COMO MEDIMOS RESULTADO
 - Ficaram nos 3 primeiros segundos (Reels, vem da Meta): quem não pulou o vídeo logo no começo. Mostra a força do gancho.
 - Tempo médio assistido (Reels, vem da Meta): quantos segundos, em média, as pessoas assistem.
 - Taxa de gancho dos anúncios = quem assistiu 3 segundos dividido pelas impressões. Retenção = quem assistiu até o fim dividido por quem assistiu 3 segundos. Taxa de clique = cliques dividido pelas impressões.
-- Códigos: P1, P2... são os posts da loja e A1, A2... os anúncios, na ordem em que aparecem nos dados. Use o código quando citar um exemplo.
+- Códigos: P1, P2... são os posts da loja e A1, A2... os anúncios, na ordem em que aparecem nos dados. Use o código quando citar um exemplo, sozinho, sem escrever "o anúncio" ou "o post" antes (o sistema troca o código pelo nome).
 `.trim();
 
 // Os 5 metodos em poucas linhas: o Diretor so precisa saber para que serve cada um
@@ -1005,6 +1005,10 @@ function semCodigos(texto, mapa) {
 // ajustes do texto que a dona le, depois de trocar os codigos pelos nomes
 function portuguesLimpo(s) {
     if (typeof s !== "string") return s;
+    // o agente escreveu "o anuncio A1": sem artigo repetido ("o anuncio o anuncio “X”" -> "o anuncio “X”")
+    s = s.replace(/\b([Oo]s) anúncios ((?:o anúncio “[^”]*”(?:, | e )?)+)/g, function (t, os, lista) { return os + " anúncios " + lista.replace(/o anúncio “/g, "“"); })
+        .replace(/\b([Oo]) anúncio o anúncio “/g, "$1 anúncio “")
+        .replace(/\b([Oo]) (Reels|post) o (Reels|post)\b/g, "$1 $3");
     // "o anuncio X, o anuncio X e o anuncio Y" -> "o anuncio X e o anuncio Y" (anuncios com o mesmo nome)
     s = s.replace(/((?:o anúncio \u201C[^\u201D]*\u201D|o (?:Reels|post)(?: de \d{1,2}\/\d{1,2})?|um dos seus (?:anúncios|posts)|o seu anúncio)(?:(?:, | e )(?:o anúncio \u201C[^\u201D]*\u201D|o (?:Reels|post)(?: de \d{1,2}\/\d{1,2})?|um dos seus (?:anúncios|posts)|o seu anúncio))+)/g, function (lista) {
         const itens = lista.split(/, | e /), vistos = [];
