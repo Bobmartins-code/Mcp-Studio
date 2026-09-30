@@ -134,9 +134,12 @@ async function transcrever(url, buf) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error("Sem chave da OpenAI");
     if (!buf) buf = await baixar(url, LIMITE_BYTES);
+    // video grande: manda so o audio (fica bem menor)
+    let nome = "video.mp4", tipo = "video/mp4";
+    if (buf.length > LIMITE_BYTES && olhos.disponivel()) { buf = await olhos.audioDoVideo(buf); nome = "audio.mp3"; tipo = "audio/mpeg"; }
     if (buf.length > LIMITE_BYTES) throw new Error("Video grande demais para transcrever");
     const form = new FormData();
-    form.append("file", new Blob([buf], { type: "video/mp4" }), "video.mp4");
+    form.append("file", new Blob([buf], { type: tipo }), nome);
     form.append("model", "whisper-1");
     form.append("language", "pt");
     const t = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + apiKey }, body: form, signal: AbortSignal.timeout(50000) });

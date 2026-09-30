@@ -87,6 +87,21 @@ async function quadros(buf) {
     }
 }
 
+// so o audio do video, pequeno (mono, 48 kbps): para ler a fala de video grande demais para o Whisper
+async function audioDoVideo(buf) {
+    if (!ffmpeg()) throw new Error("ffmpeg indisponível");
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), "audio-"));
+    try {
+        const arq = path.join(pasta, "v.mp4"), saida = path.join(pasta, "a.mp3");
+        fs.writeFileSync(arq, buf);
+        await rodar(["-hide_banner", "-loglevel", "error", "-i", arq, "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", "-y", saida], 60000);
+        if (!fs.existsSync(saida) || fs.statSync(saida).size < 1000) throw new Error("não consegui tirar o áudio do vídeo");
+        return fs.readFileSync(saida);
+    } finally {
+        try { fs.rmSync(pasta, { recursive: true, force: true }); } catch (e) {}
+    }
+}
+
 async function descrever(userId, q, extra) {
     const conteudo = [];
     q.imgs.forEach(function (im) {
@@ -132,4 +147,4 @@ function textoVisual(v) {
         "; sequência: " + (v.sequencia || []).join(" > ") + "; transições: " + v.transicoes + (v.texto_na_tela ? "; texto na tela: " + v.texto_na_tela : "") + "; ritmo " + v.ritmo + (v.duracao_s ? "; " + String(v.duracao_s).replace(".", ",") + " s" : "");
 }
 
-module.exports = { olharVideo, textoVisual, disponivel: function () { return !!ffmpeg(); }, _interno: { quadros, momentos, descrever } };
+module.exports = { olharVideo, textoVisual, audioDoVideo, disponivel: function () { return !!ffmpeg(); }, _interno: { quadros, momentos, descrever } };
