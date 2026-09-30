@@ -384,7 +384,7 @@ function textoCampeoes(ctx) {
     const codP = {}, codA = {};
     posts.forEach(function (p, i) { codP[p.id] = "P" + (i + 1); });
     ads.forEach(function (a, i) { codA[a.id] = "A" + (i + 1); });
-    function un(c, v) { return c.un.charAt(0) === "%" ? numTxt(v) + c.un : numTxt(v) + " " + c.un; }
+    function un(c, v) { return c.reais ? brl(v) + " " + c.un : c.un.charAt(0) === "%" ? numTxt(v) + c.un : numTxt(v) + " " + c.un; }
     mapa.org.forEach(function (c) {
         const l = c.top.filter(function (x) { return codP[x.id]; }).map(function (x) { return codP[x.id] + " (" + un(c, x.valor) + ")"; });
         if (l.length) linhas.push("- " + c.nome + ": " + l.join(", "));
@@ -459,7 +459,7 @@ function linhaAnuncio(tipo, a, i) {
         (a.receita > 0 ? " | vendeu " + brl(a.receita) + (a.roas ? " (voltou " + String(a.roas).replace(".", ",") + " vezes o investido)" : "") : "") +
         (cansou ? " | CANSANDO: nos últimos 7 dias o custo por resultado subiu para " + brl(c7) : "") +
         (a.taxa_gancho != null ? " | taxa de gancho " + a.taxa_gancho + "%" : "") + (a.retencao != null ? " | retenção " + a.retencao + "%" : "") +
-        (a.ctr != null ? " | taxa de clique " + a.ctr + "%" : "") + (a.compras ? " | compras " + a.compras : "") + (a.conversas ? " | conversas " + a.conversas : "") + (a.visitas ? " | visitas ao perfil " + a.visitas : "") +
+        (a.ctr != null ? " | taxa de clique " + a.ctr + "%" : "") + (a.compras ? " | compras " + a.compras : "") + (a.conversas ? " | conversas " + a.conversas : "") + (a.visitas ? " | visitas ao perfil " + a.visitas + " (" + brl(a.gasto / a.visitas) + " por visita)" : "") +
         (a.diagnostico ? " | " + a.diagnostico : "") + (a.titulo ? " | TÍTULO: " + corta(a.titulo, 120) : "") + (a.texto ? " | TEXTO DO ANÚNCIO: " + corta(a.texto, 400) : "") +
         (a.transcricao ? " | FALA DO VÍDEO: " + corta(a.transcricao, 700) : "") +
         (a.post_id ? " | é um post orgânico da loja que virou anúncio" : "") + (a.visual ? " | COMO É O VÍDEO: " + textoVisual(a.visual) : "");

@@ -385,6 +385,8 @@ function faixaDoPeriodo(per){var h=new Date();if(per==="mes")return [new Date(h.
 // o mes que ainda nao foi coletado (loja atualizada antes desta versao) cai nos 30 dias; o mes vazio fica vazio
 function adsDoPeriodo(dl,per){if(!dl||!dl.ads)return null;var mes=typeof per==="string";var a=dl.ads[mes?per:"p"+per];if(a&&(mes||(a.anuncios||[]).length))return {dados:a,per:per};var alt=dl.ads.p90||dl.ads.p30||dl.ads.p7;if(mes&&dl.ads.p30)return {dados:dl.ads.p30,per:30};return alt?{dados:alt,per:dl.ads.p90?90:dl.ads.p30?30:7}:null;}
 function postsDoPeriodo(dl,per){var f=faixaDoPeriodo(per);return ((dl&&dl.posts)||[]).filter(function(p){if(!p.data)return false;var t=new Date(p.data).getTime();return t>=f[0]&&t<f[1];});}
+// quanto custou cada visita ao perfil (anuncio sem visita vai para o fim)
+function porVisita(a){return a&&a.visitas>0?(a.gasto||0)/a.visitas:1e12;}
 function rotRes(tipo,n,nome){var um=n===1;if(tipo!=="vendas"&&tipo!=="conversas"&&nome&&nome.length===2)return um?nome[0]:nome[1];if(tipo==="vendas")return um?"compra":"compras";if(tipo==="conversas")return um?"conversa":"conversas";return um?"resultado":"resultados";}
 function quando(iso){if(!iso)return "";var d=new Date(iso),h=d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}),hoje=new Date();var ontem=new Date(Date.now()-864e5);if(d.toDateString()===hoje.toDateString())return "hoje às "+h;if(d.toDateString()===ontem.toDateString())return "ontem às "+h;return "em "+d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" às "+h;}
 function compacto(n){if(n==null)return "-";n=Number(n)||0;if(n>=1e6)return (n/1e6).toFixed(1).replace(".",",")+" mi";if(n>=1e4)return (n/1e3).toFixed(1).replace(".",",")+" mil";return n.toLocaleString("pt-BR");}
@@ -1603,17 +1605,17 @@ function App(){
   function renderAnuncios(dl){
     var ap=adsDoPeriodo(dl,periodo);if(!ap)return null;
     var a=ap.dados,tr=a.tipo_resultado,t=a.totais||{};
-    var ord={resultado:function(x,y){return ((y.resultados||0)-(x.resultados||0))||((y.gasto||0)-(x.gasto||0));},visitas:function(x,y){return ((y.visitas||0)-(x.visitas||0))||((y.gasto||0)-(x.gasto||0));},custo:function(x,y){return (x.custo_por_resultado||1e12)-(y.custo_por_resultado||1e12);},gasto:function(x,y){return (y.gasto||0)-(x.gasto||0);},
+    var ord={resultado:function(x,y){return ((y.resultados||0)-(x.resultados||0))||((y.gasto||0)-(x.gasto||0));},visitas:function(x,y){return porVisita(x)-porVisita(y)||((y.visitas||0)-(x.visitas||0));},custo:function(x,y){return (x.custo_por_resultado||1e12)-(y.custo_por_resultado||1e12);},gasto:function(x,y){return (y.gasto||0)-(x.gasto||0);},
       gancho:function(x,y){return (y.taxa_gancho==null?-1:y.taxa_gancho)-(x.taxa_gancho==null?-1:x.taxa_gancho);},retencao:function(x,y){return (y.retencao==null?-1:y.retencao)-(x.retencao==null?-1:x.retencao);}};
-    var lista=(a.anuncios||[]).slice().sort(ord[ordemAds]||ord.resultado);
+    var lista=(a.anuncios||[]).filter(function(x){return ordemAds!=="visitas"||x.visitas>0;}).sort(ord[ordemAds]||ord.resultado);
     var chaveAds="ads:"+ordemAds+":"+periodo,mostrar=lista.slice(0,limiteDe(chaveAds));
     var plural=rotRes(tr,2,t.res_nome);
     return ce("div",null,
       (function(){var cel=t.misto?[["Investido",brl(t.gasto)],["Alcance",numBR(t.alcance||0)],["Cliques",numBR(t.cliques||0)]]:[[plural.charAt(0).toUpperCase()+plural.slice(1),numBR(t.resultados||0)],["Investido",brl(t.gasto)],["Por "+rotRes(tr,1,t.res_nome),t.custo_medio?brl(t.custo_medio):"-"]];
         if(t.receita>0)cel.push(["Valor em vendas",brl(t.receita)]);
-        if(t.visitas>0)cel.push(["Visitas ao perfil",numBR(t.visitas)]);
+        if(t.visitas>0){var comVis=(a.anuncios||[]).filter(function(x){return x.visitas>0;}),gv=comVis.reduce(function(s,x){return s+(x.gasto||0);},0),nv=comVis.reduce(function(s,x){return s+x.visitas;},0);cel.push(["Visitas ao perfil",numBR(t.visitas)]);if(nv)cel.push(["Por visita ao perfil",brl(gv/nv)]);}
         return ce("div",{className:"mgrid",style:cel.length>3?{gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))"}:null},cel.map(function(c){return ce("div",{key:c[0],className:"mcell"},ce("div",{className:"mcell-l"},c[0]),ce("div",{className:"mcell-v"},c[1]),c[2]?ce("div",{className:"mcell-s"},c[2]):null);}));})(),
-      ce("div",{className:"ords"},[{id:"resultado",lb:"Mais "+plural},{id:"visitas",lb:"Mais visitas ao perfil",so:"visitas",pos:true},{id:"gancho",lb:"Melhor gancho",so:"taxa_gancho"}].filter(function(o){return !o.so||(a.anuncios||[]).some(function(x){return o.pos?x[o.so]>0:x[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
+      ce("div",{className:"ords"},[{id:"resultado",lb:"Mais "+plural},{id:"visitas",lb:"Menor custo por visita",so:"visitas",pos:true},{id:"gancho",lb:"Melhor gancho",so:"taxa_gancho"}].filter(function(o){return !o.so||(a.anuncios||[]).some(function(x){return o.pos?x[o.so]>0:x[o.so]!=null;});}).map(function(o){return ce("button",{key:o.id,className:"chip"+(ordemAds===o.id?" on":""),onClick:function(){setOrdemAds(o.id);}},o.lb);})),
       chipsPeriodo(),ce("div",{className:"qtd"},ap.per!==periodo?ce("span",{style:{color:"var(--gold)"}},typeof periodo==="string"?"Os números do mês chegam na próxima atualização. Mostrando os últimos "+ap.per+" dias":"Mostrando os últimos "+ap.per+" dias"):null),
       lista.length
         ?ce("div",null,mostrar.map(function(x,i){return ce("button",{key:(x.id||x.nome)+i,className:"arow",onClick:function(){setVideoSel({tipo:"ad",item:x,ads:a});}},
@@ -1622,7 +1624,7 @@ function App(){
             ce("span",{style:{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},x.nome),
             ce("span",{style:{fontSize:20,fontWeight:800}},numBR(x.resultados||0)+" "+rotRes(tr,x.resultados,x.res_nome)),
             ordemAds==="gancho"&&x.taxa_gancho!=null?ce("span",{style:{fontSize:12.5,fontWeight:700,color:"var(--ac2)"}},String(x.taxa_gancho).replace(".",",")+"% pararam para ver (gancho de 3 segundos)"):null,
-            ordemAds==="visitas"?ce("span",{style:{fontSize:12.5,fontWeight:700,color:"var(--ac2)"}},numBR(x.visitas||0)+((x.visitas||0)===1?" visita ao perfil":" visitas ao perfil")):null,
+            ordemAds==="visitas"?ce("span",{style:{fontSize:12.5,fontWeight:700,color:"var(--ac2)"}},brl(porVisita(x))+" por visita ao perfil · "+numBR(x.visitas)+(x.visitas===1?" visita":" visitas")):null,
             ce("span",{style:{fontSize:12.5,color:"var(--mu2)"}},brl(x.gasto)+(x.custo_por_resultado?" · "+brl(x.custo_por_resultado)+" por "+rotRes(tr,1,x.res_nome):"")+(x.receita>0?" · "+brl(x.receita)+" em vendas":"")+(tr==="vendas"&&x.conversas?" · "+numBR(x.conversas)+(x.conversas===1?" conversa":" conversas"):"")+(ordemAds!=="visitas"&&x.visitas>0?" · "+numBR(x.visitas)+" visitas ao perfil":""))),
           ico("seta",18,"var(--mu2)"));}),verMais(chaveAds,lista.length))
         :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum anúncio com investimento nesse período.")
@@ -1688,7 +1690,7 @@ function App(){
     if(v.receita>0)grade.push(["Valor em vendas",brl(v.receita)]);
     if(tr!=="vendas"&&v.compras)grade.push(["Compras",numBR(v.compras)]);
     if(tr!=="conversas"&&v.conversas)grade.push(["Conversas",numBR(v.conversas)]);
-    if(v.visitas>0)grade.push(["Visitas ao perfil",numBR(v.visitas)]);
+    if(v.visitas>0)grade.push(["Visitas ao perfil",numBR(v.visitas)],["Por visita ao perfil",brl(porVisita(v))]);
     grade.push(["Alcance",numBR(v.alcance||0)],["Cliques",numBR(v.cliques||0)],["Por clique",v.cpc?brl(v.cpc):"-"]);
     if(v.ctr!=null)grade.push(["CTR",String(v.ctr).replace(".",",")+"%"]);
     if(v.frequencia)grade.push(["Frequência",String(Math.round(v.frequencia*10)/10).replace(".",",")]);

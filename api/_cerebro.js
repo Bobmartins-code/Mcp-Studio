@@ -8,7 +8,7 @@
 //      salvamentos + compartilhamentos), mais tempo assistido, melhor gancho
 //      e mais compartilhados
 //    - anuncios: mais compras e melhor gancho; na loja medida por conversas
-//      e visitas ao perfil: mais conversas, mais visitas ao perfil e melhor gancho
+//      e visitas ao perfil: mais conversas, menor custo por visita ao perfil e melhor gancho
 //  Cada campeao em video ganha uma ficha (fala lida e video assistido, uma vez
 //  so, em api/_meta-leitura.js). O Agente do Caderno (api/_time-agentes.js)
 //  compara os campeoes com o publico e guarda o que a loja ja sabe em
@@ -43,7 +43,8 @@ function criteriosAds(objetivo, tipo) {
     const gancho = { id: "gancho", nome: "anúncio com melhor gancho", rot: "melhor gancho nos anúncios", un: "% pararam para ver", valor: function (a) { return temValor(a.taxa_gancho) ? num(a.taxa_gancho) : null; } };
     if (objetivo === "conversas_visitas") return [
         { id: "conversas", nome: "anúncio com mais conversas", rot: "mais conversas", un: "conversas", valor: function (a) { return num(a.conversas); } },
-        { id: "visitas", nome: "anúncio com mais visitas ao perfil", rot: "mais visitas ao perfil", un: "visitas ao perfil", valor: function (a) { return num(a.visitas); } },
+        // custo por visita: so com 10 visitas ou mais (menos que isso e sorte); quanto menor, melhor
+        { id: "custo_visita", nome: "anúncio com menor custo por visita ao perfil", rot: "menor custo por visita ao perfil", un: "por visita ao perfil", reais: true, menor: true, valor: function (a) { return num(a.visitas) >= 10 ? num(a.gasto) / num(a.visitas) : null; } },
         gancho
     ];
     const nome = tipo === "vendas" ? "compras" : tipo === "conversas" ? "conversas" : "resultados";
@@ -54,7 +55,7 @@ function postMaduro(p, agora) { return p && p.alcance > 0 && !p.pouco_alcance &&
 function anuncioMaduro(a) { return a && (num(a.gasto) >= ANUNCIO_MIN_GASTO || num(a.impressoes) >= ANUNCIO_MIN_IMPRESSOES); }
 function ranking(itens, c) {
     return itens.map(function (x) { return { x: x, v: c.valor(x) }; }).filter(function (r) { return r.v !== null && r.v > 0; })
-        .sort(function (a, b) { return b.v - a.v; }).slice(0, TOP);
+        .sort(function (a, b) { return c.menor ? a.v - b.v : b.v - a.v; }).slice(0, TOP);
 }
 
 // met: contas_meta.metricas com a Meta ja aplicada (tempo assistido, gancho, visitas)
@@ -73,7 +74,7 @@ function mapaCampeoes(met, objetivo, agora) {
     criteriosAds(objetivo, mapa.tipo).forEach(function (c) {
         const top = ranking(ads, c);
         if (!top.length) return;
-        mapa.ads.push({ id: c.id, nome: c.nome, un: c.un, top: top.map(function (r) { return { id: r.x.id, valor: r.v }; }) });
+        mapa.ads.push({ id: c.id, nome: c.nome, un: c.un, reais: !!c.reais, top: top.map(function (r) { return { id: r.x.id, valor: r.v }; }) });
         top.forEach(function (r, i) { (mapa.porAnuncio[r.x.id] = mapa.porAnuncio[r.x.id] || []).push({ c: c.id, nome: c.rot, pos: i + 1, valor: r.v, un: c.un }); });
     });
     return mapa;
