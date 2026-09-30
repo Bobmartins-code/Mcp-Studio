@@ -97,7 +97,7 @@ function alvosDeFicha(mapa, met, cache) {
         const p = posts[id];
         if (!ehVideoPost(p) || !/^\d{8,}$/.test(id)) return;
         const c = cp[id] || {};
-        const fala = !c.transcricao && velho(c.fala_erro_em, NOVA_TENTATIVA_MS);
+        const fala = !c.transcricao && !c.sem_fala && velho(c.fala_erro_em, NOVA_TENTATIVA_MS);
         const olhos = !c.visual && velho(c.olhos_erro_em, NOVA_TENTATIVA_MS);
         if (fala || olhos) out.push({ tipo: "post", id: id, fala: fala, olhos: olhos, forca: forcaCampeao(mapa.porPost[id]) });
     });
@@ -106,7 +106,7 @@ function alvosDeFicha(mapa, met, cache) {
         if (!/^\d{8,}$/.test(id) || !(c.ig_media_id || c.video_id)) return;
         // anuncio feito de um post: a ficha e a do post
         const doPost = c.ig_media_id && cp[c.ig_media_id];
-        const temFala = c.transcricao || (doPost && doPost.transcricao), temOlhos = c.visual || (doPost && doPost.visual);
+        const temFala = c.transcricao || c.sem_fala || (doPost && (doPost.transcricao || doPost.sem_fala)), temOlhos = c.visual || (doPost && doPost.visual);
         const fala = !temFala && velho(c.fala_erro_em, NOVA_TENTATIVA_MS);
         const olhos = !temOlhos && velho(c.olhos_erro_em, NOVA_TENTATIVA_MS);
         if (fala || olhos) out.push({ tipo: "anuncio", id: id, fala: fala, olhos: olhos, forca: forcaCampeao(mapa.porAnuncio[id]) });

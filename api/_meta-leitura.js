@@ -380,7 +380,8 @@ async function fazerFichas(userId, met, cache, alvos, token, prazo) {
                     try { guardarFala(alvo, await transcrever(url, buf)); }
                     catch (e) { alvo.fala_erro_em = agora; console.error("[meta] fala do campeao " + x.id + ": " + (e && e.message)); }
                 }
-                if (x.olhos && olhos.disponivel()) {
+                if (x.olhos && !olhos.disponivel()) alvo.olhos_erro_em = agora;   // sem a ferramenta de video: tenta de novo em 3 dias
+                else if (x.olhos) {
                     const it = x.tipo === "post" ? posts[x.id] : ads[x.id];
                     try {
                         alvo.visual = await olhos.olharVideo(url, userId, { legenda: x.tipo === "post" ? (it && it.legenda) : (alvo.texto || (it && it.nome)), fala: alvo.transcricao }, buf);
