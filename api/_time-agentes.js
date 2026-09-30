@@ -22,10 +22,15 @@
 //       4 curtos, 3 narrados e 3 provadores
 //    5. Os especialistas escrevem por completo so os escolhidos (e 2 de reserva cada)
 //
+//  A base de tudo e o CEREBRO DA LOJA (api/_cerebro.js): o mapa dos campeoes (os 5 melhores
+//  videos de cada criterio no organico e nos anuncios, com a fala lida e o video assistido)
+//  e o caderno (o que a loja ja sabe: comprovado, a testar, nao funciona e publico), que o
+//  Agente do Caderno atualiza sozinho a cada campeao novo (cerebroDaLoja, na rodada de 5 min).
+//
 //  Economia: os 3 especialistas recebem o mesmo pacote de dados, gravado no cache
-//  da Anthropic pelo primeiro (os outros pagam 10% por essa parte); e a loja so e
-//  analisada de novo quando ha novidade (post, anuncio ou produto novo), no maximo
-//  a cada 2 noites, e pelo menos a cada 3.
+//  da Anthropic pelo primeiro (os outros pagam 10% por essa parte); e a analise completa
+//  (ideias novas) so roda quando o caderno muda de verdade (no maximo a cada 2 noites),
+//  quando a dona conta produtos novos, ou 1 vez por semana.
 //
 //  Dois jeitos de rodar as mesmas etapas (estado em contas_meta.dossie_job):
 //    - "lote": a analise diaria da madrugada, pela Batch API da Anthropic (metade do preco);
@@ -44,6 +49,8 @@ const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei
 const { blocoDaResposta, diaSP, assinaturaDe } = require("./_coleta.js");
 const { enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia } = require("./_meta-leitura.js");
 const { textoVisual } = require("./_olhos.js");
+const cerebro = require("./_cerebro.js");
+const { fichasDaLoja, salvarMeta } = require("./_meta-leitura.js");
 
 const MODELO = "claude-sonnet-5";
 const API = "https://api.anthropic.com/v1";
@@ -74,8 +81,9 @@ REGRAS
 - Não use etiquetas de ação para anúncios como Escalar, Manter ou Otimizar.
 
 COMO MEDIMOS RESULTADO
-- Orgânico: engajamento (curtidas, comentários, salvamentos) e compartilhamentos, com compartilhamento valendo o dobro, sempre em relação ao alcance. O índice compara cada post com a média da própria conta: 1,0 é na média, 2,0 é o dobro. Posts dos últimos 30 dias pesam mais.
-- Anúncios: resultado é venda. Se a loja não tem pixel e vende pelo WhatsApp ou Direct, resultado são as conversas iniciadas. Campanhas com objetivos diferentes (alcance, visitas ao perfil, cliques) se comparam só entre as de mesmo objetivo.
+- Orgânico, 5 critérios (cada um mostra um lado do resultado; um post pode ser fraco num e campeão noutro): mais vistos (visualizações: chega a quem não segue), mais engajamento (total de interações: curtidas + comentários + salvamentos + compartilhamentos, o número que a dona vê), mais tempo assistido, melhor gancho (ficaram nos 3 primeiros segundos) e mais compartilhados (a cliente manda para a amiga). Posts dos últimos 30 dias pesam mais. O índice (x a média) compara o engajamento com o alcance e serve só para comparar posts de alcance muito diferente.
+- Anúncios: resultado é o que a loja escolheu medir. Com pixel, são as compras; se a loja vende pelo WhatsApp ou Direct, são as conversas iniciadas (e, quando vier, as visitas ao perfil). Campanhas com objetivos diferentes se comparam só entre as de mesmo objetivo.
+- MAPA DOS CAMPEÕES: os 5 melhores vídeos de cada critério, só com posts de 3 dias ou mais e anúncios com pelo menos R$ 30 investidos ou 1.000 exibições. É a base mais segura: mostra o que já provou funcionar nesta loja.
 - Ficaram nos 3 primeiros segundos (Reels, vem da Meta): quem não pulou o vídeo logo no começo. Mostra a força do gancho.
 - Tempo médio assistido (Reels, vem da Meta): quantos segundos, em média, as pessoas assistem.
 - Taxa de gancho dos anúncios = quem assistiu 3 segundos dividido pelas impressões. Retenção = quem assistiu até o fim dividido por quem assistiu 3 segundos. Taxa de clique = cliques dividido pelas impressões.
@@ -336,56 +344,56 @@ function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t
 function brl(n) { return "R$ " + arred(n, 2).toFixed(2).replace(".", ","); }
 function dataCurta(iso) { return iso ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }).format(new Date(iso)) : ""; }
 
-// cada criterio mostra um lado do resultado: o time olha todos, e nao so o engajamento
-const CRITERIOS_POST = [
-    { campo: "visualizacoes", nome: "mais vistos (chegam a quem não segue)", un: "visualizações" },
-    { campo: "compartilhamentos", nome: "mais compartilhados (levam a loja para gente nova)", un: "compartilhamentos" },
-    { campo: "salvamentos", nome: "mais salvos (a cliente quer voltar e comprar)", un: "salvamentos" },
-    { campo: "comentarios", nome: "mais comentados (puxam conversa e dúvida)", un: "comentários" },
-    { campo: "tempo_medio_s", nome: "mais tempo assistido", un: "s assistidos" },
-    { campo: "retencao_3s", nome: "melhor gancho (ficaram nos 3 primeiros segundos)", un: "%" }
-];
-function valorPost(p, campo) { const v = p[campo]; return v == null ? null : Number(v) || 0; }
-function postsDaLoja(met, todos) {
+// cada criterio mostra um lado do resultado: o time olha todos, e nao so o engajamento (api/_cerebro.js)
+const CRITERIOS_POST = cerebro.CRITERIOS_ORG;
+function valorPost(p, campo) { const c = CRITERIOS_POST.find(function (x) { return x.id === campo; }); return c ? c.valor(p) : null; }
+// a ordem: os campeoes primeiro (quem ganha em mais criterios e em posicao melhor), depois os outros pelo total de interacoes
+function postsDaLoja(met, todos, mapa) {
     const posts = (met && met.organico && met.organico.posts) || [];
     const desde30 = Date.now() - 30 * 864e5;
-    const peso = function (p) { return (p.indice || 0) * (p.recente ? 1.3 : 1); };
+    const forca = function (p) { return p.campeao_forca || 0; };
+    const peso = function (p) { return cerebro.interacoes(p) * (p.recente ? 1.3 : 1); };
     const ord = posts.filter(function (p) { return p.alcance > 0; })
         .map(function (p) { return Object.assign({}, p, { recente: !!(p.data && new Date(p.data).getTime() >= desde30) }); })
-        .sort(function (a, b) { return peso(b) - peso(a); });
+        .sort(function (a, b) { return forca(b) - forca(a) || peso(b) - peso(a); });
     if (todos || ord.length <= 20) return ord;
-    // conta grande: os 15 melhores em engajamento, os 3 campeoes de cada criterio e os 5 piores
-    const ids = {}, chave = function (p) { return p.id || p.link || p.data; };
-    const escolhidos = ord.slice(0, 15);
-    escolhidos.forEach(function (p) { ids[chave(p)] = 1; });
-    CRITERIOS_POST.forEach(function (c) {
-        ord.filter(function (p) { return !p.pouco_alcance && valorPost(p, c.campo) != null; })
-            .sort(function (a, b) { return valorPost(b, c.campo) - valorPost(a, c.campo); }).slice(0, 3)
-            .forEach(function (p) { if (!ids[chave(p)]) { ids[chave(p)] = 1; escolhidos.push(p); } });
+    // conta grande: todos os campeoes, os mais engajados ate 20 e os 5 piores
+    const escolhidos = ord.filter(function (p) { return forca(p) > 0; });
+    ord.forEach(function (p) { if (escolhidos.length < 20 && escolhidos.indexOf(p) < 0) escolhidos.push(p); });
+    return escolhidos.concat(ord.slice(-5).filter(function (p) { return escolhidos.indexOf(p) < 0; }));
+}
+// marca nos numeros quem e campeao e em que (vale para o organico e para os anuncios)
+function marcarCampeoes(met, mapa) {
+    ((met && met.organico && met.organico.posts) || []).forEach(function (p) {
+        const l = mapa.porPost[p.id];
+        if (l) { p.campeao = cerebro.rotuloCampeao(l); p.campeao_forca = cerebro.forcaCampeao(l); } else { delete p.campeao; delete p.campeao_forca; }
     });
-    escolhidos.sort(function (a, b) { return peso(b) - peso(a); });
-    return escolhidos.concat(ord.slice(-5).filter(function (p) { return !ids[chave(p)]; }));
+    ["p7", "p30", "p90", "mes", "mes_ant"].forEach(function (per) {
+        ((met && met.anuncios && met.anuncios[per] && met.anuncios[per].anuncios) || []).forEach(function (a) {
+            const l = mapa.porAnuncio[a.id];
+            if (l) { a.campeao = cerebro.rotuloCampeao(l); a.campeao_forca = cerebro.forcaCampeao(l); } else { delete a.campeao; delete a.campeao_forca; }
+        });
+    });
 }
 function numTxt(n) { return String(arred(n, 1)).replace(".", ","); }
-// os campeoes de cada criterio, com o codigo do post na lista enviada
+// o mapa dos campeoes, com o codigo do post (P) ou do anuncio (A) na lista enviada
 function textoCampeoes(ctx) {
-    const posts = ctx.posts || [], linhas = [];
-    CRITERIOS_POST.forEach(function (c) {
-        const top = posts.map(function (p, i) { return { p: p, i: i }; }).filter(function (x) { return !x.p.pouco_alcance && valorPost(x.p, c.campo) > 0; })
-            .sort(function (a, b) { return valorPost(b.p, c.campo) - valorPost(a.p, c.campo); }).slice(0, 3);
-        if (top.length) linhas.push("- " + c.nome + ": " + top.map(function (x) { return "P" + (x.i + 1) + " (" + numTxt(valorPost(x.p, c.campo)) + (c.un === "%" ? "%" : " " + c.un) + ")"; }).join(", "));
+    const mapa = ctx.campeoes;
+    if (!mapa) return "";
+    const posts = ctx.posts || [], ads = (ctx.ads && ctx.ads.lista) || [], linhas = [];
+    const codP = {}, codA = {};
+    posts.forEach(function (p, i) { codP[p.id] = "P" + (i + 1); });
+    ads.forEach(function (a, i) { codA[a.id] = "A" + (i + 1); });
+    function un(c, v) { return c.un.charAt(0) === "%" ? numTxt(v) + c.un : numTxt(v) + " " + c.un; }
+    mapa.org.forEach(function (c) {
+        const l = c.top.filter(function (x) { return codP[x.id]; }).map(function (x) { return codP[x.id] + " (" + un(c, x.valor) + ")"; });
+        if (l.length) linhas.push("- " + c.nome + ": " + l.join(", "));
     });
-    const ads = (ctx.ads && ctx.ads.lista) || [];
-    if (ads.length) {
-        const cod = function (a) { return "A" + (ads.indexOf(a) + 1); };
-        const venda = ads.filter(function (a) { return a.resultados > 0; }).sort(function (a, b) { return b.resultados - a.resultados; }).slice(0, 3);
-        if (venda.length) linhas.push("- anúncios com mais " + nomeResultado(ctx.ads.tipo) + ": " + venda.map(function (a) { return cod(a) + " (" + a.resultados + ")"; }).join(", "));
-        const receita = ads.filter(function (a) { return a.receita > 0; }).sort(function (a, b) { return b.receita - a.receita; }).slice(0, 3);
-        if (receita.length) linhas.push("- anúncios que mais venderam em reais: " + receita.map(function (a) { return cod(a) + " (" + brl(a.receita) + ")"; }).join(", "));
-        const gancho = ads.filter(function (a) { return a.taxa_gancho != null; }).sort(function (a, b) { return b.taxa_gancho - a.taxa_gancho; }).slice(0, 3);
-        if (gancho.length) linhas.push("- anúncios com melhor gancho: " + gancho.map(function (a) { return cod(a) + " (" + numTxt(a.taxa_gancho) + "%)"; }).join(", "));
-    }
-    return linhas.length ? "\n\nCAMPEÕES DE CADA CRITÉRIO (olhe todos, não só o engajamento; um post pode ser fraco em curtidas e campeão de compartilhamento):\n" + linhas.join("\n") : "";
+    mapa.ads.forEach(function (c) {
+        const l = c.top.filter(function (x) { return codA[x.id]; }).map(function (x) { return codA[x.id] + " (" + un(c, x.valor) + ")"; });
+        if (l.length) linhas.push("- " + c.nome + ": " + l.join(", "));
+    });
+    return linhas.length ? "\n\nMAPA DOS CAMPEÕES (os 5 melhores de cada critério; olhe todos, não só o engajamento: um vídeo pode ser fraco em curtidas e campeão de compartilhamento. Os campeões em vídeo vêm com a FALA e COMO É O VÍDEO nas linhas acima):\n" + linhas.join("\n") : "";
 }
 function ordemDe(ctx) { return { posts: (ctx.posts || []).map(function (p) { return p.id; }), ads: ((ctx.ads && ctx.ads.lista) || []).map(function (a) { return a.id; }) }; }
 function aplicarOrdem(ctx, ordem) {
@@ -402,8 +410,8 @@ function aplicarOrdem(ctx, ordem) {
     }
 }
 function linhaPost(p, i) {
-    return "P" + (i + 1) + ") " + (p.tipo || "Post") + " de " + String(p.data || "").slice(0, 10) + (p.recente ? " (últimos 30 dias)" : "") +
-        " | " + (p.pouco_alcance ? "ALCANCE MUITO BAIXO, número pouco confiável" : String(arred(p.indice, 2)).replace(".", ",") + "x a média") + " | alcance " + p.alcance + " | visualizações " + (p.visualizacoes || 0) +
+    return "P" + (i + 1) + ") " + (p.campeao ? "CAMPEÃO (" + p.campeao + ") | " : "") + (p.tipo || "Post") + " de " + String(p.data || "").slice(0, 10) + (p.recente ? " (últimos 30 dias)" : "") +
+        " | interações " + cerebro.interacoes(p) + " | " + (p.pouco_alcance ? "ALCANCE MUITO BAIXO, número pouco confiável" : "engajamento pelo alcance " + String(arred(p.indice, 2)).replace(".", ",") + "x a média") + " | alcance " + p.alcance + " | visualizações " + (p.visualizacoes || 0) +
         (p.tempo_medio_s ? " | tempo médio assistido " + String(p.tempo_medio_s).replace(".", ",") + " s" : "") +
         (p.retencao_3s != null ? " | ficaram nos 3 primeiros segundos " + String(p.retencao_3s).replace(".", ",") + "%" : "") +
         " | curtidas " + p.curtidas + " | comentários " + p.comentarios + " | salvamentos " + p.salvamentos + " | compartilhamentos " + p.compartilhamentos +
@@ -433,7 +441,9 @@ function anunciosDaLoja(met) {
     const r30 = {}, r7 = {};
     ((met.anuncios.p30 && met.anuncios.p30.anuncios) || []).forEach(function (x) { r30[x.id] = x.resultados; });
     ((met.anuncios.p7 && met.anuncios.p7.anuncios) || []).forEach(function (x) { r7[x.id] = x; });
-    return { tipo: a90.tipo_resultado, totais: a90.totais || {}, medias: a90.medias || {}, lista: a90.anuncios.slice(0, 25).map(function (x) { return Object.assign({}, x, { resultados_30d: r30[x.id] || 0, ultimos7: r7[x.id] || null }); }) };
+    const lista = a90.anuncios.slice(0, 25);
+    a90.anuncios.slice(25).forEach(function (x) { if (x.campeao) lista.push(x); });
+    return { tipo: a90.tipo_resultado, objetivo: a90.objetivo || "auto", totais: a90.totais || {}, medias: a90.medias || {}, lista: lista.map(function (x) { return Object.assign({}, x, { resultados_30d: r30[x.id] || 0, ultimos7: r7[x.id] || null }); }) };
 }
 function nomeResultado(tipo, a) {
     if (tipo === "vendas") return "compras";
@@ -443,13 +453,13 @@ function nomeResultado(tipo, a) {
 function linhaAnuncio(tipo, a, i) {
     // sinal de cansaco: nos ultimos 7 dias o custo por resultado ficou bem acima dos 90 dias
     const c7 = a.ultimos7 && a.ultimos7.custo_por_resultado, cansou = c7 && a.custo_por_resultado && c7 > a.custo_por_resultado * 1.4;
-    return "A" + (i + 1) + ") " + corta(a.nome, 140) + " | objetivo medido: " + nomeResultado(tipo, a) + " | investido " + brl(a.gasto) +
+    return "A" + (i + 1) + ") " + (a.campeao ? "CAMPEÃO (" + a.campeao + ") | " : "") + corta(a.nome, 140) + " | objetivo medido: " + nomeResultado(tipo, a) + " | investido " + brl(a.gasto) +
         " | resultados em 90 dias " + a.resultados + " (últimos 30 dias: " + a.resultados_30d + ")" +
         (a.custo_por_resultado ? " | custo por resultado " + brl(a.custo_por_resultado) : "") +
         (a.receita > 0 ? " | vendeu " + brl(a.receita) + (a.roas ? " (voltou " + String(a.roas).replace(".", ",") + " vezes o investido)" : "") : "") +
         (cansou ? " | CANSANDO: nos últimos 7 dias o custo por resultado subiu para " + brl(c7) : "") +
         (a.taxa_gancho != null ? " | taxa de gancho " + a.taxa_gancho + "%" : "") + (a.retencao != null ? " | retenção " + a.retencao + "%" : "") +
-        (a.ctr != null ? " | taxa de clique " + a.ctr + "%" : "") + (a.compras ? " | compras " + a.compras : "") + (a.conversas ? " | conversas " + a.conversas : "") +
+        (a.ctr != null ? " | taxa de clique " + a.ctr + "%" : "") + (a.compras ? " | compras " + a.compras : "") + (a.conversas ? " | conversas " + a.conversas : "") + (a.visitas ? " | visitas ao perfil " + a.visitas : "") +
         (a.diagnostico ? " | " + a.diagnostico : "") + (a.titulo ? " | TÍTULO: " + corta(a.titulo, 120) : "") + (a.texto ? " | TEXTO DO ANÚNCIO: " + corta(a.texto, 400) : "") +
         (a.transcricao ? " | FALA DO VÍDEO: " + corta(a.transcricao, 700) : "") +
         (a.post_id ? " | é um post orgânico da loja que virou anúncio" : "") + (a.visual ? " | COMO É O VÍDEO: " + textoVisual(a.visual) : "");
@@ -558,14 +568,14 @@ async function carregar(userId) {
     const id = encodeURIComponent(userId);
     const desde = encodeURIComponent(new Date(Date.now() - 60 * DIA_MS).toISOString());
     const [contas, lojas, projetos, gostei, conversas] = await Promise.all([
-        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job,memoria"),
-        banco("lojas?user_id=eq." + id + "&select=nome,nicho,site,produtos_dona,produtos_dona_em,produtos_admin,publico_admin").catch(function () { return []; }),
+        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job,memoria,caderno"),
+        banco("lojas?user_id=eq." + id + "&select=nome,nicho,site,produtos_dona,produtos_dona_em,produtos_admin,publico_admin,objetivo_anuncios").catch(function () { return []; }),
         banco("projetos?user_id=eq." + id + "&select=id,nome,form,rodadas,criado_em&order=criado_em.desc&limit=6").catch(function () { return []; }),
         banco("gostei?user_id=eq." + id + "&criado_em=gte." + desde + "&select=tipo,titulo,conteudo,criado_em&order=criado_em.desc&limit=30").catch(function () { return []; }),
         banco("conversas?user_id=eq." + id + "&criado_em=gte." + desde + "&select=area,pedido,criado_em&order=criado_em.desc&limit=15").catch(function () { return []; })
     ]);
     const conta = (contas && contas[0]) || {};
-    return { userId: userId, conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, gostei: gostei || [], conversas: conversas || [] };
+    return { userId: userId, conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, caderno: conta.caderno || null, gostei: gostei || [], conversas: conversas || [] };
 }
 // comMeta: consulta a Meta (so na primeira etapa); nas outras usa o que ja foi guardado
 async function preparar(ctx, comMeta) {
@@ -574,13 +584,16 @@ async function preparar(ctx, comMeta) {
     if (!postsTodos.length && !anunciosDaLoja(met)) throw new Error("Ainda nao ha numeros desta loja. Conecte o Instagram e os anuncios e atualize os dados.");
     let cache = ctx.conta.meta || null;
     if (comMeta) {
-        const daMeta = await enriquecerLoja(met, cache, ctx.userId).catch(function (e) { console.error("[time] meta: " + (e && e.message)); return { cache: cache, pendentes: [] }; });
+        const daMeta = await enriquecerLoja(met, cache, ctx.userId, { objetivo: ctx.loja.objetivo_anuncios || null }).catch(function (e) { console.error("[time] meta: " + (e && e.message)); return { cache: cache, pendentes: [] }; });
         cache = daMeta.cache;
         await esperarFalas(daMeta.pendentes);
-        if (cache) await banco("contas_meta?user_id=eq." + encodeURIComponent(ctx.userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { meta: cache } }).catch(function () {});
+        // junta com o que a rodada do cerebro gravou no meio tempo
+        if (cache) cache = await salvarMeta(ctx.userId, cache).catch(function () { return cache; });
     }
     aplicarMeta(met, cache);
     ligarPostsAosAnuncios(met);
+    ctx.campeoes = cerebro.mapaCampeoes(met, ctx.loja.objetivo_anuncios || null);
+    marcarCampeoes(met, ctx.campeoes);
     ctx.cacheMeta = cache;
     ctx.postsTodos = postsTodos;
     ctx.posts = postsDaLoja(met);
@@ -604,7 +617,7 @@ function publicoVencido(ctx) {
 function resumoRel(rel) { return rel ? JSON.stringify(rel) : "não disponível"; }
 function dadosEmTexto(ctx, nPosts, nAds, nCom) {
     const ads = ctx.ads;
-    return "\n\nPOSTS DA LOJA (do melhor para o pior):\n" + (ctx.posts.slice(0, nPosts).map(linhaPost).join("\n") || "nenhum") +
+    return "\n\nPOSTS DA LOJA (os campeões primeiro, depois do mais engajado para o menos):\n" + (ctx.posts.slice(0, nPosts).map(linhaPost).join("\n") || "nenhum") +
         (ads ? "\n\nANÚNCIOS (do que mais deu resultado para o que menos deu):\n" + ads.lista.slice(0, nAds).map(function (a, i) { return linhaAnuncio(ads.tipo, a, i); }).join("\n") : "") +
         (ctx.comentarios.length ? "\n\nCOMENTÁRIOS REAIS DAS SEGUIDORAS:\n" + ctx.comentarios.slice(0, nCom).map(function (c) { return "- " + c; }).join("\n") : "") +
         textoCampeoes(ctx);
@@ -765,7 +778,7 @@ async function pedidosEtapa1(ctx) {
     const pedidos = [], ads = ctx.ads, posts = ctx.posts, met = ctx.met;
     if (posts.length) pedidos.push({
         chave: "org", nome: "Agente Organico", esquema: ESQ_ORGANICO,
-        pedido: "Você é o AGENTE ORGÂNICO. Estude os posts do Instagram desta loja nos últimos 90 dias, ordenados do melhor para o pior pelo índice (com peso maior para os últimos 30 dias). Descubra o que os posts acima da média têm em comum (gancho, formato, assunto, tamanho, fala) e o que os abaixo da média fazem diferente. Em ganchos_que_funcionam, traga os ganchos reais dos melhores posts (da legenda ou da fala), reescritos de forma curta. Em formatos_mae, os formatos que a loja deve repetir com variação (80% do conteúdo). Em resumo, 2 frases para a dona da loja.\n\n" +
+        pedido: "Você é o AGENTE ORGÂNICO. Estude os posts do Instagram desta loja nos últimos 90 dias: primeiro os CAMPEÕES (marcados com o critério em que ganham), depois os outros, do que teve mais interações para o que teve menos (com peso maior para os últimos 30 dias). Descubra o que os posts acima da média têm em comum (gancho, formato, assunto, tamanho, fala) e o que os abaixo da média fazem diferente. Em ganchos_que_funcionam, traga os ganchos reais dos melhores posts (da legenda ou da fala), reescritos de forma curta. Em formatos_mae, os formatos que a loja deve repetir com variação (80% do conteúdo). Em resumo, 2 frases para a dona da loja.\n\n" +
             ctx.sobreLoja + "\nTOTAL DE POSTS NOS 90 DIAS: " + ctx.postsTodos.length + " | taxa média de engajamento da conta: " + ((met.organico && met.organico.taxa_media) || 0) + "%\nPOSTS:\n" + posts.map(linhaPost).join("\n") + textoCampeoes(ctx)
     });
     if (ads) {
@@ -839,8 +852,9 @@ function regrasDasIdeias(ctx, anteriores) {
     const hoje = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
     const datas = datasDoVarejo(new Date());
     return "\n\nCOMO USAR OS DADOS DESTA LOJA\n" +
+        "- O PILAR É O CADERNO DA LOJA E O MAPA DOS CAMPEÕES: o que está COMPROVADO no caderno é o ponto de partida (repita com peça, situação ou ângulo novos); o A TESTAR entra em no máximo 1 ideia de cada formato; o NÃO FUNCIONA fica de fora.\n" +
         "- COMECE PELAS OPORTUNIDADES CRUZADAS: a maior parte das ideias parte de uma delas (diga o número em oportunidade). Elas juntam o formato que prende no orgânico, a peça ou o argumento que vende nos anúncios e a dúvida ou a dor do público. Uma boa ideia usa as três: o jeito de gravar que já prendeu aqui, com a peça que já vende, respondendo ao que a cliente pergunta.\n" +
-        "- Olhe os CAMPEÕES DE CADA CRITÉRIO, não só o engajamento: o mais visto mostra o que chega a gente nova, o mais compartilhado o que a cliente manda para a amiga, o mais salvo o que ela quer comprar depois, o melhor gancho a abertura que segura.\n" +
+        "- Olhe o MAPA DOS CAMPEÕES, não só o engajamento: o mais visto mostra o que chega a gente nova, o de mais engajamento o que puxa interação, o de mais tempo assistido o que prende até o fim, o melhor gancho a abertura que segura, o mais compartilhado o que a cliente manda para a amiga; nos anúncios, o que mais vende (ou traz conversa e visita ao perfil) e o gancho que faz parar.\n" +
         "- Regra 80/20: a maior parte das ideias repete, com peça e situação novas, os FORMATOS-MÃE que já provaram resultado nesta conta; o resto testa um formato novo. Repetir o que funcionou com variação é o que dá constância.\n" +
         "- REFAZER OS CAMPEÕES: traga ideias que refazem um campeão desta conta (tipo refazer_campeao): o mesmo formato de um post ou anúncio que ficou bem acima da média, com peça, situação ou ângulo novos, e o código dele em inspirado_em. Vale também o anúncio que mais vendeu virando post orgânico, ou o post que mais engajou virando anúncio (diga isso no por_que).\n" +
         "- Se o MAPA DE PÚBLICO trouxer perguntas_clientes, traga ideias que respondem a essas dúvidas e diz quantas clientes perguntaram (exemplo: 5 clientes perguntaram se veste 46, então é prova real no corpo).\n" +
@@ -863,7 +877,7 @@ function regrasDasIdeias(ctx, anteriores) {
 }
 function contextoDasIdeias(ctx, p) {
     const pub = p.pub || ctx.dossie.publico;
-    return textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
+    return cerebro.textoCaderno(ctx.caderno) + textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
         "\nDADOS DE SEGUIDORES: " + (ctx.demografia || "não disponível") +
         "\nMAPA DE PÚBLICO: " + resumoRel(pub) +
         "\nRELATÓRIO ORGÂNICO (com os formatos-mãe): " + resumoRel(p.org) +
@@ -926,8 +940,9 @@ function pedidosAvaliador(ctx, p, anteriores) {
         "- sem_cruzamento: a prova não junta pelo menos 2 fontes (orgânico, anúncios, público) com número;\n" +
         "- inventa_dado: cita preço, promoção, estoque, reposição, esgotou, lançamento ou número que não está nos DADOS. Confira cada número da prova nos dados; se não bater, corte;\n" +
         "- dificil_de_gravar: a dona não consegue gravar sozinha só com o celular.\n" +
+        "Prefira as ideias que partem do que está COMPROVADO no CADERNO DA LOJA; ideia que repete o que o caderno diz que NÃO FUNCIONA é generica.\n" +
         (anteriores.length ? "\nJÁ SUGERIDAS NOS ÚLTIMOS 35 DIAS (título [mecânica | peça]):\n" + anteriores.slice(0, 40).join("\n") + "\n" : "") +
-        textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
+        cerebro.textoCaderno(ctx.caderno) + textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
         "\nPERGUNTAS DAS CLIENTES: " + JSON.stringify(((p.pub || ctx.dossie.publico || {}).perguntas_clientes) || []) +
         dadosEmTexto(ctx, 20, 12, 30);
     return Object.keys(ESPECIALISTAS).map(function (f) {
@@ -968,8 +983,8 @@ function pedidoDiretor(ctx, p) {
             "- resumo_loja: 2 ou 3 frases curtas para a dona ler no celular, sem jargão: o que mais tem dado certo e o que gravar a seguir.\n" +
             "- por_metodo: para cada um dos 5 métodos abaixo, 1 ou 2 frases de como aplicar nesta loja com base nos dados.\n" +
             "- nicho: o nicho desta loja.\n" +
-            "- oportunidades: o seu trabalho mais importante. CRUZE as três fontes: (1) no orgânico, o formato, o gancho e o assunto que mais prendem, olhando os CAMPEÕES DE CADA CRITÉRIO (visto, compartilhado, salvo, comentado, tempo assistido, gancho) e não só o engajamento; (2) nos anúncios, a peça, o argumento e a oferta que mais vendem; (3) no público, as dúvidas dos comentários, as dores, as objeções e as situações do dia a dia. Cada oportunidade junta pelo menos 2 fontes, de preferência as 3, sempre com o número que prova. Procure também as lacunas: peça que vende nos anúncios e nunca apareceu num formato que prende no orgânico; formato campeão do orgânico que nunca virou anúncio; dúvida frequente que nenhum vídeo respondeu ainda. Nada de oportunidade genérica que serviria para qualquer loja.\n" +
-            "- Se vier O QUE O TIME JÁ APRENDEU COM ESTA LOJA, isso vale mais que as leituras gerais: coloque no texto os aprendizados fortes e o gosto da dona.\n\n" + METODOS_RESUMO + textoMemoria(p.mem || ctx.memoria) + "\n\n" + ctx.sobreLoja +
+            "- oportunidades: o seu trabalho mais importante. Parta do CADERNO DA LOJA (o comprovado vem primeiro) e CRUZE as três fontes: (1) no orgânico, o formato, o gancho e o assunto que mais prendem, olhando o MAPA DOS CAMPEÕES (mais vistos, mais engajamento, mais tempo assistido, melhor gancho, mais compartilhados) e não só o engajamento; (2) nos anúncios, a peça, o argumento e a oferta que mais vendem; (3) no público, as dúvidas dos comentários, as dores, as objeções e as situações do dia a dia. Cada oportunidade junta pelo menos 2 fontes, de preferência as 3, sempre com o número que prova. Procure também as lacunas: peça que vende nos anúncios e nunca apareceu num formato que prende no orgânico; formato campeão do orgânico que nunca virou anúncio; dúvida frequente que nenhum vídeo respondeu ainda. Nada de oportunidade genérica que serviria para qualquer loja.\n" +
+            "- O CADERNO DA LOJA e O QUE O TIME JÁ APRENDEU COM ESTA LOJA valem mais que as leituras gerais: coloque no texto o que está comprovado, o que não funciona e o gosto da dona.\n\n" + METODOS_RESUMO + cerebro.textoCaderno(ctx.caderno) + textoMemoria(p.mem || ctx.memoria) + "\n\n" + ctx.sobreLoja +
             "\nRELATÓRIO ORGÂNICO: " + resumoRel(p.org) + "\nRELATÓRIO DE ANÚNCIOS: " + resumoRel(p.ads) + "\nMAPA DE PÚBLICO: " + resumoRel(p.pub || ctx.dossie.publico) +
             dadosEmTexto(ctx, 20, 12, 30),
         max: 16000
@@ -1245,6 +1260,100 @@ async function analisarLoja(userId, motivo) {
     }
 }
 
+// ---------- cerebro da loja: fichas dos campeoes e o caderno (rodada de 5 minutos) ----------
+const CADERNO_MIN_MS = 24 * HORA_MS;     // caderno com campeao novo: no maximo 1 vez por dia
+const CADERNO_SEMANA_MS = 7 * DIA_MS;    // sem novidade: revisto 1 vez por semana (o publico e os numeros mudam)
+const FICHAS_POR_RODADA = 4;
+function resumoDoPublico(pub) {
+    if (!pub) return "não disponível";
+    const r = {};
+    ["quem_e", "quem_compra", "dores", "desejos", "objecoes", "situacoes", "motivos_compra", "motivos_nao_compra", "perguntas_clientes", "expressoes_reais"].forEach(function (k) { if (pub[k] && (!Array.isArray(pub[k]) || pub[k].length)) r[k] = pub[k]; });
+    return JSON.stringify(r).slice(0, 6000);
+}
+async function pedidoCaderno(ctx, prazo) {
+    const posts = ctx.posts || [], ads = (ctx.ads && ctx.ads.lista) || [], mapa = ctx.campeoes, mem = ctx.memoria || {}, cad = ctx.caderno || {};
+    const campeoesP = posts.map(function (p, i) { return { p: p, i: i }; }).filter(function (x) { return mapa.porPost[x.p.id]; });
+    const campeoesA = ads.map(function (a, i) { return { a: a, i: i }; }).filter(function (x) { return mapa.porAnuncio[x.a.id]; });
+    const agora = Date.now();
+    const fracos = posts.map(function (p, i) { return { p: p, i: i }; }).filter(function (x) { return !mapa.porPost[x.p.id] && cerebro.postMaduro(x.p, agora); })
+        .sort(function (a, b) { return cerebro.interacoes(a.p) - cerebro.interacoes(b.p); }).slice(0, 5);
+    const RES = { acima: "acima da média", na_media: "na média", abaixo: "abaixo da média", sem_dado: "ainda sem resultado" };
+    const gravadas = (mem.vinculos || []).filter(function (v) { return v.confianca !== "baixa"; }).slice(0, 12).map(function (v) { return "- ideia \"" + corta(v.ideia, 120) + "\" virou o post de " + dataBR(v.data) + ": " + (RES[v.resultado] || v.resultado); })
+        .concat((mem.vinculos_roteiros || []).filter(function (v) { return v.confianca !== "baixa"; }).slice(0, 12).map(function (v) { return "- roteiro \"" + corta(v.titulo, 120) + "\" virou o post de " + dataBR(v.data) + ": " + (RES[v.resultado] || v.resultado); }));
+    const atual = { comprovado: cad.comprovado || [], a_testar: cad.a_testar || [], nao_funciona: cad.nao_funciona || [], publico: cad.publico || [] };
+    const texto = "Você é o AGENTE DO CADERNO do time. Você mantém o CADERNO DA LOJA: o que esta loja já sabe que funciona, com prova. O caderno é a base de todas as ideias e roteiros do time, então só entra o que os dados desta loja mostram.\n\n" +
+        "COMO TRABALHAR\n" +
+        "- Estude os VÍDEOS CAMPEÕES (os 5 melhores de cada critério no orgânico e nos anúncios). Em cada um, olhe a FALA e COMO É O VÍDEO: primeiro segundo, cenário, quem aparece, onde fica o celular, sequência, transições, texto na tela, ritmo, duração, peça e argumento.\n" +
+        "- Compare os campeões entre si: o que se repete em 2 ou mais é o que funciona aqui. Diga em que critério eles ganham (um jeito que prende no gancho pode não vender).\n" +
+        "- Cruze o orgânico com os anúncios: o jeito que prende no orgânico é o mesmo que vende? A peça que vende aparece nos vídeos que prendem?\n" +
+        "- Cruze com o PÚBLICO: a dúvida, a dor, o desejo ou a situação que cada campeão respondeu, de preferência com um comentário real.\n" +
+        "- Olhe os VÍDEOS FRACOS para achar o que não funciona (o que eles têm e os campeões não têm).\n" +
+        "- Use as IDEIAS E ROTEIROS DO TIME QUE A DONA GRAVOU: resultado acima da média confirma; abaixo enfraquece.\n" +
+        "- Atualize o CADERNO ATUAL em vez de começar do zero: mantenha o que continua valendo, suba de a testar para comprovado quando aparecer mais uma prova, rebaixe ou tire o que os dados não sustentam mais.\n" +
+        "- comprovado: 2 ou mais campeões (ou 1 campeão e um pedido real das clientes). a_testar: 1 campeão só. Cada item é uma regra prática desta loja, concreta o bastante para virar vídeo, com o número que prova.\n" +
+        "- Cite os vídeos pela data e por uma descrição curta, nunca pelo código (P1, A1).\n" +
+        "- mudou: true só se o caderno mudou de verdade em relação ao CADERNO ATUAL.\n\n" +
+        ctx.sobreLoja + "\nDADOS DE SEGUIDORES: " + (ctx.demografia || "não disponível") +
+        "\nMAPA DE PÚBLICO: " + resumoDoPublico(ctx.dossie.publico) +
+        textoCampeoes(ctx) +
+        "\n\nVÍDEOS CAMPEÕES DO ORGÂNICO:\n" + (campeoesP.map(function (x) { return linhaPost(x.p, x.i); }).join("\n") || "nenhum ainda") +
+        (campeoesA.length ? "\n\nANÚNCIOS CAMPEÕES (resultado = " + nomeResultado(ctx.ads.tipo) + "):\n" + campeoesA.map(function (x) { return linhaAnuncio(ctx.ads.tipo, x.a, x.i); }).join("\n") : "") +
+        (fracos.length ? "\n\nVÍDEOS FRACOS (menos interações entre os posts de 3 dias ou mais):\n" + fracos.map(function (x) { return linhaPost(x.p, x.i); }).join("\n") : "") +
+        (gravadas.length ? "\n\nIDEIAS E ROTEIROS DO TIME QUE A DONA GRAVOU:\n" + gravadas.join("\n") : "") +
+        "\n\nCADERNO ATUAL:\n" + (cad.atualizado_em ? JSON.stringify(atual) : "vazio (primeira vez)");
+    // fotos e carrosseis campeoes nao tem video para assistir: vai a capa
+    const fotos = campeoesP.filter(function (x) { return !cerebro.ehVideoPost(x.p) && x.p.miniatura; }).slice(0, 5);
+    const imgs = await Promise.all(fotos.map(function (x) { return imagemBase64(x.p.miniatura).then(function (im) { return im ? [x, im] : null; }); }));
+    const blocos = [{ type: "text", text: texto }];
+    imgs.filter(Boolean).forEach(function (par) { blocos.push({ type: "text", text: "Imagem do post campeão P" + (par[0].i + 1) + " (" + (par[0].p.tipo || "post") + " de " + dataBR(par[0].p.data) + "):" }, par[1]); });
+    return { chave: "caderno", nome: "Agente do Caderno", esquema: cerebro.ESQ_CADERNO, pedido: blocos, max: 14000, prazo: prazo };
+}
+function salvarCaderno(userId, caderno) {
+    return banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { caderno: caderno } });
+}
+// uma rodada do cerebro de uma loja: faz fichas dos campeoes que faltam e, quando tudo esta pronto e
+// entrou campeao novo (ou resultado de ideia gravada), atualiza o caderno. prazo: hora limite (ms).
+async function cerebroDaLoja(userId, prazo) {
+    const ctx = await carregar(userId);
+    if (!ctx.met) return { status: "sem_numeros" };
+    const cad = ctx.caderno || {}, agora = Date.now();
+    await salvarCaderno(userId, Object.assign({}, cad, { verificado_em: new Date(agora).toISOString() }));
+    const objetivo = ctx.loja.objetivo_anuncios || null;
+    const r = { status: "ok", fichas: 0, caderno: false };
+    // 1) fichas (fala lida e video assistido) dos campeoes que ainda nao tem
+    let semMeta = false;
+    if (Date.now() < prazo - 70000) {
+        const f = await fichasDaLoja(userId, ctx.met, ctx.conta.meta, objetivo, FICHAS_POR_RODADA, prazo - 45000);
+        semMeta = !!f.sem_meta;
+        if (f.feitas || f.visitas) ctx.conta.meta = await salvarMeta(userId, f.cache);
+        r.fichas = f.feitas;
+    }
+    // 2) caderno: com todas as fichas prontas (ou sem a Meta), campeao novo, resultado novo ou 1 semana
+    await preparar(ctx, false);
+    const faltam = cerebro.alvosDeFicha(ctx.campeoes, ctx.met, ctx.cacheMeta).length;
+    r.faltam = faltam;
+    if (faltam && !semMeta) return r;
+    const prontos = cerebro.campeoesProntos(ctx.campeoes, ctx.met, ctx.cacheMeta);
+    if (!prontos.length) return r;
+    const vistos = cad.vistos || [], novos = prontos.filter(function (k) { return vistos.indexOf(k) < 0; });
+    const mem = ctx.memoria || {}, resultados = (mem.vinculos || []).length + (mem.vinculos_roteiros || []).length;
+    const idade = cad.atualizado_em ? agora - new Date(cad.atualizado_em).getTime() : Infinity;
+    const precisa = !cad.atualizado_em || idade >= CADERNO_SEMANA_MS || (idade >= CADERNO_MIN_MS && (novos.length > 0 || resultados !== (cad.resultados || 0) || (ctx.dossie.publico_em || "") !== (cad.publico_em || "")));
+    if (!precisa || Date.now() > prazo - 100000) return r;
+    const novo = await perguntar(userId, await pedidoCaderno(ctx, prazo));
+    const limpo = semCodigosEmTudo(novo, mapaDeCodigos(ctx));
+    const quando = new Date().toISOString();
+    const mudou = !cad.atualizado_em || !!novo.mudou;
+    await salvarCaderno(userId, {
+        resumo: limpo.resumo, comprovado: (limpo.comprovado || []).slice(0, 8), a_testar: (limpo.a_testar || []).slice(0, 6), nao_funciona: (limpo.nao_funciona || []).slice(0, 5), publico: (limpo.publico || []).slice(0, 5),
+        atualizado_em: quando, verificado_em: quando, mudou_em: mudou ? quando : (cad.mudou_em || quando),
+        vistos: prontos, resultados: resultados, publico_em: ctx.dossie.publico_em || "",
+        campeoes: { posts: Object.keys(ctx.campeoes.porPost).length, anuncios: Object.keys(ctx.campeoes.porAnuncio).length, videos_com_ficha: prontos.length }
+    });
+    r.caderno = true; r.mudou = mudou;
+    return r;
+}
+
 // ---------- "Gerar mais ideias" pedido pela dona ----------
 // Primeiro tira da reserva do curador (na hora e sem custo); sem reserva, os especialistas escrevem de novo.
 const MAX_LEVAS_DIA = 3, POR_LEVA = { curto: 2, narrado: 2, provador: 2 };
@@ -1312,11 +1421,12 @@ async function gerarMaisIdeias(userId) {
 // ---------- quando cada loja e analisada (usado por api/atualizar.js) ----------
 // c: linha de contas_meta (status, atualizado_em, assinatura, dossie_versao, dossie_em, tem_job);
 // acessoEm: ultima vez que a dona abriu o app; ativaDesde: quando a loja entrou (conexao no Reportei)
-// novidade desde a ultima analise: post novo, anuncio novo ou produtos do momento atualizados
-const NOVIDADE_MS = 44 * HORA_MS;        // com novidade: no maximo a cada 2 noites
-const SEM_NOVIDADE_MS = 68 * HORA_MS;    // sem novidade: pelo menos a cada 3 noites
+// novidade desde a ultima analise: o caderno mudou de verdade (campeao novo, resultado de ideia gravada)
+// ou a dona contou produtos novos; sem caderno ainda, vale o post novo (como antes)
+const NOVIDADE_MS = 44 * HORA_MS;                 // com novidade: no maximo a cada 2 noites
+const SEM_NOVIDADE_MS = 7 * DIA_MS - 4 * HORA_MS; // sem novidade: 1 vez por semana
 function depois(a, b) { return !!(a && b && new Date(a).getTime() > new Date(b).getTime()); }
-function temNovidade(c) { return depois(c.ultimo_post, c.dossie_em); }
+function temNovidade(c) { return c.caderno_em ? depois(c.caderno_em, c.dossie_em) : depois(c.ultimo_post, c.dossie_em); }
 // depois de erro: sem credito tenta em 10 min (nada e cobrado); senao espera 2 h, 8 h e depois 24 h
 function aindaEsperandoErro(c, agora) {
     if (!/^Erro/.test(c.status || "")) return false;
@@ -1350,9 +1460,12 @@ function entraNoLote(c, agora, acessoEm, ativaDesde) {
     return s.idade >= SEM_NOVIDADE_MS || (s.idade >= NOVIDADE_MS && temNovidade(c)) || (s.idade >= 20 * HORA_MS && produtosNovos(c));
 }
 
+// loja ativa: a dona abriu o app (ou a loja entrou) nos ultimos 14 dias
+function lojaAtiva(agora, acessoEm, ativaDesde) { return situacao(null, agora, acessoEm, ativaDesde).ativa; }
+
 module.exports = {
-    analisarLoja, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO,
-    conversa: { semCodigos, textoDaLoja, espera, FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, textoOportunidades, linhaPost, linhaAnuncio, ligarPostsAosAnuncios, anunciosDaLoja, postsDaLoja, MECANICAS, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
-    _teste: { pedidoMemoria, memoriaNova, pedidoDiretor, pedidosRascunhos, pedidosAvaliador, pedidosEscrita, escolha, montarIdeias, mapaDeCodigos, rodarAgora, textoCampeoes, postsDaLoja, semCodigosEmTudo, titulosAnteriores, ligarPostsAosAnuncios },
+    analisarLoja, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO, cerebroDaLoja, lojaAtiva,
+    conversa: { textoCaderno: cerebro.textoCaderno, semCodigos, textoDaLoja, espera, FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, textoOportunidades, linhaPost, linhaAnuncio, ligarPostsAosAnuncios, anunciosDaLoja, postsDaLoja, MECANICAS, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
+    _teste: { pedidoCaderno, marcarCampeoes, pedidoMemoria, memoriaNova, pedidoDiretor, pedidosRascunhos, pedidosAvaliador, pedidosEscrita, escolha, montarIdeias, mapaDeCodigos, rodarAgora, textoCampeoes, postsDaLoja, semCodigosEmTudo, titulosAnteriores, ligarPostsAosAnuncios },
     _interno: { vozEGanchos, primeiraFrase, postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, datasDoVarejo, montarIdeias, candidatas, ESQ_DIRETOR, ESQ_ESPECIALISTA, ESQ_RASCUNHO, ESQ_AVALIADOR, SISTEMA_TIME }
 };

@@ -83,7 +83,7 @@ module.exports = async function handler(req, res) {
                 link = jaEntrou ? null : g.link;
             }
             if (!userId) throw new Error("Nao consegui criar o login da loja.");
-            await banco("lojas", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: { user_id: userId, nome: nome, nicho: b.nicho || null, site: String(b.site || "").trim().slice(0, 300) || null, atualizado_em: new Date().toISOString() } });
+            await banco("lojas", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: { user_id: userId, nome: nome, nicho: b.nicho || null, site: String(b.site || "").trim().slice(0, 300) || null, objetivo_anuncios: ["vendas", "conversas_visitas"].indexOf(b.objetivo_anuncios) > -1 ? b.objetivo_anuncios : null, atualizado_em: new Date().toISOString() } });
             await auditar(admin.id, novo ? "criou loja e login da dona" : "ligou loja a um login existente", userId, { email: email, nome: nome });
             return res.status(200).json({ ok: true, user_id: userId, novo: novo, ja_entrou: jaEntrou, link: link, email_enviado: emailEnviado, senha_definida: senhaDefinida });
         }

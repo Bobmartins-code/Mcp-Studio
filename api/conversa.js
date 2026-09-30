@@ -104,7 +104,7 @@ async function conversarRoteiros(uid, pedido, historico, projetoId) {
         "PROJETO: " + T.corta(proj.nome, 120) + (proj.objetivo ? " | objetivo: " + T.corta(proj.objetivo, 120) : "") +
         "\nSOBRE A PEÇA: " + T.corta([f.produto, f.descricao, f.diferenciais, f.preco ? "preço: " + f.preco : ""].filter(Boolean).join(" | "), 1500) +
         (dossie.texto ? "\n\nDOSSIÊ DA LOJA (do time de agentes): " + T.corta(dossie.texto, 1800) : "") +
-        T.textoMemoria(ctx.memoria) + T.textoGosto(ctx) +
+        T.textoCaderno(ctx.caderno) + T.textoMemoria(ctx.memoria) + T.textoGosto(ctx) +
         "\n\nROTEIROS DO PROJETO:\n" + roteiros.slice(-15).map(function (s) { return s.id + ") " + T.corta(s.titulo, 100) + " | GANCHO: " + T.corta(s.gancho, 300) + " | CORPO: " + T.corta(s.corpo, 700) + " | CTA: " + T.corta(s.cta, 200); }).join("\n") +
         historicoEmTexto(historico) + "\n\nPEDIDO DA DONA AGORA: " + pedido;
     const r = await T.perguntar(uid, { chave: "chat_roteiros", nome: "Chat de roteiros", esquema: ESQ_ROTEIROS, pedido: texto, max: 12000, sistema: AGENTE_MCP });

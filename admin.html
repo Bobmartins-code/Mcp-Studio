@@ -755,7 +755,7 @@ async function apiLojas(body){
 var lojas={},numeros={},statusLoja={},lojasErro=false;
 function nomeLoja(uid){var l=lojas[uid];if(l&&l.nome)return l.nome;return emailMap[uid]||"Loja";}
 async function carregarLojas(){
-  try{var r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em,produtos_dona,produtos_admin,publico_admin");if(r.error)r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em");if(r.error)throw r.error;lojas={};(r.data||[]).forEach(function(l){lojas[l.user_id]=l;});lojasErro=false;}
+  try{var r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em,produtos_dona,produtos_admin,publico_admin,objetivo_anuncios");if(r.error)r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em");if(r.error)throw r.error;lojas={};(r.data||[]).forEach(function(l){lojas[l.user_id]=l;});lojasErro=false;}
   catch(e){lojasErro=true;}
   try{
     var c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,metricas_em,status,atualizado_em,conta:metricas->conta,avisos:metricas->avisos,posts:metricas->organico->total_posts,ads90:metricas->anuncios->p90->totais,dossie_em:dossie->>gerado_em,dossie_versao:dossie->>versao,meta_em:meta->>em,meta_erro:meta->>erro");
@@ -951,6 +951,8 @@ function abrirDrawerLoja(uid){
     +'<label class="campo">Nome da loja<input id="lj-nome" value="'+escHtml(l.nome||"")+'" placeholder="Ex: Loja Maria Flor" maxlength="120"/></label>'
     +'<label class="campo">Nicho<select id="lj-nicho"><option value="">Escolha</option>'+NICHOS.map(function(n){return '<option'+(l.nicho===n?' selected':'')+'>'+escHtml(n)+'</option>';}).join("")+'</select></label>'
     +'<label class="campo" style="grid-column:1/-1">Site ou link da loja<input id="lj-site" value="'+escHtml(l.site||"")+'" placeholder="https://"/></label>'
+    +'<label class="campo" style="grid-column:1/-1">Resultado dos anúncios<select id="lj-objetivo">'+[["","Automático (compras quando houver, senão conversas)"],["vendas","Compras"],["conversas_visitas","Conversas iniciadas e visitas ao perfil"]].map(function(o){return '<option value="'+o[0]+'"'+((l.objetivo_anuncios||"")===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join("")+'</select></label>'
+    +'<div class="dica" style="grid-column:1/-1;margin-top:-4px">É o que o app e o time de agentes contam como resultado dos anúncios desta loja. Use conversas e visitas quando a loja vende pelo direct ou WhatsApp e não mede compras. Vale a partir da próxima atualização dos números.</div>'
     +'</div></section>'
     +(uid?'<section><div class="passo"><span>+</span>Contexto para os agentes</div>'
       +(l.produtos_dona?'<div class="dica" style="margin-bottom:8px"><b>A dona contou no app:</b> '+escHtml(l.produtos_dona)+'</div>':'')
@@ -977,13 +979,14 @@ async function salvarLoja(){
   try{
     if(drawerUid){
       var extra={};if(document.getElementById("lj-produtos")){extra.produtos_admin=val("lj-produtos")||null;extra.publico_admin=val("lj-publico")||null;}
+      extra.objetivo_anuncios=val("lj-objetivo")||null;
       var up=await supaClient.from("lojas").upsert(Object.assign({user_id:drawerUid,nome:nome,nicho:nicho||null,site:site||null,atualizado_em:new Date().toISOString()},extra),{onConflict:"user_id"});
       if(up.error)throw up.error;
       fecharDrawerLoja();avisar("Loja salva.");await carregarLojas();return;
     }
     var senha=val("lj-senha");
     if(senha.length<8){erro.textContent="A senha precisa ter pelo menos 8 caracteres.";btn.disabled=false;return;}
-    var d=await apiLojas({acao:"criar",nome:nome,nicho:nicho,site:site,email:email,senha:senha});
+    var d=await apiLojas({acao:"criar",nome:nome,nicho:nicho,site:site,email:email,senha:senha,objetivo_anuncios:val("lj-objetivo")||null});
     await loadData();
     mostrarLojaCriada(d,email,nome,senha);
   }catch(e){erro.textContent="Erro: "+((e&&e.message)||e);btn.disabled=false;}

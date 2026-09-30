@@ -273,7 +273,10 @@ function nomeDoResultado(cell) {
     return achado ? achado[1] : null;
 }
 
-function montarAnuncios(linhas) {
+// objetivo: o que conta como resultado nesta loja (lojas.objetivo_anuncios, escolhido no painel):
+// "vendas" = compras; "conversas_visitas" = conversas iniciadas (e visitas ao perfil, que vem da Meta);
+// vazio = automatico (compras quando houver pixel com compra; senao conversas)
+function montarAnuncios(linhas, objetivo) {
     const lista = linhas.map(function (l) {
         const m = l.m, nome = textoDe(l.dim) || "Anuncio";
         return {
@@ -287,7 +290,7 @@ function montarAnuncios(linhas) {
     const tot = { gasto: 0, compras: 0, conversas: 0, brutos: 0, receita: 0, alcance: 0, impressoes: 0, cliques: 0, v3: 0, thru: 0 };
     lista.forEach(function (a) { tot.gasto += a.gasto; tot.compras += a.compras; tot.conversas += a.conversas; tot.brutos += a.resultados_brutos; tot.receita += a.receita; tot.alcance += a.alcance; tot.impressoes += a.impressoes; tot.cliques += a.cliques; tot.v3 += a.v3; tot.thru += a.thru; });
     // resultado = venda; se a loja vende pelo WhatsApp (sem pixel), usa conversas iniciadas
-    const tipo = tot.compras > 0 ? "vendas" : tot.conversas > 0 ? "conversas" : "resultados";
+    const tipo = objetivo === "vendas" ? "vendas" : objetivo === "conversas_visitas" ? "conversas" : tot.compras > 0 ? "vendas" : tot.conversas > 0 ? "conversas" : "resultados";
     function resultado(a) { return tipo === "vendas" ? a.compras : tipo === "conversas" ? a.conversas : a.resultados_brutos; }
     const totalRes = tipo === "vendas" ? tot.compras : tipo === "conversas" ? tot.conversas : tot.brutos;
     const med = { gancho: tot.impressoes && tot.v3 ? tot.v3 / tot.impressoes : 0, retencao: tot.v3 && tot.thru ? tot.thru / tot.v3 : 0, ctr: tot.impressoes && tot.cliques ? tot.cliques / tot.impressoes : 0 };
@@ -317,7 +320,7 @@ function montarAnuncios(linhas) {
         if (ks.length === 1) resNome = nomes[ks[0]]; else if (ks.length > 1) misto = true;
     }
     return {
-        tipo_resultado: tipo,
+        tipo_resultado: tipo, objetivo: objetivo || "auto",
         totais: { gasto: arred(tot.gasto, 2), resultados: totalRes, res_nome: resNome, misto: misto, custo_medio: totalRes > 0 ? arred(tot.gasto / totalRes, 2) : null, compras: tot.compras, conversas: tot.conversas, receita: arred(tot.receita, 2), roas: tot.gasto && tot.receita ? arred(tot.receita / tot.gasto, 2) : null, alcance: tot.alcance, cliques: tot.cliques },
         medias: { taxa_gancho: arred(med.gancho * 100, 1), retencao: arred(med.retencao * 100, 1), ctr: arred(med.ctr * 100, 2) },
         anuncios: lista.slice(0, 40)
@@ -332,20 +335,20 @@ function mesesDoCalendario(hoje) {
 }
 
 // anterior = mes anterior ja coletado; como ele quase nao muda, so e pedido de novo uma vez por dia
-async function coletarAnuncios(cli, fb, avisos, anterior) {
+async function coletarAnuncios(cli, fb, avisos, anterior, objetivo) {
     const hoje = new Date(), fim = diaSP(hoje);
     const faixas = {};
     [["p7", 7], ["p30", 30], ["p90", 90]].forEach(function (p) { faixas[p[0]] = { inicio: diaSP(new Date(hoje.getTime() - (p[1] - 1) * 864e5)), fim: fim }; });
     const meses = mesesDoCalendario(hoje);
     faixas.mes = meses.mes;
-    const reusa = anterior && anterior.ref === meses.mes_ant.ref && anterior.em && hoje.getTime() - new Date(anterior.em).getTime() < 864e5;
+    const reusa = anterior && anterior.ref === meses.mes_ant.ref && anterior.em && hoje.getTime() - new Date(anterior.em).getTime() < 864e5 && (anterior.objetivo || "auto") === (objetivo || "auto");
     if (!reusa) faixas.mes_ant = meses.mes_ant;
     const out = { conta: fb.nome, moeda: fb.moeda };
     const chaves = Object.keys(faixas);
     const res = await Promise.all(chaves.map(function (k) {
         return pedirTabela(cli, fb, faixas[k].inicio, faixas[k].fim, { id: "ads", reference_key: "fb_ads:ads", component: "datatable_v1", dimensions: [{ field: "ad" }], sort: ["-spend"] }, [ADS_COMPLETA, ADS_MEDIA, ADS_SIMPLES], avisos);
     }));
-    chaves.forEach(function (k, i) { out[k] = montarAnuncios(res[i].linhas); });
+    chaves.forEach(function (k, i) { out[k] = montarAnuncios(res[i].linhas, objetivo); });
     out.mes.ref = meses.mes.ref;
     if (reusa) out.mes_ant = anterior;
     else { out.mes_ant.ref = meses.mes_ant.ref; out.mes_ant.em = hoje.toISOString(); }
@@ -387,7 +390,7 @@ function assinaturaDe(met) {
 }
 
 // ---------- coleta completa de uma loja ----------
-async function coletarLoja(userId, antes) {
+async function coletarLoja(userId, antes, objetivo) {
     const cli = await clienteDoUsuario(userId);
     const ints = await integracoesDoCliente(cli);
     const ativa = function (slug) { return ints.find(function (i) { return i.plataforma === slug && i.status === "active"; }) || ints.find(function (i) { return i.plataforma === slug; }); };
@@ -396,7 +399,7 @@ async function coletarLoja(userId, antes) {
     const hoje = new Date(), fim = diaSP(hoje), inicio90 = diaSP(new Date(hoje.getTime() - 89 * 864e5));
     const [org, ads] = await Promise.all([
         ig ? coletarOrganico(cli, ig, inicio90, fim, avisos).catch(function (e) { avisos.push("Instagram: " + e.message); return null; }) : null,
-        fb ? coletarAnuncios(cli, fb, avisos, antes && antes.mes_ant).catch(function (e) { avisos.push("Anuncios: " + e.message); return null; }) : null
+        fb ? coletarAnuncios(cli, fb, avisos, antes && antes.mes_ant, objetivo).catch(function (e) { avisos.push("Anuncios: " + e.message); return null; }) : null
     ]);
     vincularCapas(org, ads);
     if (!ig) avisos.push("Nenhum Instagram conectado no Reportei.");
@@ -446,12 +449,16 @@ function resumoDaColeta(met) {
 
 async function atualizarLoja(userId) {
     // o que ja veio da Meta (capa e texto dos anuncios, falas, tempo assistido) entra junto, sem consultar a Meta de novo
-    let antes = null;
+    let antes = null, objetivo = null;
     try {
-        const r = await banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&select=meta,mes_ant:metricas->anuncios->mes_ant");
+        const [r, lj] = await Promise.all([
+            banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&select=meta,mes_ant:metricas->anuncios->mes_ant"),
+            banco("lojas?user_id=eq." + encodeURIComponent(userId) + "&select=objetivo_anuncios").catch(function () { return []; })
+        ]);
         antes = r && r[0];
+        objetivo = (lj && lj[0] && lj[0].objetivo_anuncios) || null;
     } catch (e) { console.error("[coleta] leitura anterior: " + e.message); }
-    const met = await coletarLoja(userId, antes);
+    const met = await coletarLoja(userId, antes, objetivo);
     try { aplicarMeta(met, antes && antes.meta); } catch (e) { console.error("[coleta] meta: " + e.message); }
     await salvarMetricas(userId, met);
     return resumoDaColeta(met);

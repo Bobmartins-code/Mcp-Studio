@@ -6,7 +6,9 @@
 //    - melhores posts: comentarios reais das seguidoras
 //    - anuncios: capa, texto e titulo do criativo e a fala do video
 //    - publico: idade, genero e cidades de quem segue (1 vez por semana)
-//    - olhos: como e o video dos campeoes de cada criterio e de 2 fracos (api/_olhos.js, uma vez so)
+//    - fichas dos campeoes: os 5 melhores videos de cada criterio (api/_cerebro.js) tem a fala
+//      lida e o video assistido (api/_olhos.js), uma vez so
+//    - visitas ao perfil de cada anuncio (loja medida por conversas e visitas; a cada 6 horas)
 //  Regras para a Meta nao estranhar:
 //    - so leitura: so consulta (GET), nunca publica, responde ou altera nada
 //    - poucas consultas: pede so o que e novo e guarda em contas_meta.meta
@@ -18,6 +20,7 @@
 
 const { banco, descriptografar } = require("./_seguranca.js");
 const olhos = require("./_olhos.js");
+const cerebro = require("./_cerebro.js");
 
 const GRAPH = "https://graph.facebook.com/v23.0";
 const DIA_MS = 24 * 3600 * 1000;
@@ -31,8 +34,10 @@ const DEMOGRAFIA_MS = 7 * DIA_MS;
 const REELS_RECENTE_MS = 14 * DIA_MS;  // tempo assistido ainda muda: atualiza 1 vez por dia ate 14 dias
 const NOVA_TENTATIVA_MS = 3 * DIA_MS;  // video que nao deu para transcrever: tenta de novo depois
 const MAX_FALAS_POSTS = 3, MAX_FALAS_ANUNCIOS = 2, ESPERA_FALAS_MS = 60000;
-const MAX_OLHOS_POSTS = 3, MAX_OLHOS_ANUNCIOS = 2;   // videos descritos por rodada (cada video e descrito uma vez so)
-const LIMITE_BYTES = 24 * 1024 * 1024;
+const MAX_FICHAS_ANALISE = 2;          // fichas de campeoes feitas durante a analise (o resto sai na rodada do cerebro)
+const LIMITE_BYTES = 24 * 1024 * 1024;  // limite do Whisper
+const LIMITE_VIDEO = 40 * 1024 * 1024;  // limite para baixar (os olhos aceitam ate 40 MB)
+const VISITAS_MS = 6 * 3600 * 1000;
 
 // ---------- pausa automatica ----------
 let pausadoAte = 0; // nesta execucao do servidor
@@ -115,13 +120,20 @@ function velho(iso, ms) { return !iso || Date.now() - new Date(iso).getTime() >=
 function espera(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 // Baixa o video e manda para o Whisper
-async function transcrever(url) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("Sem chave da OpenAI");
+async function baixar(url, limite) {
     const r = await fetch(url, { signal: AbortSignal.timeout(30000) });
     if (!r.ok) throw new Error("Nao consegui baixar o video");
-    if (num(r.headers.get("content-length")) > LIMITE_BYTES) throw new Error("Video grande demais para transcrever");
+    if (num(r.headers.get("content-length")) > (limite || LIMITE_BYTES)) throw new Error("Video grande demais");
     const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > (limite || LIMITE_BYTES)) throw new Error("Video grande demais");
+    return buf;
+}
+// frases que o Whisper inventa em video so com musica
+function falaInventada(t) { const s = String(t || "").trim(); return !s || (s.length < 90 && /amara\.org|legendas pela comunidade|obrigad[oa] por assistir|inscreva-se no canal|legenda adriana/i.test(s)); }
+async function transcrever(url, buf) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("Sem chave da OpenAI");
+    if (!buf) buf = await baixar(url, LIMITE_BYTES);
     if (buf.length > LIMITE_BYTES) throw new Error("Video grande demais para transcrever");
     const form = new FormData();
     form.append("file", new Blob([buf], { type: "video/mp4" }), "video.mp4");
@@ -130,14 +142,16 @@ async function transcrever(url) {
     const t = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + apiKey }, body: form, signal: AbortSignal.timeout(50000) });
     const d = await t.json().catch(function () { return {}; });
     if (!t.ok) throw new Error((d.error && d.error.message) || "Erro ao transcrever");
-    return String(d.text || "").trim();
+    const txt = String(d.text || "").trim();
+    return falaInventada(txt) ? "" : txt;
 }
 
 // ---------- o que falta de uma loja ----------
 // met = contas_meta.metricas (numeros do Reportei); anterior = contas_meta.meta (o que ja veio da Meta)
 // Devolve o cache atualizado. Se a Meta nao estiver conectada ou estiver pausada, devolve o anterior.
-async function enriquecerLoja(met, anterior, userId) {
-    const cache = { em: (anterior && anterior.em) || null, erro: (anterior && anterior.erro) || null, sem_pulo: !!(anterior && anterior.sem_pulo), posts: Object.assign({}, anterior && anterior.posts), anuncios: Object.assign({}, anterior && anterior.anuncios), ig_id: (anterior && anterior.ig_id) || "", demografia: (anterior && anterior.demografia) || null };
+async function enriquecerLoja(met, anterior, userId, opcoes) {
+    const objetivo = opcoes && opcoes.objetivo;
+    const cache = Object.assign({}, anterior || {}, { em: (anterior && anterior.em) || null, erro: (anterior && anterior.erro) || null, sem_pulo: !!(anterior && anterior.sem_pulo), posts: Object.assign({}, anterior && anterior.posts), anuncios: Object.assign({}, anterior && anterior.anuncios), ig_id: (anterior && anterior.ig_id) || "", demografia: (anterior && anterior.demografia) || null });
     const con = await conexao();
     if (!con || con.pausada) return { cache: cache, pendentes: [] };
     const token = con.token;
@@ -202,6 +216,10 @@ async function enriquecerLoja(met, anterior, userId) {
                     } catch (e) { falhou("post do anuncio " + a.id, e, "nenhum"); }
                 }
             } catch (e) { falhou("anuncio " + a.id, e, "ads"); }
+        }
+
+        if (objetivo === "conversas_visitas" && !sem.ads) {
+            try { await visitasDosAnuncios(cache, met, token); } catch (e) { falhou("visitas dos anuncios", e, "ads"); }
         }
 
         // link oficial de cada post (1 consulta por post, uma vez so): o link que vem do Reportei pode apontar para outro post
@@ -284,12 +302,16 @@ async function enriquecerLoja(met, anterior, userId) {
     const faltam = [sem.ig ? "o Instagram" : "", sem.ads ? "a conta de anúncios" : ""].filter(Boolean);
     cache.erro = faltam.length ? "A Meta não enxerga " + faltam.join(" nem ") + " desta loja com o seu acesso." : null;
 
-    // 4) falas que faltam: os melhores Reels e anuncios em video (cada video e transcrito uma vez so)
+    // 4) fichas dos campeoes (fala lida e video assistido) e, com o que sobrar, a fala dos outros Reels acima da media
     const pendentes = [];
     if (Date.now() >= pausadoAte) {
-        const reelsBons = sem.ig ? [] : posts.filter(function (p) { const c = cache.posts[p.id] || {}; return p.tipo === "Reels" && num(p.indice) >= 1 && !c.transcricao && velho(c.fala_erro_em, NOVA_TENTATIVA_MS); })
+        const fichas = alvosDaLoja(met, cache, objetivo).filter(function (x) { return x.tipo === "post" ? !sem.ig : !sem.ads; }).slice(0, MAX_FICHAS_ANALISE);
+        const jaVai = {};
+        fichas.forEach(function (x) { jaVai[x.id] = 1; });
+        if (fichas.length) pendentes.push(fazerFichas(userId, met, cache, fichas, token).catch(function (e) { console.error("[meta] fichas: " + (e && e.message)); }));
+        const reelsBons = sem.ig ? [] : posts.filter(function (p) { const c = cache.posts[p.id] || {}; return !jaVai[p.id] && p.tipo === "Reels" && num(p.indice) >= 1 && !c.transcricao && !c.sem_fala && velho(c.fala_erro_em, NOVA_TENTATIVA_MS); })
             .sort(function (a, b) { return num(b.indice) - num(a.indice); }).slice(0, MAX_FALAS_POSTS);
-        const adsBons = sem.ads ? [] : ads.filter(function (a) { const c = cache.anuncios[a.id] || {}; return (c.ig_media_id || c.video_id) && !c.transcricao && velho(c.fala_erro_em, NOVA_TENTATIVA_MS); })
+        const adsBons = sem.ads ? [] : ads.filter(function (a) { const c = cache.anuncios[a.id] || {}; return !jaVai[a.id] && !(c.ig_media_id && jaVai[c.ig_media_id]) && (c.ig_media_id || c.video_id) && !c.transcricao && !c.sem_fala && velho(c.fala_erro_em, NOVA_TENTATIVA_MS); })
             .sort(function (a, b) { return num(b.resultados) - num(a.resultados) || num(b.gasto) - num(a.gasto); }).slice(0, MAX_FALAS_ANUNCIOS);
         const falaDoPost = {};
         reelsBons.forEach(function (p) {
@@ -298,7 +320,7 @@ async function enriquecerLoja(met, anterior, userId) {
                 try {
                     const x = await g("/" + p.id, { fields: "media_url" }, token);
                     if (!x.media_url) throw new Error("sem link do video");
-                    alvo.transcricao = corta(await transcrever(x.media_url), 3000);
+                    guardarFala(alvo, await transcrever(x.media_url));
                 } catch (e) { alvo.fala_erro_em = new Date().toISOString(); console.error("[meta] fala do post " + p.id + ": " + (e && e.message)); }
             })());
         });
@@ -307,55 +329,145 @@ async function enriquecerLoja(met, anterior, userId) {
                 const alvo = cache.anuncios[a.id];
                 // o mesmo video ja transcrito (ou sendo transcrito agora) como post: reaproveita
                 if (alvo.ig_media_id && falaDoPost[alvo.ig_media_id]) await falaDoPost[alvo.ig_media_id];
-                const doPost =alvo.ig_media_id && cache.posts[alvo.ig_media_id] && cache.posts[alvo.ig_media_id].transcricao;
+                const doPost = alvo.ig_media_id && cache.posts[alvo.ig_media_id] && cache.posts[alvo.ig_media_id].transcricao;
                 if (doPost) { alvo.transcricao = doPost; return; }
                 try {
                     let url = "";
                     if (alvo.ig_media_id) url = (await g("/" + alvo.ig_media_id, { fields: "media_url,media_type" }, token)).media_url || "";
                     if (!url && alvo.video_id) url = (await g("/" + alvo.video_id, { fields: "source" }, token)).source || "";
                     if (!url) throw new Error("sem link do video");
-                    alvo.transcricao = corta(await transcrever(url), 3000);
+                    guardarFala(alvo, await transcrever(url));
                 } catch (e) { alvo.fala_erro_em = new Date().toISOString(); console.error("[meta] fala do anuncio " + a.id + ": " + (e && e.message)); }
             })());
         });
     }
-    // 5) olhos: como e o video dos campeoes de cada criterio (visto, compartilhado, salvo, engajamento, gancho) e de 2 fracos, para comparar
-    if (Date.now() >= pausadoAte && olhos.disponivel()) {
-        const faltaOlhar = function (c) { return !(c && c.visual) && velho(c && c.olhos_erro_em, NOVA_TENTATIVA_MS); };
-        const videos = sem.ig ? [] : posts.filter(function (p) { return (p.tipo === "Reels" || p.tipo === "Vídeo") && num(p.alcance) > 0; });
-        const pulo = function (p) { const c = cache.posts[p.id] || {}; return c.pulo_pct == null ? -1 : 100 - c.pulo_pct; };
-        const criterios = [function (p) { return num(p.indice); }, function (p) { return num(p.visualizacoes); }, function (p) { return num(p.compartilhamentos); }, function (p) { return num(p.salvamentos); }, pulo];
-        const rankings = criterios.map(function (f) { return videos.slice().sort(function (a, b) { return f(b) - f(a); }); });
-        const ordem = [];
-        for (let i = 0; i < 3; i++) rankings.forEach(function (r) { if (r[i] && ordem.indexOf(r[i]) < 0) ordem.push(r[i]); });
-        videos.slice().sort(function (a, b) { return num(a.indice) - num(b.indice); }).slice(0, 2).forEach(function (p) { if (ordem.indexOf(p) < 0) ordem.push(p); });
-        const olharPosts = ordem.filter(function (p) { return faltaOlhar(cache.posts[p.id]); }).slice(0, MAX_OLHOS_POSTS);
-        const olharAds = sem.ads ? [] : ads.filter(function (a) { const c = cache.anuncios[a.id] || {}; const doPost = c.ig_media_id && cache.posts[c.ig_media_id]; return (c.ig_media_id || c.video_id) && faltaOlhar(c) && !(doPost && doPost.visual); })
-            .sort(function (a, b) { return num(b.resultados) - num(a.resultados) || num(b.gasto) - num(a.gasto); }).slice(0, MAX_OLHOS_ANUNCIOS);
-        olharPosts.forEach(function (p) {
-            pendentes.push((async function () {
-                const alvo = post(p.id);
-                try {
-                    const x = await g("/" + p.id, { fields: "media_url" }, token);
-                    if (!x.media_url) throw new Error("sem link do video");
-                    alvo.visual = await olhos.olharVideo(x.media_url, userId, { legenda: p.legenda, fala: alvo.transcricao });
-                } catch (e) { alvo.olhos_erro_em = new Date().toISOString(); console.error("[meta] olhos do post " + p.id + ": " + (e && e.message)); }
-            })());
-        });
-        olharAds.forEach(function (a) {
-            pendentes.push((async function () {
-                const alvo = cache.anuncios[a.id];
-                try {
-                    let url = "";
+    return { cache: cache, pendentes: pendentes };
+}
+
+// ---------- fichas dos campeoes ----------
+function guardarFala(alvo, txt) {
+    if (txt) { alvo.transcricao = corta(txt, 3000); delete alvo.sem_fala; }
+    else alvo.sem_fala = true;   // video so com musica: nao tenta de novo
+    delete alvo.fala_erro_em;
+}
+// os campeoes (api/_cerebro.js) que ainda nao tem ficha, olhando os numeros com o que ja veio da Meta
+function alvosDaLoja(met, cache, objetivo) {
+    const copia = JSON.parse(JSON.stringify(met || {}));
+    aplicarMeta(copia, cache);
+    return cerebro.alvosDeFicha(cerebro.mapaCampeoes(copia, objetivo), copia, cache);
+}
+// baixa cada video uma vez: le a fala (Whisper) e assiste (olhos); 2 ao mesmo tempo
+async function fazerFichas(userId, met, cache, alvos, token, prazo) {
+    const posts = {}, ads = {};
+    ((met && met.organico && met.organico.posts) || []).forEach(function (p) { posts[p.id] = p; });
+    ((met && met.anuncios && met.anuncios.p90 && met.anuncios.p90.anuncios) || []).forEach(function (a) { ads[a.id] = a; });
+    let feitas = 0;
+    for (let i = 0; i < alvos.length; i += 2) {
+        if (prazo && Date.now() > prazo) break;
+        await Promise.all(alvos.slice(i, i + 2).map(async function (x) {
+            const alvo = x.tipo === "post" ? (cache.posts[x.id] = cache.posts[x.id] || {}) : (cache.anuncios[x.id] = cache.anuncios[x.id] || {});
+            const agora = new Date().toISOString();
+            try {
+                let url = "";
+                if (x.tipo === "post") url = (await g("/" + x.id, { fields: "media_url" }, token)).media_url || "";
+                else {
                     if (alvo.ig_media_id) url = (await g("/" + alvo.ig_media_id, { fields: "media_url,media_type" }, token)).media_url || "";
                     if (!url && alvo.video_id) url = (await g("/" + alvo.video_id, { fields: "source" }, token)).source || "";
-                    if (!url) throw new Error("sem link do video");
-                    alvo.visual = await olhos.olharVideo(url, userId, { legenda: alvo.texto || a.nome, fala: alvo.transcricao });
-                } catch (e) { alvo.olhos_erro_em = new Date().toISOString(); console.error("[meta] olhos do anuncio " + a.id + ": " + (e && e.message)); }
-            })());
-        });
+                }
+                if (!url) throw new Error("sem link do video");
+                const buf = await baixar(url, LIMITE_VIDEO);
+                if (x.fala) {
+                    try { guardarFala(alvo, await transcrever(url, buf)); }
+                    catch (e) { alvo.fala_erro_em = agora; console.error("[meta] fala do campeao " + x.id + ": " + (e && e.message)); }
+                }
+                if (x.olhos && olhos.disponivel()) {
+                    const it = x.tipo === "post" ? posts[x.id] : ads[x.id];
+                    try {
+                        alvo.visual = await olhos.olharVideo(url, userId, { legenda: x.tipo === "post" ? (it && it.legenda) : (alvo.texto || (it && it.nome)), fala: alvo.transcricao }, buf);
+                        delete alvo.olhos_erro_em;
+                    } catch (e) { alvo.olhos_erro_em = agora; console.error("[meta] olhos do campeao " + x.id + ": " + (e && e.message)); }
+                }
+                feitas++;
+            } catch (e) {
+                if (e instanceof MetaPausada) throw e;
+                if (x.fala) alvo.fala_erro_em = agora;
+                if (x.olhos) alvo.olhos_erro_em = agora;
+                console.error("[meta] ficha do campeao " + x.id + ": " + (e && e.message));
+            }
+        }));
     }
-    return { cache: cache, pendentes: pendentes };
+    return feitas;
+}
+// rodada do cerebro (api/atualizar.js): faz ate "limite" fichas e, se a loja mede por visitas, as visitas
+// devolve { cache, feitas, faltam, sem_meta }
+async function fichasDaLoja(userId, met, anterior, objetivo, limite, prazo) {
+    const cache = Object.assign({}, anterior || {}, { posts: Object.assign({}, anterior && anterior.posts), anuncios: Object.assign({}, anterior && anterior.anuncios) });
+    const con = await conexao();
+    if (!con || con.pausada) return { cache: cache, feitas: 0, faltam: 0, sem_meta: true };
+    let visitas = false;
+    if (objetivo === "conversas_visitas") {
+        try { visitas = await visitasDosAnuncios(cache, met, con.token); } catch (e) { if (e instanceof MetaPausada) return { cache: cache, feitas: 0, faltam: 0, sem_meta: true }; console.error("[meta] visitas: " + (e && e.message)); }
+    }
+    const alvos = alvosDaLoja(met, cache, objetivo);
+    let feitas = 0;
+    try { feitas = await fazerFichas(userId, met, cache, alvos.slice(0, limite), con.token, prazo); }
+    catch (e) { if (!(e instanceof MetaPausada)) throw e; }
+    return { cache: cache, feitas: feitas, visitas: visitas, faltam: Math.max(0, alvos.length - limite) };
+}
+
+// ---------- visitas ao perfil por anuncio (a Meta manda nas "acoes" do anuncio) ----------
+function diaSPLocal(d) { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d); }
+function faixasDasVisitas(hoje) {
+    const fim = diaSPLocal(hoje), out = {};
+    [["p7", 7], ["p30", 30], ["p90", 90]].forEach(function (p) { out[p[0]] = { since: diaSPLocal(new Date(hoje.getTime() - (p[1] - 1) * DIA_MS)), until: fim }; });
+    const mes = fim.slice(0, 7), dia1 = new Date(mes + "-01T12:00:00Z"), ultimoAnt = diaSPLocal(new Date(dia1.getTime() - DIA_MS));
+    out.mes = { since: mes + "-01", until: fim };
+    out.mes_ant = { since: ultimoAnt.slice(0, 7) + "-01", until: ultimoAnt };
+    return out;
+}
+const RE_VISITA = /profile_visit|profile_view|ig_profile|instagram_profile/i;
+async function visitasDosAnuncios(cache, met, token) {
+    if (!velho(cache.visitas && cache.visitas.em, VISITAS_MS)) return false;
+    const ads = ((met && met.anuncios && met.anuncios.p90 && met.anuncios.p90.anuncios) || []).filter(function (a) { return ehCodigo(a.id); });
+    if (!ads.length) return false;
+    if (!cache.conta_ads) cache.conta_ads = String((await g("/" + ads[0].id, { fields: "account_id" }, token)).account_id || "");
+    if (!cache.conta_ads) return false;
+    const faixas = faixasDasVisitas(new Date()), out = { em: new Date().toISOString() }, tipos = {};
+    for (const k of Object.keys(faixas)) {
+        const por = {};
+        let d = await g("/act_" + cache.conta_ads + "/insights", { level: "ad", fields: "ad_id,actions", time_range: JSON.stringify(faixas[k]), limit: 500 }, token);
+        for (let pag = 0; pag < 4 && d; pag++) {
+            (d.data || []).forEach(function (l) {
+                (l.actions || []).forEach(function (ac) { tipos[ac.action_type] = 1; if (RE_VISITA.test(ac.action_type)) por[l.ad_id] = (por[l.ad_id] || 0) + num(ac.value); });
+            });
+            d = d.paging && d.paging.next ? await g(d.paging.next, null, null) : null;
+        }
+        out[k] = por;
+    }
+    out.tipos = Object.keys(tipos).sort().slice(0, 60);
+    cache.visitas = out;
+    return true;
+}
+
+// grava o cache da Meta juntando com o que outra rodada gravou no meio tempo (nada se perde)
+function juntarMeta(atual, novo) {
+    if (!atual) return novo;
+    if (!novo) return atual;
+    const out = Object.assign({}, atual, novo);
+    ["posts", "anuncios"].forEach(function (k) {
+        const o = Object.assign({}, atual[k]);
+        Object.keys(novo[k] || {}).forEach(function (id) { o[id] = Object.assign({}, atual[k] && atual[k][id], novo[k][id]); });
+        out[k] = o;
+    });
+    return out;
+}
+async function salvarMeta(userId, cache) {
+    const id = encodeURIComponent(userId);
+    let atual = null;
+    try { const r = await banco("contas_meta?user_id=eq." + id + "&select=meta"); atual = r && r[0] && r[0].meta; } catch (e) { /* grava o que tem */ }
+    const final = juntarMeta(atual, cache);
+    await banco("contas_meta?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { meta: final } });
+    return final;
 }
 
 // Espera as falas por um tempo limitado; o que terminar depois ainda entra no cache
@@ -393,6 +505,13 @@ function aplicarMeta(met, cache) {
             const visual = c.visual || (c.ig_media_id && cp[c.ig_media_id] && cp[c.ig_media_id].visual);
             if (visual) a.visual = visual;
         });
+        // visitas ao perfil (so na loja medida por conversas e visitas)
+        const vis = cache.visitas && cache.visitas[per], bloco = met.anuncios && met.anuncios[per];
+        if (vis && bloco) {
+            let total = 0;
+            (bloco.anuncios || []).forEach(function (a) { a.visitas = num(vis[a.id]); total += a.visitas; });
+            if (bloco.totais) bloco.totais.visitas = total;
+        }
     });
     return met;
 }
@@ -419,4 +538,4 @@ function comentariosDaLoja(met, cache) {
     return out.slice(0, 60);
 }
 
-module.exports = { g, conexao, limparEstado, enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia, transcrever, MetaPausada, _interno: { usoDe, ehLimite } };
+module.exports = { g, conexao, limparEstado, enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia, transcrever, fichasDaLoja, salvarMeta, juntarMeta, MetaPausada, _interno: { usoDe, ehLimite, falaInventada, faixasDasVisitas, alvosDaLoja } };

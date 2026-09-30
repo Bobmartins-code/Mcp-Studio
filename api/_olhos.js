@@ -110,11 +110,14 @@ async function descrever(userId, q, extra) {
 }
 
 // baixa o video, tira as imagens e descreve; devolve o objeto guardado no cache
-async function olharVideo(url, userId, extra) {
-    const r = await fetch(url, { signal: AbortSignal.timeout(30000) });
-    if (!r.ok) throw new Error("não consegui baixar o vídeo");
-    if (Number(r.headers.get("content-length")) > LIMITE_BYTES) throw new Error("vídeo grande demais");
-    const buf = Buffer.from(await r.arrayBuffer());
+// buf: o video ja baixado (a ficha do campeao baixa uma vez so para a fala e para os olhos)
+async function olharVideo(url, userId, extra, buf) {
+    if (!buf) {
+        const r = await fetch(url, { signal: AbortSignal.timeout(30000) });
+        if (!r.ok) throw new Error("não consegui baixar o vídeo");
+        if (Number(r.headers.get("content-length")) > LIMITE_BYTES) throw new Error("vídeo grande demais");
+        buf = Buffer.from(await r.arrayBuffer());
+    }
     if (buf.length > LIMITE_BYTES) throw new Error("vídeo grande demais");
     const q = await quadros(buf);
     if (q.imgs.length < 2) throw new Error("não consegui tirar as imagens do vídeo");
