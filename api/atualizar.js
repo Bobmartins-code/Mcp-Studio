@@ -12,7 +12,7 @@
 //     de verdade ou ha produto novo (no maximo a cada 2 noites), ou 1 vez por semana.
 //  4. Na hora: primeira analise, versao nova do time, loja que voltou depois
 //     de parada (a dona abriu o app) ou loja ativa que ficou sem o lote.
-//  5. Cerebro (lojas ativas, ate 2 por rodada, cada uma a cada 20 minutos no maximo):
+//  5. Cerebro (lojas ativas, ate 2 por rodada, cada uma a cada 15 minutos no maximo):
 //     fichas dos videos campeoes (fala lida e video assistido, uma vez so) e,
 //     quando entra campeao novo, o Agente do Caderno atualiza o que a loja ja sabe.
 // =====================================================================
@@ -29,7 +29,7 @@ const USANDO_MS = 15 * 60000;           // abriu o app nos ultimos 15 minutos = 
 const ETAPA_ATE_MS = 150000;            // so comeca uma etapa na hora se ainda faltar tempo para ela terminar
 const LOTE_ATE_MS = 200000;             // preparar o lote (consulta a Meta) leva ate 1 minuto por loja
 const CEREBRO_ATE_MS = 150000;          // so comeca o cerebro de uma loja se ainda houver tempo para as fichas e o caderno
-const CEREBRO_MS = 20 * 60000;          // cada loja passa pelo cerebro no maximo a cada 20 minutos
+const CEREBRO_MS = 14 * 60000;          // cada loja passa pelo cerebro no maximo a cada 15 minutos (rodadas de 5 em 5)
 const CEREBRO_POR_RODADA = 2;
 
 function horaSP(d) { return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }).format(d)) % 24; }

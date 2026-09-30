@@ -1263,7 +1263,7 @@ async function analisarLoja(userId, motivo) {
 // ---------- cerebro da loja: fichas dos campeoes e o caderno (rodada de 5 minutos) ----------
 const CADERNO_MIN_MS = 24 * HORA_MS;     // caderno com campeao novo: no maximo 1 vez por dia
 const CADERNO_SEMANA_MS = 7 * DIA_MS;    // sem novidade: revisto 1 vez por semana (o publico e os numeros mudam)
-const FICHAS_POR_RODADA = 4;
+const FICHAS_POR_RODADA = 6;
 function resumoDoPublico(pub) {
     if (!pub) return "não disponível";
     const r = {};
