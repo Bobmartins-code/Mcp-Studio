@@ -68,6 +68,7 @@ REGRAS
 - Seja específico desta loja. Frases genéricas como "conteúdo de valor" ou "engaje seu público" não ajudam a dona a gravar nada.
 - Escreva em português do Brasil com acentuação completa e correta em todas as palavras (é, ê, á, ã, õ, ç, í, ú), inclusive quando os dados ou os nomes chegarem sem acento ou com erro de digitação. Frases curtas e linguagem simples de dona de loja. Use vírgula ou ponto no lugar de travessão.
 - Quem lê é a própria dona da loja, no celular. Explique em palavras em vez de usar siglas como CTR, CPC ou ROAS.
+- Cuidado com palavras de duplo sentido: "arrasada" quer dizer destruída, triste (o elogio é "arrasando", "linda", "poderosa"); "acabada" quer dizer cansada, velha. Na dúvida, use a palavra mais simples.
 - Nada de palavras em inglês: escreva "já" (e não already), "volta para o começo" (e não loop), "cena" (e não take), "chamada" (e não CTA), "tendência" (e não trend), "gancho" (e não hook). Só ficam Reels, stories, direct, close e POV, que a dona já usa.
 - Seja simples e direto, como uma consultora falando com a dona: frases curtas, uma instrução por frase, sem termo técnico de edição ou de marketing.
 - Não use etiquetas de ação para anúncios como Escalar, Manter ou Otimizar.
@@ -593,7 +594,7 @@ async function preparar(ctx, comMeta) {
 function mapaDeCodigos(ctx) {
     const m = {};
     ctx.posts.forEach(function (p, i) { m["P" + (i + 1)] = { tipo: "post", link: p.link || "", miniatura: p.miniatura || "", legenda: corta(p.legenda, 90), data: p.data || null, formato: p.tipo || "post" }; });
-    ((ctx.ads && ctx.ads.lista) || []).slice(0, 12).forEach(function (a, i) { m["A" + (i + 1)] = { tipo: "anuncio", link: a.post_link || "", miniatura: a.miniatura || "", legenda: corta(a.nome, 90) }; });
+    ((ctx.ads && ctx.ads.lista) || []).forEach(function (a, i) { m["A" + (i + 1)] = { tipo: "anuncio", link: a.post_link || "", miniatura: a.miniatura || "", legenda: corta(a.nome, 90) }; });
     return m;
 }
 function publicoVencido(ctx) {
@@ -978,13 +979,31 @@ function formatoAntigo(f) { return f === "curto" ? "rápido com transições" : 
 // troca "P3" ou "A1" no texto que a dona le pela descricao do post ou do anuncio
 function semCodigos(texto, mapa) {
     if (typeof texto !== "string" || !mapa) return texto;
-    return texto.replace(/\b([PA])(\d{1,2})\b/g, function (tudo, letra, num) {
+    return portuguesLimpo(texto.replace(/\b([PA])(\d{1,2})\b/g, function (tudo, letra, num) {
         const x = mapa[letra + num];
         if (!x) return letra === "P" ? "um dos seus posts" : "um dos seus anúncios";
         if (letra === "P") return "o " + (x.formato === "Reels" ? "Reels" : "post") + (x.data ? " de " + dataCurta(x.data) : "");
         const nome = corta(String(x.legenda || "").replace(/^\s*\[[^\]]*\]\s*[-–:|]*\s*/, ""), 40);
         return nome ? "o anúncio \u201C" + nome + "\u201D" : "o seu anúncio";
+    }));
+}
+// ajustes do texto que a dona le, depois de trocar os codigos pelos nomes
+function portuguesLimpo(s) {
+    if (typeof s !== "string") return s;
+    // "o anuncio X, o anuncio X e o anuncio Y" -> "o anuncio X e o anuncio Y" (anuncios com o mesmo nome)
+    s = s.replace(/((?:o anúncio \u201C[^\u201D]*\u201D|o (?:Reels|post)(?: de \d{1,2}\/\d{1,2})?|um dos seus (?:anúncios|posts)|o seu anúncio)(?:(?:, | e )(?:o anúncio \u201C[^\u201D]*\u201D|o (?:Reels|post)(?: de \d{1,2}\/\d{1,2})?|um dos seus (?:anúncios|posts)|o seu anúncio))+)/g, function (lista) {
+        const itens = lista.split(/, | e /), vistos = [];
+        itens.forEach(function (x) { if (vistos.indexOf(x) < 0) vistos.push(x); });
+        return vistos.length === 1 ? vistos[0] : vistos.slice(0, -1).join(", ") + " e " + vistos[vistos.length - 1];
     });
+    // contracoes: "de o Reels" -> "do Reels", "em o anuncio" -> "no anuncio", "a o" -> "ao", "por o" -> "pelo"
+    s = s.replace(/\b([Dd])e o (?=(?:Reels|post|anúncio|seu)\b)/g, "$1o ")
+        .replace(/\b([Ee])m o (?=(?:Reels|post|anúncio|seu)\b)/g, function (t, e) { return (e === "E" ? "N" : "n") + "o "; })
+        .replace(/\b([Aa]) o (?=(?:Reels|post|anúncio|seu)\b)/g, "$1o ")
+        .replace(/\b([Pp])or o (?=(?:Reels|post|anúncio|seu)\b)/g, "$1elo ");
+    // "se sentir arrasada" e elogio mal escrito: vira "se sentir linda"
+    s = s.replace(/\b(sentir|sente|sentem|fica|ficar|ficam|estar|está) arrasadas?\b/gi, function (t, v) { return v + (/s$/.test(t) ? " lindas" : " linda"); });
+    return s;
 }
 // junta a escolha do avaliador com as ideias escritas por completo; rascunho sem escrita fica guardado para "Gerar mais ideias"
 const PADRAO_FORMATO = { curto: { funil: "topo", metodo: "fftopo" }, narrado: { funil: "meio", metodo: "ffmeio" }, provador: { funil: "fundo", metodo: "fffundo" } };
