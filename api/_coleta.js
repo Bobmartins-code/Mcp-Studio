@@ -327,18 +327,64 @@ async function postsDaMeta(igId, desde, token, info) {
     return posts;
 }
 
+// Collab em que a loja foi CONVIDADA (o post e de outra conta): nao vem em /media.
+// A Meta entrega visualizacoes, curtidas, comentarios, salvamentos e compartilhamentos, mas nao o
+// alcance nem o tempo assistido (so para quem criou o post). Se a Meta recusar, a loja segue sem eles.
+const COLLAB_CAMPOS = [
+    "id,caption,media_type,media_product_type,timestamp,permalink,thumbnail_url,media_url,username,total_views_count,like_count,comments_count,saved_count,shares_count",
+    "id,caption,media_type,timestamp,permalink,thumbnail_url,media_url,username,like_count,comments_count",
+    "id,caption,media_type,timestamp,permalink,username"
+];
+const MAX_COLLAB = 30;
+async function collabDaMeta(igId, desde, token, info) {
+    const meta = require("./_meta-leitura.js");
+    const posts = [];
+    let depois = null, nivel = 0;
+    for (let pag = 0; pag < 3 && posts.length < MAX_COLLAB; pag++) {
+        const base = { limit: 25 };
+        if (depois) base.after = depois;
+        let d = null;
+        for (let n = nivel; n < COLLAB_CAMPOS.length && !d; n++) {
+            try { d = await meta.g("/" + igId + "/collaborative_media", Object.assign({ fields: COLLAB_CAMPOS[n] }, base), token); nivel = n; }
+            catch (e) { if (!erroDeCampo(e) || n === COLLAB_CAMPOS.length - 1) throw e; }
+        }
+        let antigo = false;
+        (d.data || []).forEach(function (x) {
+            const t = x.timestamp ? new Date(x.timestamp).getTime() : 0;
+            if (t && t < desde) { antigo = true; return; }
+            const p = postDaMeta(x, []);
+            p.collab = true;
+            p.collab_de = x.username || "";
+            p.visualizacoes = numero(x.total_views_count);
+            p.curtidas = numero(x.like_count); p.comentarios = numero(x.comments_count);
+            p.salvamentos = numero(x.saved_count); p.compartilhamentos = numero(x.shares_count);
+            p.interacoes = p.curtidas + p.comentarios + p.salvamentos + p.compartilhamentos;
+            posts.push(p);
+        });
+        depois = d.paging && d.paging.next && d.paging.cursors ? d.paging.cursors.after : null;
+        if (!depois || antigo) break;
+    }
+    info.collab_campos = nivel;
+    return posts;
+}
+
 async function organicoDaMeta(igId, token) {
     const meta = require("./_meta-leitura.js");
     const desde = Date.now() - 90 * 864e5, info = {};
-    const [conta, posts] = await Promise.all([
+    const [conta, proprios, collabs] = await Promise.all([
         meta.g("/" + igId, { fields: "username,followers_count" }, token),
-        postsDaMeta(igId, desde, token, info)
+        postsDaMeta(igId, desde, token, info),
+        collabDaMeta(igId, desde, token, info).catch(function (e) { if (e instanceof meta.MetaPausada) throw e; info.collab_erro = String(e.message || e).slice(0, 160); return []; })
     ]);
+    const jaTem = {};
+    proprios.forEach(function (p) { jaTem[p.id] = 1; });
+    const posts = proprios.concat(collabs.filter(function (p) { return !jaTem[p.id]; }));
+    // sem alcance, o collab fica fora da media de engajamento da loja (finalizarPosts so usa quem tem alcance)
     const med = finalizarPosts(posts);
     return {
         conta: { username: conta.username || null, seguidores: numero(conta.followers_count) },
-        taxa_media: arred(med * 100, 2), total_posts: posts.length, posts: posts.slice(0, MAX_POSTS),
-        amostra: { fonte: "meta", metricas: info.metricas, post_a_post: info.post_a_post || 0 }
+        taxa_media: arred(med * 100, 2), total_posts: posts.length, posts: posts.slice(0, MAX_POSTS + MAX_COLLAB),
+        amostra: { fonte: "meta", metricas: info.metricas, post_a_post: info.post_a_post || 0, collab: posts.length - proprios.length, collab_campos: info.collab_campos, collab_erro: info.collab_erro || null }
     };
 }
 

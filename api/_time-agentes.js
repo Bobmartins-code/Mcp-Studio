@@ -410,7 +410,7 @@ function aplicarOrdem(ctx, ordem) {
 }
 function linhaPost(p, i) {
     return "P" + (i + 1) + ") " + (p.campeao ? "CAMPEÃO (" + p.campeao + ") | " : "") + (p.tipo || "Post") + " de " + String(p.data || "").slice(0, 10) + (p.recente ? " (últimos 30 dias)" : "") +
-        " | interações " + cerebro.interacoes(p) + " | " + (p.pouco_alcance ? "ALCANCE MUITO BAIXO, número pouco confiável" : "engajamento pelo alcance " + String(arred(p.indice, 2)).replace(".", ",") + "x a média") + " | alcance " + p.alcance + " | visualizações " + (p.visualizacoes || 0) +
+        " | interações " + cerebro.interacoes(p) + " | " + (p.collab ? "COLLAB: post criado por @" + (p.collab_de || "outra conta") + " com a loja como colaboradora (a Meta não dá o alcance nem o tempo assistido de collab)" : p.pouco_alcance ? "ALCANCE MUITO BAIXO, número pouco confiável" : "engajamento pelo alcance " + String(arred(p.indice, 2)).replace(".", ",") + "x a média") + (p.collab ? "" : " | alcance " + p.alcance) + " | visualizações " + (p.visualizacoes || 0) +
         (p.tempo_medio_s ? " | tempo médio assistido " + String(p.tempo_medio_s).replace(".", ",") + " s" : "") +
         (p.retencao_3s != null ? " | ficaram nos 3 primeiros segundos " + String(p.retencao_3s).replace(".", ",") + "%" : "") +
         " | curtidas " + p.curtidas + " | comentários " + p.comentarios + " | salvamentos " + p.salvamentos + " | compartilhamentos " + p.compartilhamentos +

@@ -159,7 +159,8 @@ async function enriquecerLoja(met, anterior, userId, opcoes) {
     if (!con || con.pausada) return { cache: cache, pendentes: [] };
     const token = con.token;
     const agora = new Date().toISOString();
-    const posts = ((met && met.organico && met.organico.posts) || []).filter(function (p) { return ehCodigo(p.id); });
+    // collab em que a loja foi convidada: a Meta nao entrega tempo assistido nem comentarios a quem nao criou o post
+    const posts = ((met && met.organico && met.organico.posts) || []).filter(function (p) { return ehCodigo(p.id) && !p.collab; });
     const ads = ((met && met.anuncios && met.anuncios.p90 && met.anuncios.p90.anuncios) || []).filter(function (a) { return ehCodigo(a.id); });
     function post(id) { return cache.posts[id] || (cache.posts[id] = {}); }
     const sem = { ig: false, ads: false };
@@ -372,7 +373,8 @@ async function fazerFichas(userId, met, cache, alvos, token, prazo) {
             const agora = new Date().toISOString();
             try {
                 let url = "";
-                if (x.tipo === "post") url = (await g("/" + x.id, { fields: "media_url" }, token)).media_url || "";
+                if (x.tipo === "post" && posts[x.id] && posts[x.id].collab && cache.ig_id) url = (((await g("/" + cache.ig_id, { fields: "collaborative_media_search.media_id(" + x.id + "){media_url}" }, token)) || {}).collaborative_media_search || {}).media_url || "";
+                else if (x.tipo === "post") url = (await g("/" + x.id, { fields: "media_url" }, token)).media_url || "";
                 else {
                     if (alvo.ig_media_id) url = (await g("/" + alvo.ig_media_id, { fields: "media_url,media_type" }, token)).media_url || "";
                     if (!url && alvo.video_id) url = (await g("/" + alvo.video_id, { fields: "source" }, token)).source || "";

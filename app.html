@@ -1599,7 +1599,7 @@ function App(){
         ?ce("div",null,ce("div",{className:"igrid"},mostrar.map(function(p,i){return ce("button",{key:(p.id||p.link||"")+i,className:"itile",onClick:function(){setVideoSel({tipo:"org",item:p});},"aria-label":"Abrir post: "+String(p.legenda||p.tipo||"").substring(0,60)},
           !p.miniatura&&ce("span",{style:{position:"absolute",inset:"26px 8px 30px",fontSize:11.5,color:"var(--mu2)",overflow:"hidden",textAlign:"left",lineHeight:1.35}},String(p.legenda||"").substring(0,110)),
           img(p.miniatura),ce("span",{className:"scr"}),
-          p.tipo&&p.tipo!=="Reels"?ce("span",{className:"tp"},p.tipo):null,
+          p.collab?ce("span",{className:"tp"},"Collab"):p.tipo&&p.tipo!=="Reels"?ce("span",{className:"tp"},p.tipo):null,
           vezes(p)>=1.5?ce("span",{className:"ix"},fmtX(vezes(p))):null,
           ordemOrg==="engaj"?ce("span",{className:"vw eng","aria-label":(p.curtidas||0)+" curtidas, "+(p.comentarios||0)+" comentários, "+(p.salvamentos||0)+" salvamentos, "+(p.compartilhamentos||0)+" compartilhamentos"},
             [["coracao",p.curtidas],["balao",p.comentarios],["salvo",p.salvamentos],["enviar",p.compartilhamentos]].map(function(x){return ce("span",{key:x[0],className:"eng-i"},ico(x[0],12,"#fff",2.4),compacto(x[1]||0));})):
@@ -1675,7 +1675,7 @@ function App(){
       var campos=[["visualizacoes","visualizações"],["compartilhamentos","compartilhamentos"],["salvamentos","salvamentos"],["comentarios","comentários"],["curtidas","curtidas"]];
       var destaques=campos.map(function(c){var m=mediana(todos.map(function(p){return p[c[0]]||0;}));return {lb:c[1],r:m>0?(v[c[0]]||0)/m:0};}).filter(function(x){return x.r>=1.5;}).sort(function(a,b){return b.r-a.r;}).slice(0,3);
       var inter=v.interacoes||((v.curtidas||0)+(v.comentarios||0)+(v.salvamentos||0)+(v.compartilhamentos||0));
-      var linhas=[["Visualizações",numBR(v.visualizacoes||0)],["Pessoas alcançadas",numBR(v.alcance||0)],["Interações",numBR(inter)]];
+      var linhas=[["Visualizações",numBR(v.visualizacoes||0)],v.collab?["Collab com","@"+String(v.collab_de||"outra conta").replace(/^@/,"")]:["Pessoas alcançadas",numBR(v.alcance||0)],["Interações",numBR(inter)]];
       if(v.seguiram)linhas.push(["Começaram a seguir",numBR(v.seguiram)]);
       if(v.visitas_perfil)linhas.push(["Visitas ao perfil",numBR(v.visitas_perfil)]);
       if(v.tempo_medio_s)linhas.push(["Tempo médio assistido",String(v.tempo_medio_s).replace(".",",")+" s"]);
