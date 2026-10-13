@@ -787,7 +787,7 @@ async function pedidosEtapa1(ctx) {
         pedidos.push({
             chave: "ads", nome: "Agente de Anuncios", esquema: ESQ_ANUNCIOS,
             pedido: "Você é o AGENTE DE ANÚNCIOS. Estude os anúncios desta loja nos últimos 90 dias. " +
-                (comTexto ? "Os números vêm do Reportei. Em " + comTexto + " de " + ads.lista.length + " anúncios também vêm o TEXTO DO ANÚNCIO e a FALA DO VÍDEO (da Meta): use-os como fonte principal do gancho e do argumento. Nos outros só há o nome, que costuma descrever o vídeo." : "Só há o nome de cada anúncio (que costuma descrever o vídeo) e os números.") +
+                (comTexto ? "Os números vêm da Meta (Instagram e Gerenciador de Anúncios). Em " + comTexto + " de " + ads.lista.length + " anúncios também vêm o TEXTO DO ANÚNCIO e a FALA DO VÍDEO (da Meta): use-os como fonte principal do gancho e do argumento. Nos outros só há o nome, que costuma descrever o vídeo." : "Só há o nome de cada anúncio (que costuma descrever o vídeo) e os números.") +
                 " Descubra o que os anúncios que mais dão resultado têm em comum (gancho, assunto, argumento, oferta, chamada), quais trazem venda de valor alto e quais estão cansando, e onde os fracos perdem gente (no gancho, no corpo ou na chamada). Em resumo, 2 frases para a dona da loja.\n\n" +
                 ctx.sobreLoja + "\nRESULTADO = " + tipoTxt + "\nTOTAIS 90 DIAS: investido " + brl(ads.totais.gasto) + " | alcance " + (ads.totais.alcance || 0) + " | cliques " + (ads.totais.cliques || 0) +
                 (ads.tipo !== "resultados" ? " | " + ads.totais.resultados + " " + nomeResultado(ads.tipo) : "") + (ads.totais.receita > 0 ? " | vendeu " + brl(ads.totais.receita) : "") +

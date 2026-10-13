@@ -177,6 +177,7 @@ tr.clic{cursor:pointer}
   </nav>
 
   <main class="adm-main">
+    <div id="aviso-meta"></div>
     <!-- ================= LOJAS ================= -->
     <section class="aba on" id="aba-lojas">
       <div class="head">
@@ -266,7 +267,7 @@ tr.clic{cursor:pointer}
       <div class="head"><div><div class="h1">Conexões</div><div class="sub">Reportei Connect traz os números de cada loja. A Meta completa com o vídeo, a capa e o texto dos anúncios e os comentários, para o time de agentes saber o que foi falado.</div></div></div>
       <div class="section">
         <div class="sec-head">
-          <div class="sec-title">🔌 Reportei Connect · contas das clientes</div>
+          <div class="sec-title">🔌 Reportei Connect · contas das clientes (reserva)</div>
           <button class="refresh-btn" onclick="carregarConnect()">&#8635; Atualizar</button>
         </div>
         <div id="connect-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
@@ -274,7 +275,7 @@ tr.clic{cursor:pointer}
       </div>
       <div class="section">
         <div class="sec-head">
-          <div class="sec-title">Ⓜ️ Meta · vídeos, capas, textos dos anúncios e comentários</div>
+          <div class="sec-title">Ⓜ️ Meta · números, vídeos, capas, textos dos anúncios e comentários</div>
           <button class="refresh-btn" onclick="carregarMeta()">&#8635; Atualizar</button>
         </div>
         <div id="meta-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
@@ -480,16 +481,28 @@ async function carregarMeta(){
     return;
   }
   var exp=metaCfg.conexao.expires_at?new Date(metaCfg.conexao.expires_at):null,dias=exp?Math.round((exp-Date.now())/864e5):null;
+  avisoMeta(metaCfg.conexao.erro,exp,dias);
   var pausa=metaCfg.conexao.pausa_ate&&new Date(metaCfg.conexao.pausa_ate)>new Date()?new Date(metaCfg.conexao.pausa_ate):null;
   var alerta=metaCfg.conexao.erro?'<div style="margin-top:6px;color:var(--ac2)">'+escHtml(metaCfg.conexao.erro)+'</div>'
-    :(pausa?'<div style="margin-top:6px;color:var(--gold)">Consultas pausadas até '+pausa.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+' porque a Meta pediu para esperar. Volta sozinho; os números do Reportei seguem normais.</div>':'');
+    :(pausa?'<div style="margin-top:6px;color:var(--gold)">Consultas pausadas até '+pausa.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+' porque a Meta pediu para esperar. Volta sozinho; enquanto isso ficam os números da última coleta.</div>':'');
   box.innerHTML='Meta conectada como <b>'+escHtml(metaCfg.conexao.nome||"")+'</b> · '+(exp?'acesso vale por mais <b style="color:'+(dias<10?"var(--ac2)":"var(--ok)")+'">'+dias+' dias</b>':'<b style="color:var(--ok)">acesso sem prazo para expirar</b>')
-    +alerta+'<div style="font-size:12px;margin-top:6px">Só leitura: o sistema consulta só o que é novo (vídeos para transcrever, texto dos anúncios e comentários) e pausa sozinho se a Meta pedir.</div>'
+    +alerta+'<div style="font-size:12px;margin-top:6px">Só leitura: os números dos posts e dos anúncios vêm direto da Meta (o Reportei fica de reserva), e o sistema pausa sozinho se a Meta pedir.</div>'
     +'<div id="meta-contas" style="font-size:12px;margin-top:6px">Conferindo o que este acesso enxerga...</div>'
     +'<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px">Trocar a conexão</summary><div style="margin-top:10px"><button class="btn-sm" onclick="conectarMeta()">Entrar com o Facebook (vale 60 dias)</button></div>'+colar+'</details>';
   if(pausa||metaCfg.conexao.erro){document.getElementById("meta-contas").textContent="";return;}
   try{var c=await apiMeta({acao:"contas"});document.getElementById("meta-contas").textContent="Enxerga "+c.instagram.length+" Instagrams e "+c.anuncios.length+" contas de anúncios.";}
   catch(e){document.getElementById("meta-contas").innerHTML='<span style="color:var(--ac2)">Erro ao listar as contas: '+escHtml(e.message)+'</span>';}
+}
+// aviso no topo do painel: quando a conexao com a Meta vence (login do Facebook vale 60 dias) ou se ela parou
+function avisoMeta(erro,exp,dias){
+  var el=document.getElementById("aviso-meta");if(!el)return;
+  if(!erro&&!exp){el.innerHTML="";return;}
+  var venceu=exp&&dias<=0,cor=erro||venceu||dias<=7?"var(--ac2)":dias<=20?"var(--gold)":"var(--mu2)";
+  var data=exp?exp.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}):"";
+  var txt=erro?"<b>A leitura da Meta parou:</b> "+escHtml(erro)
+    :venceu?"<b>A conexão com a Meta venceu em "+data+".</b> Os números das lojas pararam de atualizar. Entre com o Facebook de novo."
+    :"<b>A conexão com a Meta vence em "+data+"</b> (faltam "+dias+" dia"+(dias===1?"":"s")+"). Antes disso, clique em Renovar e entre com o Facebook: vale por mais 60 dias.";
+  el.innerHTML='<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 16px;padding:12px 16px;border:1px solid '+cor+';border-radius:12px;font-size:13px;line-height:1.5;color:var(--tx)"><span style="width:10px;height:10px;border-radius:50%;background:'+cor+';flex-shrink:0"></span><span style="flex:1;min-width:220px">'+txt+'</span><button class="btn-sm" onclick="conectarMeta()">Renovar agora</button></div>';
 }
 async function salvarTokenMeta(){
   var el=document.getElementById("meta-token"),token=el?el.value.trim():"";

@@ -660,6 +660,18 @@ function App(){
   var ehAdmin=!!(currentUser&&currentUser.id==="1c4d2a2b-c60b-4e99-982b-5b4a09e8cc0f");
   var sML=useState(function(){try{return localStorage.getItem("mcp_modo_lojista")==="1";}catch(e){return false;}}),modoLojista=sML[0],setModoLojista=sML[1];
   var souAdmin=ehAdmin&&!modoLojista;
+  // aviso so para o admin: a conexao com a Meta (login do Facebook vale 60 dias) vence em breve ou parou
+  var sAM=useState(null),avisoMetaAdm=sAM[0],setAvisoMetaAdm=sAM[1];
+  useEffect(function(){
+    if(!souAdmin){setAvisoMetaAdm(null);return;}
+    (async function(){try{
+      var ss=await supaClient.auth.getSession();var tk=ss.data&&ss.data.session&&ss.data.session.access_token;
+      var r=await fetch("/api/meta",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify({acao:"config"})});
+      var d=await r.json().catch(function(){return {};});var c=r.ok&&d.conexao;if(!c)return;
+      var exp=c.expires_at?new Date(c.expires_at):null,dias=exp?Math.round((exp-Date.now())/864e5):null;
+      if(c.erro||(exp&&dias<=20))setAvisoMetaAdm({erro:c.erro||null,data:exp?exp.toLocaleDateString("pt-BR"):"",dias:dias});
+    }catch(e){}})();
+  },[souAdmin]);
   useEffect(function(){if(ehAdmin&&modoLojista&&/ver=[0-9a-f-]{36}/.test(String(location.hash||"")))trocarModoLojista(false);},[]);
   function trocarModoLojista(on){
     if(on&&verComo)sairDoModoCliente();
@@ -1645,13 +1657,13 @@ function App(){
       d.gerado_em&&ce("div",{style:{fontSize:12,color:"var(--mu2)",margin:"-4px 0 14px"}},"Análise feita "+quando(d.gerado_em)+" com os últimos 90 dias. O time analisa de novo de madrugada sempre que entra post ou anúncio novo."+(poucos?" Ainda há poucos dados, então algumas conclusões são iniciais.":"")),
       blocoMemoria(contaMeta&&contaMeta.memoria,contaMeta&&contaMeta.caderno),
       blocoRelatorio("🔎 Agente Orgânico",d.organico&&d.organico.relatorio,{o_que_funciona:"O que funciona",formatos_mae:"Formatos que vale repetir",ganchos_que_funcionam:"Ganchos que funcionam",temas:"Temas",formatos:"Formatos",evitar:"Evitar"},
-        "números dos posts (Reportei)"+(d.versao>=3?", fala dos Reels e tempo médio assistido (Meta)":"")+"."),
+        "números dos posts (Meta)"+(d.versao>=3?", fala dos Reels e tempo médio assistido (Meta)":"")+"."),
       blocoEtiquetas(contaMeta&&contaMeta.memoria),
       blocoPerguntas(d),
       blocoRelatorio("👥 Agente de Público",d.publico,{quem_e:"Quem é",idade_genero:"Idade e gênero",regioes:"Regiões",faixas:"Por faixa de idade",quem_compra:"Quem mais compra",dores:"Dores",desejos:"Desejos",objecoes:"Objeções",motivos_compra:"Por que compra",motivos_nao_compra:"Por que desiste",gatilhos:"O que faz comprar nesta loja",situacoes:"Situações do dia a dia",angulos:"Ângulos de comunicação",expressoes_reais:d.publico_fonte==="comentarios"?"Como o público fala (dos comentários)":"Frases que mais engajaram"},
         "idade, gênero e cidades dos seguidores (Meta ou Reportei)"+(d.publico_fonte==="comentarios"?", comentários reais das seguidoras (Meta)":"")+". Quem é, dores, desejos e objeções são leituras do time a partir do que mais engajou."),
       blocoRelatorio("💰 Agente de Anúncios",d.anuncios&&d.anuncios.relatorio,{o_que_vende:"O que vende",ganchos_que_convertem:"Ganchos que convertem",argumentos_e_ofertas:"Argumentos e ofertas",ctas:"Chamadas que funcionam",diagnostico_dos_fracos:souAdmin?"Onde os fracos perdem (só você vê)":null},
-        "números dos anúncios (Reportei)"+(d.anuncios&&d.anuncios.com_texto?", texto do anúncio e fala do vídeo (Meta)":"")+"."));
+        "números dos anúncios (Meta)"+(d.anuncios&&d.anuncios.com_texto?", texto do anúncio e fala do vídeo (Meta)":"")+"."));
   }
 
   // ---------- DETALHE de um post ou de um anuncio ----------
@@ -1965,6 +1977,10 @@ function App(){
     ce("main",{className:"main"},
       ce("div",{className:"mob-bar"},ce("button",{className:"mob-btn",onClick:function(){setSbOpen(true);}},"="),ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,flex:1}},titles[view]||"")),
       ce("div",{className:"topbar"},ce("div",{className:"tb-title"},titles[view]||"")),
+      souAdmin&&view==="home"&&avisoMetaAdm&&ce("div",{style:{margin:"12px 16px 0",padding:"12px 14px",borderRadius:12,border:"1px solid "+(avisoMetaAdm.erro||avisoMetaAdm.dias<=7?"#FF8A50":"#F5C842"),fontSize:13,lineHeight:1.5}},
+        avisoMetaAdm.erro?ce("span",null,ce("b",null,"A leitura da Meta parou. "),"Abra o Painel Admin e entre com o Facebook de novo.")
+        :avisoMetaAdm.dias<=0?ce("span",null,ce("b",null,"A conexão com a Meta venceu em "+avisoMetaAdm.data+". "),"Os números das lojas pararam. Abra o Painel Admin e clique em Renovar agora.")
+        :ce("span",null,ce("b",null,"A conexão com a Meta vence em "+avisoMetaAdm.data+" "),"(faltam "+avisoMetaAdm.dias+" dia"+(avisoMetaAdm.dias===1?"":"s")+"). Abra o Painel Admin e clique em Renovar agora. Só você vê este aviso.")),
       view==="home"&&renderHome(),
       view==="briefing"&&ce("div",{className:"content"},
         ce("div",{className:"fwrap"},

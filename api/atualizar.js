@@ -3,7 +3,7 @@
 //  Chamada pelo agendador do banco (pg_cron do Supabase, a cada 5 minutos)
 //  e, de reserva, pelo Vercel Cron uma vez por dia. So quem tem o CRON_SECRET chama.
 //
-//  1. Numeros (Reportei): cada loja a cada 30 minutos; a cada 5 minutos
+//  1. Numeros (direto da Meta; o Reportei fica de reserva): cada loja a cada 30 minutos; a cada 5 minutos
 //     enquanto a dona estiver usando o app.
 //  2. Analises em andamento (contas_meta.dossie_job): confere o lote da
 //     Anthropic ou roda a proxima etapa na hora.
