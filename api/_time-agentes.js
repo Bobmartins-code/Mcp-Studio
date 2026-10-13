@@ -49,6 +49,7 @@ const { diaSP, assinaturaDe } = require("./_coleta.js");
 const { enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia } = require("./_meta-leitura.js");
 const { textoVisual } = require("./_olhos.js");
 const cerebro = require("./_cerebro.js");
+const { textoStories } = require("./_stories.js");
 const { fichasDaLoja, salvarMeta } = require("./_meta-leitura.js");
 
 const MODELO = "claude-sonnet-5";
@@ -539,15 +540,17 @@ function vozEGanchos(met, comentarios) {
 async function carregar(userId) {
     const id = encodeURIComponent(userId);
     const desde = encodeURIComponent(new Date(Date.now() - 60 * DIA_MS).toISOString());
-    const [contas, lojas, projetos, gostei, conversas] = await Promise.all([
+    const desde30 = encodeURIComponent(new Date(Date.now() - 30 * DIA_MS).toISOString());
+    const [contas, lojas, projetos, gostei, conversas, stories] = await Promise.all([
         banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job,memoria,caderno"),
         banco("lojas?user_id=eq." + id + "&select=nome,nicho,site,produtos_dona,produtos_dona_em,produtos_admin,publico_admin,objetivo_anuncios").catch(function () { return []; }),
         banco("projetos?user_id=eq." + id + "&select=id,nome,form,rodadas,criado_em&order=criado_em.desc&limit=6").catch(function () { return []; }),
         banco("gostei?user_id=eq." + id + "&criado_em=gte." + desde + "&select=tipo,titulo,conteudo,criado_em&order=criado_em.desc&limit=30").catch(function () { return []; }),
-        banco("conversas?user_id=eq." + id + "&criado_em=gte." + desde + "&select=area,pedido,criado_em&order=criado_em.desc&limit=15").catch(function () { return []; })
+        banco("conversas?user_id=eq." + id + "&criado_em=gte." + desde + "&select=area,pedido,criado_em&order=criado_em.desc&limit=15").catch(function () { return []; }),
+        banco("stories?user_id=eq." + id + "&publicado_em=gte." + desde30 + "&select=publicado_em,tipo,metricas&order=publicado_em.desc&limit=200").catch(function () { return []; })
     ]);
     const conta = (contas && contas[0]) || {};
-    return { userId: userId, conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, caderno: conta.caderno || null, gostei: gostei || [], conversas: conversas || [] };
+    return { userId: userId, storiesLista: stories || [], conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, caderno: conta.caderno || null, gostei: gostei || [], conversas: conversas || [] };
 }
 // comMeta: consulta a Meta (so na primeira etapa); nas outras usa o que ja foi guardado
 async function preparar(ctx, comMeta) {
@@ -572,6 +575,7 @@ async function preparar(ctx, comMeta) {
     ctx.comentarios = comentariosDaLoja(met, cache);
     ctx.ads = anunciosDaLoja(met);
     ctx.demografia = textoDemografia(cache);
+    ctx.storiesTexto = textoStories(ctx.storiesLista, met && met.conta && met.conta.seguidores);
     ctx.sobreLoja = montarSobreLoja(ctx.loja, ctx.projetos, met);
     return ctx;
 }
@@ -851,6 +855,7 @@ function contextoDasIdeias(ctx, p) {
     const pub = p.pub || ctx.dossie.publico;
     return cerebro.textoCaderno(ctx.caderno) + textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
         "\nDADOS DE SEGUIDORES: " + (ctx.demografia || "não disponível") +
+        (ctx.storiesTexto ? "\n" + ctx.storiesTexto + "\n(Os stories mostram o que puxa conversa no direct e onde a seguidora desiste: use para o fechamento das ideias e para o que a dona fala nos stories do dia.)" : "") +
         "\nMAPA DE PÚBLICO: " + resumoRel(pub) +
         "\nRELATÓRIO ORGÂNICO (com os formatos-mãe): " + resumoRel(p.org) +
         "\nRELATÓRIO DE ANÚNCIOS: " + resumoRel(p.ads) +
@@ -915,6 +920,7 @@ function pedidosAvaliador(ctx, p, anteriores) {
         "Prefira as ideias que partem do que está COMPROVADO no CÉREBRO DA LOJA; ideia que repete o que o cérebro diz que NÃO FUNCIONA é generica.\n" +
         (anteriores.length ? "\nJÁ SUGERIDAS NOS ÚLTIMOS 35 DIAS (título [mecânica | peça]):\n" + anteriores.slice(0, 40).join("\n") + "\n" : "") +
         cerebro.textoCaderno(ctx.caderno) + textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
+        (ctx.storiesTexto ? "\n" + ctx.storiesTexto : "") +
         "\nPERGUNTAS DAS CLIENTES: " + JSON.stringify(((p.pub || ctx.dossie.publico || {}).perguntas_clientes) || []) +
         dadosEmTexto(ctx, 20, 12, 30);
     return Object.keys(ESPECIALISTAS).map(function (f) {
@@ -1440,7 +1446,7 @@ function entraNoLote(c, agora, acessoEm, ativaDesde) {
 function lojaAtiva(agora, acessoEm, ativaDesde) { return situacao(null, agora, acessoEm, ativaDesde).ativa; }
 
 module.exports = {
-    analisarLoja, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO, cerebroDaLoja, lojaAtiva,
+    analisarLoja, perguntar, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO, cerebroDaLoja, lojaAtiva,
     conversa: { textoCaderno: cerebro.textoCaderno, semCodigos, textoDaLoja, espera, FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, textoOportunidades, linhaPost, linhaAnuncio, ligarPostsAosAnuncios, anunciosDaLoja, postsDaLoja, MECANICAS, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
     _teste: { pedidoCaderno, marcarCampeoes, pedidoMemoria, memoriaNova, pedidoDiretor, pedidosRascunhos, pedidosAvaliador, pedidosEscrita, escolha, montarIdeias, mapaDeCodigos, rodarAgora, textoCampeoes, postsDaLoja, semCodigosEmTudo, titulosAnteriores, ligarPostsAosAnuncios },
     _interno: { vozEGanchos, primeiraFrase, postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, datasDoVarejo, montarIdeias, candidatas, ESQ_DIRETOR, ESQ_ESPECIALISTA, ESQ_RASCUNHO, ESQ_AVALIADOR, SISTEMA_TIME }

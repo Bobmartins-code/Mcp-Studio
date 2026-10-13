@@ -15,6 +15,8 @@
 //  5. Cerebro (lojas ativas, ate 2 por rodada, cada uma a cada 15 minutos no maximo):
 //     fichas dos videos campeoes (fala lida e video assistido, uma vez so) e,
 //     quando entra campeao novo, o Agente do Caderno atualiza o que a loja ja sabe.
+//  6. Cerebro central (modo observacao): 1 vez por semana, licoes anonimas de formato
+//     vistas em 3 lojas ou mais (api/_cerebro-central.js). So o admin ve; nao entra nas ideias.
 // =====================================================================
 
 const { banco, ADMIN_ID } = require("./_seguranca.js");
@@ -124,6 +126,18 @@ module.exports = async function handler(req, res) {
         for (const c of cerebroFila.slice(0, CEREBRO_POR_RODADA)) {
             if (passou() > CEREBRO_ATE_MS) break;
             await tentar(c.user_id, "cerebro", function () { return cerebroDaLoja(c.user_id, inicio + LIMITE_MS).then(function (x) { return { status: (x.status || "ok") + " | fichas " + (x.fichas || 0) + " | faltam " + (x.faltam || 0) + (x.caderno ? " | cérebro" + (x.mudou ? " mudou" : " igual") : "") }; }); });
+        }
+
+        // 6) cerebro central (modo observacao, so o admin ve): 1 vez por semana, de dia e se sobrar tempo na rodada
+        const hc = horaSP(new Date());
+        if (hc >= 9 && hc < 22 && passou() < 110000) {
+            try {
+                const central = require("./_cerebro-central.js");
+                if (await central.centralVencido(inicio)) {
+                    const rc = await central.gerarCentral(inicio + LIMITE_MS);
+                    analises.push({ oque: "cerebro central", status: rc.ok ? rc.licoes + " licoes de " + rc.lojas_lidas + " lojas" : rc.motivo });
+                }
+            } catch (e) { falhasAnalise.push({ oque: "cerebro central", erro: (e && e.message) || "erro" }); }
         }
 
         return res.status(200).json({ ok: true, atualizadas: feitos.length, falhas: falhas, puladas: puladas.length, analises: analises, falhas_analise: falhasAnalise, na_fila_agora: Math.max(0, agora.length - 1), olhos: require("./_olhos.js").disponivel(), ms: passou() });

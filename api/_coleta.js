@@ -479,9 +479,12 @@ async function coletarLoja(userId, antes, objetivo) {
     if (!ids.ig && !ids.conta) throw new Error("Escolha o Instagram e a conta de anúncios da loja no Painel Admin (⋯ > Instagram e anúncios).");
     if (!ids.ig) avisos.push("Falta escolher o Instagram da loja no Painel Admin.");
     if (!ids.conta) avisos.push("Falta escolher a conta de anúncios da loja no Painel Admin.");
-    [org, ads] = await Promise.all([
+    let stories = null;
+    [org, ads, stories] = await Promise.all([
         ids.ig ? organicoDaMeta(ids.ig, con.token).catch(function (e) { avisos.push("Instagram: " + e.message); return null; }) : null,
-        ids.conta ? anunciosDaMeta(ids.conta, con.token, antes && antes.mes_ant, objetivo).catch(function (e) { avisos.push("Anúncios: " + e.message); return null; }) : null
+        ids.conta ? anunciosDaMeta(ids.conta, con.token, antes && antes.mes_ant, objetivo).catch(function (e) { avisos.push("Anúncios: " + e.message); return null; }) : null,
+        // stories no ar: guardados na tabela stories (nao entram em metricas)
+        ids.ig ? require("./_stories.js").coletarStories(userId, ids.ig, con.token).catch(function (e) { avisos.push("Stories: " + e.message); return null; }) : null
     ]);
     if (org) fontes.organico = "meta";
     if (ads) fontes.anuncios = "meta";
@@ -496,7 +499,7 @@ async function coletarLoja(userId, antes, objetivo) {
     const met = {
         versao: 1, fonte: "meta", fontes: fontes, atualizado_em: new Date().toISOString(),
         conta: { username: org && org.conta ? org.conta.username : null, seguidores: org && org.conta ? org.conta.seguidores : null, anuncios: ads ? ads.conta : null },
-        organico: org, anuncios: ads, avisos: avisos
+        organico: org, anuncios: ads, stories: stories, avisos: avisos
     };
     met.assinatura = assinaturaDe(met);
     return met;

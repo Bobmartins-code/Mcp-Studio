@@ -646,6 +646,17 @@ function App(){
   var sPer=useState(30),periodo=sPer[0],setPeriodo=sPer[1];
   var sVs=useState(null),videoSel=sVs[0],setVideoSel=sVs[1];
   var sOrd=useState("vistos"),ordemOrg=sOrd[0],setOrdemOrg=sOrd[1];
+  // stories guardados da loja aberta (a Meta so entrega enquanto estao no ar; o servidor guarda cada um)
+  var sSto=useState(null),storiesLoja=sSto[0],setStoriesLoja=sSto[1];
+  var sOst=useState("respostas"),ordemSt=sOst[0],setOrdemSt=sOst[1];
+  var uidLojaAberta=verComo?verComo.id:(currentUser&&currentUser.id);
+  useEffect(function(){
+    if(view!=="videos"||!uidLojaAberta)return;
+    if(storiesLoja&&storiesLoja.uid===uidLojaAberta&&Date.now()-storiesLoja.em<10*60000)return;
+    var uid=uidLojaAberta,desde=new Date(Date.now()-92*864e5).toISOString();
+    supaClient.from("stories").select("story_id,publicado_em,tipo,capa_url,link,metricas,final").eq("user_id",uid).gte("publicado_em",desde).order("publicado_em",{ascending:false}).limit(400)
+      .then(function(r){setStoriesLoja({uid:uid,em:Date.now(),lista:(r&&!r.error&&r.data)||[]});},function(){setStoriesLoja({uid:uid,em:Date.now(),lista:[]});});
+  },[view,uidLojaAberta]);
   var sOrdA=useState("resultado"),ordemAds=sOrdA[0],setOrdemAds=sOrdA[1];
   var sLim=useState({k:"",n:6}),limVid=sLim[0],setLimVid=sLim[1];
   var sLj=useState(null),lojaInfo=sLj[0],setLojaInfo=sLj[1];
@@ -1558,19 +1569,20 @@ function App(){
 
   // ---------- VIDEOS: organicos (grade do Instagram) e anuncios (lista) ----------
   function renderVideos(){
-    if(videoSel)return renderDetalhe();
+    if(videoSel)return videoSel.tipo==="story"?renderStoryDet():renderDetalhe();
     var dl=dadosLoja(contaMeta);
     var d=(dl&&dl.dossie)||{};
     if(!dl&&carregandoConta)return esqueleto(2,220);
     if(!dl&&erroConta&&!contaMeta)return ce("div",{className:"content"},erroCarga(tentarConta));
     if(!dl||(!(dl.posts||[]).length&&!dl.ads&&!d.texto))return ce("div",{className:"content"},ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"📊"),ce("div",{className:"emp-h"},contaMeta?"Seus números estão a caminho":"Sua conta ainda não foi conectada"),ce("div",{className:"emp-p"},contaMeta?"Sua conta já foi conectada. Assim que os dados do Instagram e dos anúncios chegarem, seus vídeos aparecem aqui.":"A equipe do MCP Studio vai conectar seu Instagram e sua conta de anúncios. Depois disso seus vídeos aparecem aqui, atualizados todo dia.")));
-    var abas=[].concat((dl.posts||[]).length?[{id:"organico",lb:"Orgânicos",ic:"ig"}]:[],dl.ads?[{id:"anuncios",lb:"Anúncios",ic:"ads"}]:[],(d.texto||d.publico)?[{id:"descobertas",lb:"Descobertas",ic:null}]:[]);
+    var abas=[].concat((dl.posts||[]).length?[{id:"organico",lb:"Orgânicos",ic:"ig"}]:[],dl.ads?[{id:"anuncios",lb:"Anúncios",ic:"ads"}]:[],(dl.posts||[]).length?[{id:"stories",lb:"Stories",ic:null}]:[],(d.texto||d.publico)?[{id:"descobertas",lb:"Descobertas",ic:null}]:[]);
     var aba=abas.some(function(a){return a.id===videosTab;})?videosTab:abas[0].id;
     return ce("div",{className:"content"},ce("div",{className:"pg"},
       ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,marginBottom:10,flexWrap:"wrap"}},ce("div",{className:"pg-h"},"Vídeos"),dl.atualizado&&ce("div",{style:{fontSize:12.5,color:"var(--mu2)"}},"Atualizado "+quando(dl.atualizado))),
       abas.length>1&&ce("div",{className:"seg"},abas.map(function(a){return ce("button",{key:a.id,className:aba===a.id?"on":"",onClick:function(){setVideosTab(a.id);}},a.ic?ico(a.ic,18):null,a.lb);})),
       aba==="organico"&&renderOrganico(dl),
       aba==="anuncios"&&renderAnuncios(dl),
+      aba==="stories"&&renderStories(dl),
       aba==="descobertas"&&renderDescobertas(dl)
     ));
   }
@@ -1613,6 +1625,69 @@ function App(){
         ?ce("div",{className:"legenda",style:{display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}},[["coracao","curtidas"],["balao","comentários"],["salvo","salvamentos"],["enviar","compartilhamentos"]].map(function(x){return ce("span",{key:x[0],style:{display:"inline-flex",gap:5,alignItems:"center"}},ico(x[0],14,"var(--mu2)"),x[1]);}),temSelo?ce("span",{style:{display:"inline-flex",gap:6,alignItems:"center"}},ce("span",{className:"badge-ix"},"2x"),"o dobro de interações da média da sua conta"):null)
         :temSelo&&ce("div",{className:"legenda"},ce("span",{className:"badge-ix"},"2x"),"quantas vezes o post foi melhor que a média da sua conta em "+NOME_CRIT[ordemOrg])
     );
+  }
+  // ---------- STORIES: guardados pelo servidor enquanto estavam no ar ----------
+  var ORD_ST=[{id:"respostas",lb:"Mais respostas",v:function(m){return m.respostas||0;},txt:"Quantas mensagens o story recebeu no direct. É conversa começando: o sinal que o Instagram mais valoriza nos stories."},
+    {id:"retencao",lb:"Melhor retenção",v:function(m){return m.retencao==null?-1:m.retencao;},txt:"Quantas pessoas não saíram nem pularam para a próxima conta neste story. Mostra o story que prende."},
+    {id:"compart",lb:"Mais compartilhados",v:function(m){return m.compartilhamentos||0;},txt:"Quantas vezes o story foi enviado para outras pessoas. Leva a loja a quem ainda não segue."},
+    {id:"perfil",lb:"Mais visitas e cliques",v:function(m){return (m.visitas_perfil||0)+(m.cliques_link||0);},txt:"Visitas ao perfil e cliques no link somados: sinal de interesse em comprar."},
+    {id:"recentes",lb:"Mais recentes",v:null,txt:""}];
+  function seguidoresDaLoja(){var c=contaMeta&&contaMeta.metricas&&contaMeta.metricas.conta;return (c&&c.seguidores)||0;}
+  function dataHoraStory(s){return s.publicado_em?new Date(s.publicado_em).toLocaleString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";}
+  function rotuloSt(o,m){
+    if(m.poucos)return "menos de 5 visualizações";
+    if(o==="respostas")return [ico("balao",14,"#fff",2.4),compacto(m.respostas||0)];
+    if(o==="retencao")return m.retencao==null?"-":String(m.retencao).replace(".",",")+"% ficaram";
+    if(o==="compart")return [ico("enviar",14,"#fff",2.4),compacto(m.compartilhamentos||0)];
+    if(o==="perfil")return compacto((m.visitas_perfil||0)+(m.cliques_link||0))+" visitas e cliques";
+    return compacto(m.alcance||0)+" pessoas";
+  }
+  function renderStories(dl){
+    if(!storiesLoja||storiesLoja.uid!==uidLojaAberta)return ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Carregando os stories...");
+    var todos=storiesLoja.lista,f=faixaDoPeriodo(periodo);
+    if(!todos.length)return ce("div",{className:"emp",style:{padding:"28px 0"}},ce("div",{className:"emp-ic"},"⏳"),ce("div",{className:"emp-h"},"Os stories começaram a ser guardados"),ce("div",{className:"emp-p"},"O Instagram só mostra os números de um story enquanto ele está no ar, por 24 horas. A partir de agora, cada story fica salvo aqui com os números, mesmo depois de sair do ar. Os primeiros aparecem na próxima atualização."));
+    var lista=todos.filter(function(s){var t=s.publicado_em?new Date(s.publicado_em).getTime():0;return t>=f[0]&&t<f[1];});
+    var o=ORD_ST.find(function(x){return x.id===ordemSt;})||ORD_ST[0];
+    if(o.v)lista=lista.slice().sort(function(a,b){return o.v(b.metricas||{})-o.v(a.metricas||{})||String(b.publicado_em).localeCompare(String(a.publicado_em));});
+    var comNum=lista.filter(function(s){return s.metricas&&s.metricas.alcance>0;}),seg=seguidoresDaLoja();
+    var media=function(k){return comNum.length?comNum.reduce(function(t,s){return t+(s.metricas[k]||0);},0)/comNum.length:0;};
+    var chave="st:"+ordemSt+":"+periodo,mostrar=lista.slice(0,limiteDe(chave));
+    return ce("div",null,
+      ce("div",{className:"ords"},ORD_ST.map(function(x){return ce("button",{key:x.id,className:"chip"+(ordemSt===x.id?" on":""),"aria-pressed":ordemSt===x.id,onClick:function(){setOrdemSt(x.id);}},x.lb);})),
+      chipsPeriodo(),
+      ce("div",{className:"qtd"},lista.length+(lista.length===1?" story ":" stories ")+textoPeriodo(periodo)+(comNum.length?" · em média "+numBR(Math.round(media("alcance")))+" pessoas"+(seg?" ("+String(Math.round(media("alcance")/seg*1000)/10).replace(".",",")+"% das seguidoras)":"")+" e "+String(Math.round(media("respostas")*10)/10).replace(".",",")+" respostas por story":"")),
+      o.txt?ce("div",{className:"legenda",style:{paddingTop:0}},o.txt):null,
+      lista.length
+        ?ce("div",null,ce("div",{className:"igrid"},mostrar.map(function(s){var m=s.metricas||{};return ce("button",{key:s.story_id,className:"itile",style:{aspectRatio:"9/16"},onClick:function(){setVideoSel({tipo:"story",item:s});},"aria-label":"Abrir story de "+dataHoraStory(s)},
+            img(s.capa_url),ce("span",{className:"scr"}),
+            s.tipo==="Vídeo"?ce("span",{className:"tp"},"Vídeo"):null,
+            ce("span",{className:"vw"},rotuloSt(ordemSt,m)));})),verMais(chave,lista.length))
+        :ce("div",{className:"emp-p",style:{padding:"24px 0"}},"Nenhum story guardado "+textoPeriodo(periodo)+".")
+    );
+  }
+  function renderStoryDet(){
+    var s=videoSel.item,m=s.metricas||{},seg=seguidoresDaLoja();
+    var topo=ce("button",{className:"back",onClick:function(){voltar(function(){setVideoSel(null);});}},ico("voltar",22),"Story · "+dataHoraStory(s));
+    var linhas=[["Pessoas alcançadas",numBR(m.alcance||0)+(seg&&m.alcance?" ("+String(Math.round(m.alcance/seg*1000)/10).replace(".",",")+"% das seguidoras)":"")],["Visualizações",numBR(m.visualizacoes||0)],["Respostas no direct",numBR(m.respostas||0)],["Compartilhamentos",numBR(m.compartilhamentos||0)]];
+    if(m.retencao!=null)linhas.push(["Retenção: não saíram nem pularam",String(m.retencao).replace(".",",")+"%"]);
+    linhas.push(["Visitas ao perfil",numBR(m.visitas_perfil||0)]);
+    if(m.cliques_link)linhas.push(["Cliques no link",numBR(m.cliques_link)]);
+    if(m.seguiram)linhas.push(["Começaram a seguir",numBR(m.seguiram)]);
+    var nav=[["Voltaram para rever",m.voltar],["Saíram dos stories",m.sair],["Pularam para a próxima conta",m.proximo],["Tocaram para avançar",m.avancar]];
+    return ce("div",{className:"content"},ce("div",{className:"pg",style:{maxWidth:560}},topo,
+      ce("div",{style:{display:"flex",gap:14,marginBottom:16,alignItems:"flex-start"}},
+        ce("div",{className:"thumb",style:{width:120,height:213,flexShrink:0}},img(s.capa_url)),
+        ce("div",{style:{display:"flex",flexDirection:"column",gap:8,minWidth:0,fontSize:13.5,lineHeight:1.5,color:"#D9D7D0"}},
+          ce("div",null,(s.tipo||"Story")+" publicado "+dataHoraStory(s)+"."),
+          ce("div",{style:{color:"var(--mu2)",fontSize:12.5}},s.final?"Já saiu do ar: estes são os números finais.":"Ainda no ar: os números continuam subindo."),
+          m.poucos?ce("div",{style:{color:"var(--mu2)",fontSize:12.5}},"O Instagram não mostra números de story com menos de 5 visualizações."):null)),
+      ce("div",{className:"counters"},[["balao",m.respostas,"respostas"],["enviar",m.compartilhamentos,"compartilhamentos"]].map(function(c){return ce("div",{key:c[0],title:c[2],"aria-label":c[2]},ico(c[0],22),numBR(c[1]||0));})),
+      ce("div",{className:"sec-h"},"Visão geral"),
+      ce("div",{style:{marginBottom:16}},linhas.map(function(l){return ce("div",{key:l[0],className:"linha"},ce("span",null,l[0]),ce("span",null,l[1]));})),
+      ce("div",{className:"sec-h"},"Como assistiram"),
+      ce("div",{style:{marginBottom:16}},nav.map(function(l){return ce("div",{key:l[0],className:"linha"},ce("span",null,l[0]),ce("span",null,numBR(l[1]||0)));})),
+      ce("div",{className:"nota"},ce("b",null,"Como ler: "),"respostas são conversas começando no direct. Muita gente voltando para rever costuma ser interesse (preço, detalhe da peça); muita gente saindo mostra onde a sequência perdeu a atenção.")
+    ));
   }
   function renderAnuncios(dl){
     var ap=adsDoPeriodo(dl,periodo);if(!ap)return null;

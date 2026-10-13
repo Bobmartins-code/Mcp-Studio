@@ -2,6 +2,7 @@
 //  ACOES DO ADMIN NUMA LOJA
 //  - atualizar: puxa agora os posts e anuncios da loja direto da Meta
 //  - analisar: roda agora o time de agentes da loja
+//  - central: monta agora o cerebro central (licoes anonimas; so o admin ve)
 //  (o nome do arquivo ficou da epoca do Reportei Connect, que saiu em out/2026)
 //  So o admin usa.
 // =====================================================================
@@ -32,6 +33,13 @@ module.exports = async function handler(req, res) {
             if (!b.user_id) return res.status(400).json({ error: "Informe a loja." });
             const r = await analisarLoja(b.user_id, "manual");
             await auditar(admin.id, "rodou o time de agentes da loja", b.user_id);
+            return res.status(200).json(r);
+        }
+
+        // monta agora o cerebro central (licoes anonimas de formato; so o admin ve)
+        if (b.acao === "central") {
+            const r = await require("./_cerebro-central.js").gerarCentral(Date.now() + 280000);
+            await auditar(admin.id, "gerou o cerebro central", null);
             return res.status(200).json(r);
         }
 

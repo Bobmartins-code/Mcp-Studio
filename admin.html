@@ -170,6 +170,7 @@ tr.clic{cursor:pointer}
     <button class="adm-btn" data-aba="projetos" onclick="abrirAba('projetos')">Projetos e roteiros</button>
     <button class="adm-btn" data-aba="visao" onclick="abrirAba('visao')">Visão geral</button>
     <button class="adm-btn" data-aba="conexoes" onclick="abrirAba('conexoes')">Conexões</button>
+    <button class="adm-btn" data-aba="central" onclick="abrirAba('central')">Cérebro central</button>
     <button class="adm-btn" data-aba="seguranca" onclick="abrirAba('seguranca')">Segurança</button>
     <div class="fim" style="flex:1"></div>
     <a class="adm-btn fim" href="app.html">← Voltar ao app</a>
@@ -275,6 +276,15 @@ tr.clic{cursor:pointer}
     </section>
 
     <!-- ================= SEGURANCA ================= -->
+    <!-- ================= CEREBRO CENTRAL ================= -->
+    <section class="aba" id="aba-central">
+      <div class="head">
+        <div><div class="h1">Cérebro central</div><div class="sub">Lições de formato que se repetem em 3 lojas ou mais, sem nome, @, produto, preço ou número de nenhuma loja. Está em modo observação: só você vê e ainda não entra nas ideias das lojas.</div></div>
+        <button class="btn-out" style="height:44px" id="btn-central" onclick="gerarCentralAgora()">Gerar agora</button>
+      </div>
+      <div id="central-corpo"><div class="loading"><div class="spin"></div>Carregando...</div></div>
+    </section>
+
     <section class="aba" id="aba-seguranca">
       <div class="head"><div><div class="h1">Segurança</div></div></div>
       <div class="section">
@@ -395,6 +405,33 @@ function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo
 function nichoSalvo(p){if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.rodadas||[];for(var i=rs.length-1;i>=0;i--){if(rs[i].direcao&&rs[i].direcao.nicho)return rs[i].direcao.nicho;}return "";}
 function csvSeguro(t){t=String(t==null?"":t).replace(/"/g,'""');return /^[=+\-@]/.test(t)?"'"+t:t;}
 function escHtml(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+// ===== cerebro central (modo observacao) =====
+async function carregarCentral(){
+  var el=document.getElementById("central-corpo");if(!el)return;
+  var r=await supaClient.from("cerebro_central").select("gerado_em,licoes,resumo").order("gerado_em",{ascending:false}).limit(6);
+  if(r.error){el.innerHTML='<div class="caixa">Não consegui ler o cérebro central: '+escHtml(r.error.message)+'</div>';return;}
+  var lista=r.data||[],ok=lista.find(function(x){return !(x.resumo&&x.resumo.erro);}),erro=lista[0]&&lista[0].resumo&&lista[0].resumo.erro?lista[0]:null;
+  var html="";
+  if(erro)html+='<div class="caixa" style="margin-bottom:16px">A última montagem ('+fmtCurto(erro.gerado_em)+') falhou: '+escHtml(erro.resumo.erro)+'. Tenta de novo sozinha em 1 dia, ou clique em Gerar agora.</div>';
+  if(!ok){el.innerHTML=html+'<div class="empty">Ainda não foi montado. Ele monta sozinho 1 vez por semana; para ver agora, clique em Gerar agora (leva cerca de 1 minuto).</div>';return;}
+  var rs=ok.resumo||{},ls=ok.licoes||[];
+  html+='<div class="tiles">'+[["Lições",ls.length],["Lojas lidas",rs.lojas_lidas||0],["Descartadas (menos de 3 lojas)",rs.descartadas_poucas_lojas||0],["Descartadas pelo filtro",rs.descartadas_filtro||0]].map(function(t){return '<div class="tile"><div class="tile-l">'+t[0]+'</div><div class="tile-v">'+t[1]+'</div></div>';}).join("")+'</div>';
+  html+='<div class="mini" style="margin:0 0 14px">Montado '+fmtCurto(ok.gerado_em)+(rs.observacao?' · '+escHtml(rs.observacao):'')+'</div>';
+  if(!ls.length)html+='<div class="empty">Nenhuma lição passou nas regras desta vez. Com mais lojas no mesmo nicho, as lições aparecem.</div>';
+  ls.forEach(function(li){
+    html+='<div class="section" style="padding:16px 20px"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><span class="ch '+(li.tipo==="evitar"?"ch-ac":"ch-ok")+'">'+(li.tipo==="evitar"?"Evitar":"Funciona")+'</span><span class="ch ch-mu">'+escHtml(li.onde)+'</span><span class="ch ch-mu">'+escHtml(li.nicho)+'</span><span class="ch ch-mu">'+li.n_lojas+' lojas · '+escHtml(li.forca)+'</span></div>'
+      +'<div style="font-weight:700;font-size:15px;margin-bottom:6px">'+escHtml(li.titulo)+'</div>'
+      +'<div style="font-size:13.5px;line-height:1.55;color:var(--mu2)"><b style="color:var(--tx)">Como fazer:</b> '+escHtml(li.como_fazer)+'</div>'
+      +'<div style="font-size:13.5px;line-height:1.55;color:var(--mu2);margin-top:4px"><b style="color:var(--tx)">Quando funciona:</b> '+escHtml(li.quando_funciona)+'</div></div>';
+  });
+  el.innerHTML=html;
+}
+async function gerarCentralAgora(){
+  var b=document.getElementById("btn-central");b.disabled=true;b.textContent="Montando... (cerca de 1 minuto)";
+  try{var r=await apiConnect({acao:"central"});avisar(r.ok?"Cérebro central montado: "+r.licoes+" lições de "+r.lojas_lidas+" lojas.":(r.motivo||"Não montou."),!r.ok);}
+  catch(e){avisar("Não consegui montar: "+e.message,true);}
+  b.disabled=false;b.textContent="Gerar agora";carregarCentral();
+}
 // ===== acoes do admin numa loja (atualizar os numeros agora e analisar com o time de agentes) =====
 async function apiConnect(body){
   var s=await supaClient.auth.getSession();var tk=s.data&&s.data.session&&s.data.session.access_token;
@@ -583,6 +620,7 @@ async function loadData(){
     renderUsuarios();
     renderProjetos();
     carregarMeta();
+    carregarCentral();
     document.getElementById("last-update").textContent="Ultima atualizacao: "+new Date().toLocaleString("pt-BR");
   }catch(e){
     document.getElementById("last-update").textContent="Erro: "+e.message;
@@ -688,7 +726,7 @@ function exportarCSV(){
 }
 
 // ===== Abas do painel =====
-var ABAS=["lojas","projetos","visao","conexoes","seguranca"];
+var ABAS=["lojas","projetos","visao","conexoes","central","seguranca"];
 function abrirAba(id){
   if(ABAS.indexOf(id)<0)id="lojas";
   document.querySelectorAll(".aba").forEach(function(s){s.classList.toggle("on",s.id==="aba-"+id);});
