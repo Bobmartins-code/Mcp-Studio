@@ -1,5 +1,5 @@
 // =====================================================================
-//  COLETA DOS NUMEROS DE UMA LOJA (direto da Meta; o Reportei Connect fica de reserva)
+//  COLETA DOS NUMEROS DE UMA LOJA (direto da Meta, so leitura)
 //  - organico: cada post dos ultimos 90 dias (capa, legenda, alcance,
 //    visualizacoes, curtidas, comentarios, salvos, compartilhamentos)
 //  - anuncios: cada anuncio em 7, 30 e 90 dias (investido, compras,
@@ -10,7 +10,6 @@
 
 const crypto = require("crypto");
 const { banco } = require("./_seguranca.js");
-const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
 const { aplicarMeta } = require("./_meta-leitura.js");
 
 // ---------- leitura tolerante das celulas (numero, texto, capa, link) ----------
@@ -87,151 +86,10 @@ function idDe(cell) {
     }
     return "";
 }
-function dataDe(v) {
-    if (!v) return null;
-    if (typeof v === "object") return dataDe(v.value || v.date || v.raw);
-    const s = String(v).trim();
-    const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-    const d = br ? new Date(br[3] + "-" + br[2] + "-" + br[1] + "T12:00:00-03:00") : new Date(s);
-    return isNaN(d.getTime()) ? null : d.toISOString();
-}
-function tipoDe(v) {
-    const t = String(textoDe(v) || v || "").toLowerCase();
-    if (t.indexOf("reel") > -1) return "Reels";
-    if (t.indexOf("carousel") > -1 || t.indexOf("album") > -1 || t.indexOf("carrossel") > -1) return "Carrossel";
-    if (t.indexOf("video") > -1 || t.indexOf("vídeo") > -1) return "Vídeo";
-    if (t.indexOf("image") > -1 || t.indexOf("photo") > -1 || t.indexOf("foto") > -1 || t.indexOf("imagem") > -1) return "Foto";
-    return "Post";
-}
 function mediana(v) { const a = v.filter(function (x) { return isFinite(x); }).sort(function (x, y) { return x - y; }); if (!a.length) return 0; const m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
 function diaSP(d) { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d); }
 
-// Linhas de uma tabela (datatable_v1): cada linha vira { dim, m: { metrica: valor } }.
-// Aceita linha em lista ([dimensao, m1, m2...]) ou em objeto ({ metrica: valor }).
-function linhasDaTabela(resp, metricas, campoDim) {
-    const vals = (resp && (resp.values || resp.data || resp.rows)) || [];
-    if (!Array.isArray(vals)) return [];
-    const out = [];
-    vals.forEach(function (row) {
-        let dim, m = {};
-        if (Array.isArray(row)) {
-            const offset = Math.max(0, row.length - metricas.length);
-            dim = offset === 1 ? row[0] : offset > 1 ? row.slice(0, offset) : null;
-            metricas.forEach(function (k, i) { m[k] = row[offset + i]; });
-        } else if (row && typeof row === "object") {
-            dim = row[campoDim] || row.dimension || row.name || row;
-            m = row;
-        } else return;
-        if (/^total$/i.test(textoDe(dim).trim())) return;
-        out.push({ dim: dim, m: m });
-    });
-    return out;
-}
-
-// Acha o bloco do pedido na resposta. A documentacao mostra { <id>: {...} },
-// mas aceita tambem a resposta embrulhada (data/metrics/result) ou em lista.
-function blocoDaResposta(d, id) {
-    if (!d || typeof d !== "object") return null;
-    if (d[id]) return d[id];
-    for (const k of ["data", "metrics", "result", "results"]) {
-        const x = d[k];
-        if (x && typeof x === "object" && !Array.isArray(x) && x[id]) return x[id];
-        if (Array.isArray(x)) { const e = x.find(function (i) { return i && i.id === id; }); if (e) return e.data || e.result || e; }
-    }
-    if (Array.isArray(d)) { const e = d.find(function (i) { return i && i.id === id; }); if (e) return e.data || e.result || e; if (d.length === 1) return d[0]; }
-    const ks = Object.keys(d);
-    if (ks.length === 1 && d[ks[0]] && typeof d[ks[0]] === "object") return d[ks[0]];
-    return null;
-}
-// pedaco da resposta crua, para ver o formato quando nada foi lido
-function cru(d) { try { return JSON.stringify(d).slice(0, 800); } catch (e) { return String(d).slice(0, 200); } }
-
-// Pede uma tabela tentando listas de metricas da mais completa para a mais simples
-// (o Reportei recusa o pedido inteiro se uma metrica nao existir para a conta).
-async function pedirTabela(cli, integ, inicio, fim, base, listas, avisos) {
-    let ultimoErro = null;
-    for (const metricas of listas) {
-        // o Reportei exige um UUID como id de cada pedido; a resposta vem nesse mesmo id
-        const w = Object.assign({}, base, { id: crypto.randomUUID(), metrics: metricas });
-        try {
-            const d = await connect("/metrics/get-data", { method: "POST", customerToken: cli.api_token, timeout: 100000, body: { customer_integration: integ.uuid, start: inicio, end: fim, client_timezone: "America/Sao_Paulo", metrics: [w] } });
-            const campo = (base.dimensions && base.dimensions[0] && (base.dimensions[0].field || base.dimensions[0])) || "";
-            const b = blocoDaResposta(d, w.id);
-            // o Reportei responde 200 com "warning" e sem linhas quando alguma metrica saiu da rede: tenta a proxima lista
-            if (b && b.warning && !b.values) { ultimoErro = new Error(b.warning); continue; }
-            return { linhas: linhasDaTabela(b, metricas, campo), bruto: b, cru: cru(d), metricas: metricas };
-        } catch (e) { ultimoErro = e; }
-    }
-    avisos.push(base.reference_key + ": " + ((ultimoErro && ultimoErro.message) || "sem dados"));
-    return { linhas: [], bruto: null };
-}
-async function pedirNumero(cli, integ, inicio, fim, base) {
-    const w = Object.assign({}, base, { id: crypto.randomUUID() });
-    try {
-        const d = await connect("/metrics/get-data", { method: "POST", customerToken: cli.api_token, timeout: 60000, body: { customer_integration: integ.uuid, start: inicio, end: fim, client_timezone: "America/Sao_Paulo", metrics: [w] } });
-        const b = blocoDaResposta(d, w.id);
-        return numero(b && (b.values !== undefined ? b.values : b.value));
-    } catch (e) { return null; }
-}
-function amostra(r) { try { const v = r.bruto && (r.bruto.values || r.bruto.data || r.bruto.rows); if (Array.isArray(v) && v.length) return JSON.stringify({ metricas: r.metricas, linhas: v.slice(0, 2) }).slice(0, 1200); return "sem linhas; resposta: " + (r.cru || "vazia"); } catch (e) { return "erro na amostra"; } }
-
-// ---------- ORGANICO ----------
-// o Instagram parou de entregar impressions, plays e video_views em 2025 (virou "views"):
-// tenta primeiro as metricas novas e vai simplificando se o Reportei recusar
-const IG_MEDIA = [
-    ["type", "reach", "views", "likes", "comments", "saved", "shares", "total_interactions", "follows", "profile_visits", "created_at"],
-    ["type", "reach", "views", "likes", "comments", "saved", "shares", "created_at"],
-    ["type", "reach", "likes", "comments", "saved", "shares", "total_interactions", "created_at"],
-    ["type", "reach", "likes", "comments", "saved", "shares", "created_at"],
-    ["reach", "likes", "comments", "created_at"]
-];
-const IG_REELS = [
-    ["reach", "views", "likes", "comments", "saved", "shares", "total_interactions", "created_at"],
-    ["reach", "views", "likes", "comments", "saved", "shares", "created_at"],
-    ["reach", "likes", "comments", "saved", "shares", "total_interactions", "created_at"],
-    ["reach", "likes", "comments", "saved", "shares", "created_at"],
-    ["reach", "likes", "comments", "created_at"]
-];
-
-async function coletarOrganico(cli, ig, inicio, fim, avisos) {
-    const [media, reels, seguidores] = await Promise.all([
-        pedirTabela(cli, ig, inicio, fim, { id: "media", reference_key: "ig:media_datatable", component: "datatable_v1", dimensions: ["media"], sort: ["-reach"] }, IG_MEDIA, avisos),
-        pedirTabela(cli, ig, inicio, fim, { id: "reels", reference_key: "ig:reels_datatable", component: "datatable_v1", dimensions: ["reels"], sort: ["-reach"] }, IG_REELS, avisos),
-        pedirNumero(cli, ig, inicio, fim, { id: "seg", reference_key: "ig:followers_count", component: "number_v1", metrics: ["followers"] })
-    ]);
-    const porChave = {}, posts = [];
-    function chave(dim, data) { return idDe(dim) || linkDe(dim) || (textoDe(dim).slice(0, 80) + "|" + String(data || "").slice(0, 10)); }
-    media.linhas.forEach(function (l) {
-        const m = l.m, data = dataDe(m.created_at);
-        const p = {
-            id: "", tipo: tipoDe(m.type), data: data, legenda: textoDe(l.dim).slice(0, 400), miniatura: imagemDe(l.dim), link: linkDe(l.dim),
-            alcance: numero(m.reach), impressoes: numero(m.impressions), visualizacoes: numero(m.views) || numero(m.video_views), curtidas: numero(m.likes), comentarios: numero(m.comments),
-            salvamentos: numero(m.saved), compartilhamentos: numero(m.shares), interacoes: numero(m.total_interactions), seguiram: numero(m.follows), visitas_perfil: numero(m.profile_visits)
-        };
-        p.id = chave(l.dim, data);
-        porChave[p.id] = p; posts.push(p);
-    });
-    reels.linhas.forEach(function (l) {
-        const m = l.m, data = dataDe(m.created_at), k = chave(l.dim, data);
-        let p = porChave[k];
-        if (!p) {
-            p = { id: k, tipo: "Reels", data: data, legenda: textoDe(l.dim).slice(0, 400), miniatura: imagemDe(l.dim), link: linkDe(l.dim), alcance: numero(m.reach), impressoes: 0, visualizacoes: 0, curtidas: numero(m.likes), comentarios: numero(m.comments), salvamentos: numero(m.saved), compartilhamentos: numero(m.shares), interacoes: numero(m.total_interactions), seguiram: 0, visitas_perfil: 0 };
-            porChave[k] = p; posts.push(p);
-        }
-        p.tipo = "Reels";
-        p.visualizacoes = numero(m.views) || numero(m.plays) || p.visualizacoes;
-        if (!p.miniatura) p.miniatura = imagemDe(l.dim);
-        if (!p.link) p.link = linkDe(l.dim);
-    });
-    const med = finalizarPosts(posts);
-    return {
-        conta: { username: ig.nome, seguidores: seguidores },
-        taxa_media: arred(med * 100, 2), total_posts: posts.length, posts: posts.slice(0, 120),
-        amostra: { media: amostra(media), reels: amostra(reels) }
-    };
-}
-
-// taxa de engajamento e indice de cada post (igual para Meta e Reportei); devolve a taxa mediana
+// taxa de engajamento e indice de cada post; devolve a taxa mediana
 function finalizarPosts(posts) {
     posts.forEach(function (p) {
         if (!p.visualizacoes) p.visualizacoes = p.impressoes || p.alcance;
@@ -254,10 +112,6 @@ function finalizarPosts(posts) {
 }
 
 // ---------- ANUNCIOS ----------
-const ADS_COMPLETA = ["results", "cost_per_results", "spend", "reach", "impressions", "clicks", "cpc", "inline_link_clicks", "ctr", "frequency", "actions:omni_purchase", "actions:purchase", "actions:onsite_conversion.messaging_conversation_started_7d", "action_values:omni_purchase", "actions:video_view", "video_thruplay_watched_actions"];
-const ADS_MEDIA = ["results", "cost_per_results", "spend", "reach", "impressions", "clicks", "cpc", "inline_link_clicks", "actions:omni_purchase", "actions:onsite_conversion.messaging_conversation_started_7d"];
-const ADS_SIMPLES = ["results", "cost_per_results", "spend", "reach", "impressions", "clicks", "cpc"];
-
 // nome do resultado de cada campanha (a Meta manda em ingles no titulo da celula): [singular, plural]
 const NOMES_RESULTADO = [
     [/purchase|compra/i, ["compra", "compras"]],
@@ -359,22 +213,9 @@ function fecharMeses(out, f, anterior, fonte, hoje) {
     else { out.mes_ant.ref = f.meses.mes_ant.ref; out.mes_ant.em = hoje.toISOString(); out.mes_ant.fonte = fonte; }
 }
 
-async function coletarAnuncios(cli, fb, avisos, anterior, objetivo) {
-    const hoje = new Date(), f = faixasDosAnuncios(hoje, anterior, objetivo, "reportei"), faixas = f.faixas;
-    const out = { conta: fb.nome, moeda: fb.moeda };
-    const chaves = Object.keys(faixas);
-    const res = await Promise.all(chaves.map(function (k) {
-        return pedirTabela(cli, fb, faixas[k].inicio, faixas[k].fim, { id: "ads", reference_key: "fb_ads:ads", component: "datatable_v1", dimensions: [{ field: "ad" }], sort: ["-spend"] }, [ADS_COMPLETA, ADS_MEDIA, ADS_SIMPLES], avisos);
-    }));
-    chaves.forEach(function (k, i) { out[k] = montarAnuncios(res[i].linhas, objetivo); });
-    fecharMeses(out, f, anterior, "reportei", hoje);
-    out.amostra = amostra(res[chaves.indexOf("p90")]);
-    return out;
-}
-
-// O Reportei nao manda a imagem dos anuncios. Anuncio feito a partir de um Reels leva no nome
-// a primeira frase da legenda ("[Reels] - Antes de comprar, muita gente..."), entao a capa
-// e o link vem do post organico correspondente. Anuncio subido direto no Gerenciador fica sem capa.
+// Anuncio que ainda nao tem capa guardada (api/_meta-leitura.js): o anuncio feito a partir de um Reels
+// leva no nome a primeira frase da legenda ("[Reels] - Antes de comprar, muita gente..."), entao a capa
+// e o link vem do post organico correspondente.
 function chaveTexto(t) {
     return String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
         .replace(/^\s*\[[^\]]*\]\s*[-\u2013\u2014:|]*\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -406,7 +247,7 @@ function assinaturaDe(met) {
 }
 
 // =====================================================================
-//  LEITURA DIRETA DA META (fonte principal desde out/2026; o Reportei fica de reserva)
+//  LEITURA DIRETA DA META (desde out/2026; antes os numeros vinham do Reportei Connect)
 //  So leitura (GET), com a pausa automatica de api/_meta-leitura.js. Usa o Instagram
 //  (ig_id) e a conta de anuncios (conta_ads) de cada loja guardados em contas_meta.meta.
 // =====================================================================
@@ -501,7 +342,7 @@ async function organicoDaMeta(igId, token) {
     };
 }
 
-// uma linha dos insights da Meta no mesmo formato da tabela do Reportei (montarAnuncios le as duas)
+// uma linha dos insights da Meta no formato que montarAnuncios le ({ dim, m: { metrica: valor } })
 function somaAcoes(lista, tipo) { return (lista || []).reduce(function (s, a) { return s + (!tipo || a.action_type === tipo ? numero(a.value) : 0); }, 0); }
 function resultadoDaMeta(r) {
     let total = 0, nome = "";
@@ -553,12 +394,14 @@ async function anunciosDaMeta(conta, token, anterior, objetivo) {
     return out;
 }
 
-// Instagram e conta de anuncios da loja na Meta: guardados no cache; na primeira vez, descobre
-// pelos codigos de um post e de um anuncio que ja vieram numa coleta anterior
-async function idsDaMeta(antes, token) {
+// Instagram e conta de anuncios da loja na Meta: escolhidos no Painel Admin (contas_meta.ig_id e
+// ad_account_id). Loja antiga sem a escolha: descobre pelos codigos de um post e de um anuncio que ja
+// vieram numa coleta anterior e grava a descoberta.
+async function idsDaMeta(userId, antes, token) {
     const meta = require("./_meta-leitura.js");
     const cache = (antes && antes.meta) || {}, velho = (antes && antes.metricas) || {};
-    let ig = cache.ig_id || "", conta = cache.conta_ads || "";
+    let ig = (antes && antes.ig_id) || cache.ig_id || "", conta = String((antes && antes.ad_account_id) || cache.conta_ads || "").replace(/^act_/, "");
+    const campos = {};
     if (!ig) {
         const p = ((velho.organico && velho.organico.posts) || []).find(function (x) { return ehCodigo(x.id); });
         if (p) ig = String(((await meta.g("/" + p.id, { fields: "owner" }, token)).owner || {}).id || "");
@@ -568,66 +411,45 @@ async function idsDaMeta(antes, token) {
         ["p90", "mes_ant", "p30"].some(function (k) { a = ((velho.anuncios && velho.anuncios[k] && velho.anuncios[k].anuncios) || []).find(function (x) { return ehCodigo(x.id); }); return !!a; });
         if (a) conta = String((await meta.g("/" + a.id, { fields: "account_id" }, token)).account_id || "");
     }
-    return { ig: ig, conta: conta, novos: ig !== (cache.ig_id || "") || conta !== (cache.conta_ads || "") };
+    if (ig && !(antes && antes.ig_id)) campos.ig_id = ig;
+    if (conta && !(antes && antes.ad_account_id)) campos.ad_account_id = conta;
+    if (Object.keys(campos).length) {
+        try { await banco("contas_meta?user_id=eq." + encodeURIComponent(userId), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: campos }); }
+        catch (e) { console.error("[coleta] ids da meta: " + e.message); }
+    }
+    return { ig: ig, conta: conta };
 }
 
-// reserva: o Reportei, so para a parte que a Meta nao entregou
-async function coletarReportei(antes, objetivo, userId, quer, avisos) {
-    const cli = await clienteDoUsuario(userId);
-    const ints = await integracoesDoCliente(cli);
-    const ativa = function (slug) { return ints.find(function (i) { return i.plataforma === slug && i.status === "active"; }) || ints.find(function (i) { return i.plataforma === slug; }); };
-    const ig = ativa("instagram_business"), fb = ativa("facebook_ads");
-    const hoje = new Date(), fim = diaSP(hoje), inicio90 = diaSP(new Date(hoje.getTime() - 89 * 864e5));
-    const [org, ads] = await Promise.all([
-        quer.org && ig ? coletarOrganico(cli, ig, inicio90, fim, avisos).catch(function (e) { avisos.push("Instagram (Reportei): " + e.message); return null; }) : null,
-        quer.ads && fb ? coletarAnuncios(cli, fb, avisos, antes && antes.mes_ant, objetivo).catch(function (e) { avisos.push("Anúncios (Reportei): " + e.message); return null; }) : null
-    ]);
-    return { org: org, ads: ads, igNome: ig ? ig.nome : null, fbNome: fb ? fb.nome : null };
-}
-
-// ---------- coleta completa de uma loja ----------
-// 1) Meta direto; 2) o que faltou, pelo Reportei; 3) o que ainda faltou fica com os numeros da coleta anterior
+// ---------- coleta completa de uma loja (direto da Meta) ----------
+// se uma parte falhar, ficam os numeros da coleta anterior dessa parte; se nada vier, nao grava nada
 async function coletarLoja(userId, antes, objetivo) {
     const meta = require("./_meta-leitura.js");
     const avisos = [], fontes = { organico: null, anuncios: null };
-    let org = null, ads = null, igNome = null, fbNome = null;
-    let con = null;
-    try { con = await meta.conexao(); } catch (e) { avisos.push("Meta: " + e.message); }
-    if (con && !con.pausada) {
-        try {
-            const ids = await idsDaMeta(antes, con.token);
-            if (ids.novos) await meta.salvarMeta(userId, { ig_id: ids.ig, conta_ads: ids.conta }).catch(function (e) { console.error("[coleta] ids da meta: " + e.message); });
-            if (!ids.ig) avisos.push("Meta: Instagram da loja ainda não identificado.");
-            if (!ids.conta) avisos.push("Meta: conta de anúncios da loja ainda não identificada.");
-            [org, ads] = await Promise.all([
-                ids.ig ? organicoDaMeta(ids.ig, con.token).catch(function (e) { avisos.push("Instagram (Meta): " + e.message); return null; }) : null,
-                ids.conta ? anunciosDaMeta(ids.conta, con.token, antes && antes.mes_ant, objetivo).catch(function (e) { avisos.push("Anúncios (Meta): " + e.message); return null; }) : null
-            ]);
-            if (org) fontes.organico = "meta";
-            if (ads) fontes.anuncios = "meta";
-        } catch (e) { avisos.push("Meta: " + e.message); }
-    } else if (!con) avisos.push("Meta não conectada ou com o acesso vencido.");
-    else avisos.push("Meta pausada: ela pediu para esperar.");
-
-    if (!org || !ads) {
-        try {
-            const r = await coletarReportei(antes, objetivo, userId, { org: !org, ads: !ads }, avisos);
-            if (!org && r.org) { org = r.org; fontes.organico = "reportei"; }
-            if (!ads && r.ads) { ads = r.ads; fontes.anuncios = "reportei"; }
-            igNome = r.igNome; fbNome = r.fbNome;
-        } catch (e) { avisos.push("Reportei: " + e.message); }
-    }
+    let org = null, ads = null;
+    const con = await meta.conexao();
+    if (!con) throw new Error("A conexão com a Meta venceu ou foi retirada. Entre com o Facebook de novo no Painel Admin.");
+    if (con.pausada) throw new Error("A Meta pediu uma pausa nas consultas; a loja atualiza sozinha depois.");
+    const ids = await idsDaMeta(userId, antes, con.token);
+    if (!ids.ig && !ids.conta) throw new Error("Escolha o Instagram e a conta de anúncios da loja no Painel Admin (⋯ > Instagram e anúncios).");
+    if (!ids.ig) avisos.push("Falta escolher o Instagram da loja no Painel Admin.");
+    if (!ids.conta) avisos.push("Falta escolher a conta de anúncios da loja no Painel Admin.");
+    [org, ads] = await Promise.all([
+        ids.ig ? organicoDaMeta(ids.ig, con.token).catch(function (e) { avisos.push("Instagram: " + e.message); return null; }) : null,
+        ids.conta ? anunciosDaMeta(ids.conta, con.token, antes && antes.mes_ant, objetivo).catch(function (e) { avisos.push("Anúncios: " + e.message); return null; }) : null
+    ]);
+    if (org) fontes.organico = "meta";
+    if (ads) fontes.anuncios = "meta";
 
     // nada novo: nao grava (os numeros da coleta anterior continuam e a loja tenta de novo na proxima rodada)
-    if (!org && !ads) throw new Error(avisos.join(" | ") || "Sem dados da Meta nem do Reportei");
+    if (!org && !ads) throw new Error(avisos.join(" | ") || "A Meta não mandou dados");
     const velho = (antes && antes.metricas) || {};
-    if (!org && velho.organico) { org = velho.organico; fontes.organico = "anterior"; avisos.push("Instagram: mantidos os números da coleta anterior."); }
-    if (!ads && velho.anuncios) { ads = velho.anuncios; fontes.anuncios = "anterior"; avisos.push("Anúncios: mantidos os números da coleta anterior."); }
+    if (!org && ids.ig && velho.organico) { org = velho.organico; fontes.organico = "anterior"; avisos.push("Instagram: mantidos os números da coleta anterior."); }
+    if (!ads && ids.conta && velho.anuncios) { ads = velho.anuncios; fontes.anuncios = "anterior"; avisos.push("Anúncios: mantidos os números da coleta anterior."); }
 
     vincularCapas(org, ads);
     const met = {
-        versao: 1, fonte: fontes.organico === "meta" || fontes.anuncios === "meta" ? "meta" : "reportei", fontes: fontes, atualizado_em: new Date().toISOString(),
-        conta: { username: (org && org.conta && org.conta.username) || igNome, seguidores: org && org.conta ? org.conta.seguidores : null, anuncios: (ads && ads.conta) || fbNome },
+        versao: 1, fonte: "meta", fontes: fontes, atualizado_em: new Date().toISOString(),
+        conta: { username: org && org.conta ? org.conta.username : null, seguidores: org && org.conta ? org.conta.seguidores : null, anuncios: ads ? ads.conta : null },
         organico: org, anuncios: ads, avisos: avisos
     };
     met.assinatura = assinaturaDe(met);
@@ -673,7 +495,7 @@ async function atualizarLoja(userId) {
     let antes = null, objetivo = null;
     try {
         const [r, lj] = await Promise.all([
-            banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&select=meta,metricas"),
+            banco("contas_meta?user_id=eq." + encodeURIComponent(userId) + "&select=meta,metricas,ig_id,ad_account_id"),
             banco("lojas?user_id=eq." + encodeURIComponent(userId) + "&select=objetivo_anuncios").catch(function () { return []; })
         ]);
         antes = r && r[0];
@@ -686,4 +508,4 @@ async function atualizarLoja(userId) {
     return resumoDaColeta(met);
 }
 
-module.exports = { coletarLoja, salvarMetricas, atualizarLoja, resumoDaColeta, numero, assinaturaDe, blocoDaResposta, diaSP, _interno: { numero, chaveTexto, vincularCapas, linhasDaTabela, montarAnuncios, textoDe, imagemDe, linkDe, dataDe, tipoDe, linhaDaMeta, postDaMeta, finalizarPosts, organicoDaMeta, anunciosDaMeta } };
+module.exports = { coletarLoja, salvarMetricas, atualizarLoja, resumoDaColeta, numero, assinaturaDe, diaSP, _interno: { numero, chaveTexto, vincularCapas, montarAnuncios, textoDe, imagemDe, linkDe, linhaDaMeta, postDaMeta, finalizarPosts, organicoDaMeta, anunciosDaMeta } };

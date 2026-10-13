@@ -3,7 +3,7 @@
 //  Chamada pelo agendador do banco (pg_cron do Supabase, a cada 5 minutos)
 //  e, de reserva, pelo Vercel Cron uma vez por dia. So quem tem o CRON_SECRET chama.
 //
-//  1. Numeros (direto da Meta; o Reportei fica de reserva): cada loja a cada 30 minutos; a cada 5 minutos
+//  1. Numeros (direto da Meta): cada loja a cada 30 minutos; a cada 5 minutos
 //     enquanto a dona estiver usando o app.
 //  2. Analises em andamento (contas_meta.dossie_job): confere o lote da
 //     Anthropic ou roda a proxima etapa na hora.
@@ -17,7 +17,7 @@
 //     quando entra campeao novo, o Agente do Caderno atualiza o que a loja ja sabe.
 // =====================================================================
 
-const { banco } = require("./_seguranca.js");
+const { banco, ADMIN_ID } = require("./_seguranca.js");
 const { atualizarLoja } = require("./_coleta.js");
 const { iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, cerebroDaLoja, lojaAtiva } = require("./_time-agentes.js");
 
@@ -41,11 +41,16 @@ module.exports = async function handler(req, res) {
     const inicio = Date.now();
     const passou = function () { return Date.now() - inicio; };
     try {
-        const [clientes, contas, acessosRows] = await Promise.all([
-            banco("connect_clientes?select=user_id,criado_em"),
-            banco("contas_meta?select=user_id,metricas_em"),
+        // lojas com Instagram ou conta de anuncios escolhidos (Painel Admin) e a conta do admin, se tiver
+        const [cadastros, contas, acessosRows] = await Promise.all([
+            banco("lojas?select=user_id,criado_em"),
+            banco("contas_meta?select=user_id,metricas_em,ig_id,ad_account_id"),
             banco("acessos?select=user_id,em").catch(function () { return []; })
         ]);
+        const criada = {};
+        (cadastros || []).forEach(function (l) { criada[l.user_id] = l.criado_em; });
+        const clientes = (contas || []).filter(function (c) { return (c.ig_id || c.ad_account_id) && (criada[c.user_id] !== undefined || c.user_id === ADMIN_ID); })
+            .map(function (c) { return { user_id: c.user_id, criado_em: criada[c.user_id] || null }; });
         const acesso = {}, entrou = {}, quando = {};
         (acessosRows || []).forEach(function (a) { acesso[a.user_id] = a.em; });
         (clientes || []).forEach(function (c) { entrou[c.user_id] = c.criado_em; });

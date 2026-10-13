@@ -1,6 +1,6 @@
 // =====================================================================
 //  TIME DE AGENTES (roda no servidor, sozinho)
-//  Estuda os numeros reais de UMA loja (Reportei em contas_meta.metricas),
+//  Estuda os numeros reais de UMA loja (da Meta, em contas_meta.metricas),
 //  completados pela Meta (fala dos videos, texto dos anuncios, comentarios
 //  e idade/genero/cidades de quem segue, em api/_meta-leitura.js), e entrega:
 //    - o dossie que o Agente MCP (api/_agente-mcp.js) usa nos roteiros
@@ -45,8 +45,7 @@
 const crypto = require("crypto");
 const { banco } = require("./_seguranca.js");
 const { registrarUso } = require("./_uso-ia.js");
-const { connect, clienteDoUsuario, integracoesDoCliente } = require("./_reportei.js");
-const { blocoDaResposta, diaSP, assinaturaDe } = require("./_coleta.js");
+const { diaSP, assinaturaDe } = require("./_coleta.js");
 const { enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia } = require("./_meta-leitura.js");
 const { textoVisual } = require("./_olhos.js");
 const cerebro = require("./_cerebro.js");
@@ -465,33 +464,6 @@ function linhaAnuncio(tipo, a, i) {
         (a.post_id ? " | é um post orgânico da loja que virou anúncio" : "") + (a.visual ? " | COMO É O VÍDEO: " + textoVisual(a.visual) : "");
 }
 
-// idade, genero e cidades pelo Reportei: so quando a Meta nao entregou
-async function publicoDoReportei(userId) {
-    try {
-        const cli = await clienteDoUsuario(userId);
-        const ints = await integracoesDoCliente(cli);
-        const ig = ints.find(function (i) { return i.plataforma === "instagram_business" && i.status === "active"; }) || ints.find(function (i) { return i.plataforma === "instagram_business"; });
-        if (!ig) return "";
-        const fim = diaSP(new Date()), inicio = diaSP(new Date(Date.now() - 29 * 864e5));
-        const pedidos = {
-            idade_genero: { reference_key: "ig:followers_gender_age", component: "chart_v1", metrics: ["followers"], dimensions: ["age", "gender"] },
-            cidades: { reference_key: "ig:followers_city", component: "datatable_v1", metrics: ["followers"], dimensions: ["city"], sort: ["-followers"] }
-        };
-        const out = [];
-        await Promise.all(Object.keys(pedidos).map(async function (k) {
-            const w = Object.assign({ id: crypto.randomUUID() }, pedidos[k]);
-            try {
-                const d = await connect("/metrics/get-data", { method: "POST", customerToken: cli.api_token, timeout: 60000, body: { customer_integration: ig.uuid, start: inicio, end: fim, client_timezone: "America/Sao_Paulo", metrics: [w] } });
-                const b = blocoDaResposta(d, w.id);
-                if (!b || b.warning) return;
-                const v = k === "cidades" && Array.isArray(b.values) ? { values: b.values.slice(0, 10) } : b;
-                out.push(k + ": " + JSON.stringify(v).slice(0, 1500));
-            } catch (e) { /* sem esse dado o agente segue com o resto */ }
-        }));
-        return out.join(" | ");
-    } catch (e) { return ""; }
-}
-
 // datas do varejo das proximas 8 semanas (fixas no codigo: a IA nao chuta data)
 function pascoa(ano) {
     const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
@@ -796,7 +768,7 @@ async function pedidosEtapa1(ctx) {
         });
     }
     if (publicoVencido(ctx)) {
-        const seguidores = ctx.demografia || await publicoDoReportei(ctx.userId);
+        const seguidores = ctx.demografia || "";
         pedidos.push({
             chave: "pub", nome: "Agente de Publico", esquema: ESQ_PUBLICO,
             pedido: "Você é o AGENTE DE PÚBLICO. Monte o mapa do público desta loja no método da consultoria: quem é (idade, gênero, cidades), como cada faixa de idade compra, dores, desejos, objeções, motivos de compra e de desistência, gatilhos que funcionam, situações do dia a dia e ângulos de comunicação. Esse mapa é a base das ideias de conteúdo, então cada item precisa ser concreto e reconhecível pela cliente.\n" +
@@ -1424,7 +1396,7 @@ async function gerarMaisIdeias(userId) {
 
 // ---------- quando cada loja e analisada (usado por api/atualizar.js) ----------
 // c: linha de contas_meta (status, atualizado_em, assinatura, dossie_versao, dossie_em, tem_job);
-// acessoEm: ultima vez que a dona abriu o app; ativaDesde: quando a loja entrou (conexao no Reportei)
+// acessoEm: ultima vez que a dona abriu o app; ativaDesde: quando a loja entrou (cadastro da loja)
 // novidade desde a ultima analise: o cérebro mudou de verdade (campeao novo, resultado de ideia gravada)
 // ou a dona contou produtos novos; sem caderno ainda, vale o post novo (como antes)
 const NOVIDADE_MS = 44 * HORA_MS;                 // com novidade: no maximo a cada 2 noites

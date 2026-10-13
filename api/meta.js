@@ -259,14 +259,45 @@ module.exports = async function handler(req, res) {
             return res.status(200).json({ ok: true, nome: eu.name, tipo: tipo, expires_at: expira, faltam: faltam });
         }
         const token = await tokenMeta();
+        // tudo o que este acesso enxerga: as paginas e contas de anuncios do perfil e as dos
+        // Gerenciadores de Negocios em que ele esta (proprias e de clientes), sem repetir
         if (b.acao === "contas") {
-            const [paginas, anuncios] = await Promise.all([
-                paginar("/me/accounts", { fields: "name,instagram_business_account{id,username,profile_picture_url,followers_count}", limit: 100 }, token, 5).catch(function () { return []; }),
-                paginar("/me/adaccounts", { fields: "name,account_id,currency,account_status", limit: 200 }, token, 5).catch(function () { return []; })
+            const PAG = "name,instagram_business_account{id,username,followers_count}", ADS = "name,account_id,currency,account_status";
+            const [paginas, anuncios, empresas] = await Promise.all([
+                paginar("/me/accounts", { fields: PAG, limit: 100 }, token, 5).catch(function () { return []; }),
+                paginar("/me/adaccounts", { fields: ADS, limit: 200 }, token, 5).catch(function () { return []; }),
+                paginar("/me/businesses", { fields: "name,owned_pages.limit(100){" + PAG + "},client_pages.limit(100){" + PAG + "},owned_ad_accounts.limit(100){" + ADS + "},client_ad_accounts.limit(100){" + ADS + "}", limit: 50 }, token, 3).catch(function () { return []; })
             ]);
-            const ig = paginas.filter(function (p) { return p.instagram_business_account; }).map(function (p) { const i = p.instagram_business_account; return { id: i.id, username: i.username, seguidores: i.followers_count || 0, pagina: p.name }; });
-            const ads = anuncios.map(function (a) { return { id: "act_" + a.account_id, nome: a.name, moeda: a.currency, ativa: a.account_status === 1 }; });
-            return res.status(200).json({ instagram: ig, anuncios: ads });
+            const ig = {}, ads = {};
+            function pagina(p, empresa) { const i = p && p.instagram_business_account; if (i && !ig[i.id]) ig[i.id] = { id: i.id, username: i.username, seguidores: i.followers_count || 0, pagina: p.name, empresa: empresa || "" }; }
+            function conta(a, empresa) { if (a && a.account_id && !ads[a.account_id]) ads[a.account_id] = { id: "act_" + a.account_id, nome: a.name, moeda: a.currency, ativa: a.account_status === 1, empresa: empresa || "" }; }
+            paginas.forEach(function (p) { pagina(p); });
+            anuncios.forEach(function (a) { conta(a); });
+            empresas.forEach(function (e) {
+                ["owned_pages", "client_pages"].forEach(function (k) { ((e[k] && e[k].data) || []).forEach(function (p) { pagina(p, e.name); }); });
+                ["owned_ad_accounts", "client_ad_accounts"].forEach(function (k) { ((e[k] && e[k].data) || []).forEach(function (a) { conta(a, e.name); }); });
+            });
+            const porNome = function (x, y) { return String(x.username || x.nome || "").localeCompare(String(y.username || y.nome || ""), "pt-BR"); };
+            return res.status(200).json({ instagram: Object.keys(ig).map(function (k) { return ig[k]; }).sort(porNome), anuncios: Object.keys(ads).map(function (k) { return ads[k]; }).sort(porNome) });
+        }
+
+        // escolhe o Instagram e a conta de anuncios de uma loja (confere na Meta que o acesso enxerga os dois)
+        // e ja puxa os numeros dela
+        if (b.acao === "vincular") {
+            const uid = String(b.user_id || "");
+            const igId = String(b.ig_id || "").trim(), conta = String(b.ad_account_id || "").replace(/^act_/, "").trim();
+            if (!/^[0-9a-f-]{36}$/.test(uid)) throw new Error("Loja inválida.");
+            if (igId && !/^\d{8,}$/.test(igId)) throw new Error("Instagram inválido.");
+            if (conta && !/^\d{5,}$/.test(conta)) throw new Error("Conta de anúncios inválida.");
+            if (!igId && !conta) throw new Error("Escolha o Instagram, a conta de anúncios ou os dois.");
+            const campos = { user_id: uid, ig_id: igId || null, ig_username: null, ad_account_id: conta || null, ad_account_nome: null };
+            if (igId) campos.ig_username = (await g("/" + igId, { fields: "username" }, token)).username || null;
+            if (conta) campos.ad_account_nome = (await g("/act_" + conta, { fields: "name" }, token)).name || null;
+            await banco("contas_meta", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: campos });
+            await auditar(admin.id, "escolheu Instagram e anuncios da loja", uid, { instagram: campos.ig_username, anuncios: campos.ad_account_nome });
+            let resumo = null, erro = null;
+            try { resumo = await require("./_coleta.js").atualizarLoja(uid); } catch (e) { erro = e.message; }
+            return res.status(200).json({ ok: true, ig_username: campos.ig_username, ad_account_nome: campos.ad_account_nome, resumo: resumo, erro: erro });
         }
         if (b.acao === "organico") return res.status(200).json(await coletarOrganico(b.ig_id, token));
         if (b.acao === "anuncios") return res.status(200).json(await coletarAnuncios(b.ad_account_id, token));

@@ -107,7 +107,7 @@ async function auditar(adminId, acao, alvo, detalhe) {
     try { await banco("auditoria", { method: "POST", body: { admin_id: adminId, acao: acao, alvo: alvo || null, detalhe: detalhe || null } }); } catch (e) { console.error("[auditoria] " + e.message); }
 }
 
-// Acesso fechado: so usa a IA quem o admin cadastrou (loja criada no painel ou ativada no Reportei Connect).
+// Acesso fechado: so usa a IA quem o admin cadastrou (loja criada no Painel Admin).
 // Devolve o id de quem chamou (liberado) ou false.
 // Quem criou login sozinho, sem loja, fica de fora. A resposta fica guardada 5 minutos por token.
 const liberados = new Map();
@@ -121,11 +121,8 @@ async function acessoLiberado(jwt) {
     let ok = !!(u && u.id === ADMIN_ID);
     if (!ok && u && u.id) {
         const id = encodeURIComponent(u.id);
-        const [lj, cc] = await Promise.all([
-            banco("lojas?user_id=eq." + id + "&select=user_id&limit=1"),
-            banco("connect_clientes?user_id=eq." + id + "&select=user_id&limit=1")
-        ]);
-        ok = !!((lj && lj.length) || (cc && cc.length));
+        const lj = await banco("lojas?user_id=eq." + id + "&select=user_id&limit=1");
+        ok = !!(lj && lj.length);
     }
     if (liberados.size > 500) liberados.clear();
     liberados.set(jwt, { ok: ok ? u.id : false, ate: Date.now() + 5 * 60000 });

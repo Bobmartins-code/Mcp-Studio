@@ -358,7 +358,7 @@ function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo
 function todosRoteiros(p){var all=[];((p&&p.rodadas)||[]).forEach(function(r){((r.resultado&&r.resultado.roteiros)||[]).forEach(function(s){all.push(s);});});return all;}
 function contarRoteiros(p){return todosRoteiros(p).length;}
 function contarGravados(p){return todosRoteiros(p).filter(function(s){return s.gravado;}).length;}
-// ---------- numeros da loja: junta a coleta diaria (Reportei) e o dossie antigo (Meta) num formato so ----------
+// ---------- numeros da loja: junta a coleta diaria (Meta) e o dossie antigo (Meta) num formato so ----------
 function dadosLoja(cm){
   if(!cm)return null;
   var met=cm.metricas||null,d=cm.dossie||{};
@@ -1661,7 +1661,7 @@ function App(){
       blocoEtiquetas(contaMeta&&contaMeta.memoria),
       blocoPerguntas(d),
       blocoRelatorio("👥 Agente de Público",d.publico,{quem_e:"Quem é",idade_genero:"Idade e gênero",regioes:"Regiões",faixas:"Por faixa de idade",quem_compra:"Quem mais compra",dores:"Dores",desejos:"Desejos",objecoes:"Objeções",motivos_compra:"Por que compra",motivos_nao_compra:"Por que desiste",gatilhos:"O que faz comprar nesta loja",situacoes:"Situações do dia a dia",angulos:"Ângulos de comunicação",expressoes_reais:d.publico_fonte==="comentarios"?"Como o público fala (dos comentários)":"Frases que mais engajaram"},
-        "idade, gênero e cidades dos seguidores (Meta ou Reportei)"+(d.publico_fonte==="comentarios"?", comentários reais das seguidoras (Meta)":"")+". Quem é, dores, desejos e objeções são leituras do time a partir do que mais engajou."),
+        "idade, gênero e cidades dos seguidores (Meta)"+(d.publico_fonte==="comentarios"?", comentários reais das seguidoras (Meta)":"")+". Quem é, dores, desejos e objeções são leituras do time a partir do que mais engajou."),
       blocoRelatorio("💰 Agente de Anúncios",d.anuncios&&d.anuncios.relatorio,{o_que_vende:"O que vende",ganchos_que_convertem:"Ganchos que convertem",argumentos_e_ofertas:"Argumentos e ofertas",ctas:"Chamadas que funcionam",diagnostico_dos_fracos:souAdmin?"Onde os fracos perdem (só você vê)":null},
         "números dos anúncios (Meta)"+(d.anuncios&&d.anuncios.com_texto?", texto do anúncio e fala do vídeo (Meta)":"")+"."));
   }

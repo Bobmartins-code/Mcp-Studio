@@ -11,7 +11,6 @@
 // =====================================================================
 
 const { validarAdmin, banco, authAdmin, enviarArquivo, auditar, ADMIN_ID } = require("./_seguranca.js");
-const { connect } = require("./_reportei.js");
 
 function senhaValida(s) { return typeof s === "string" && s.length >= 8 && s.length <= 72; }
 // id e situacao de um login pelo e-mail (o link gerado aqui nao e enviado a ninguem)
@@ -127,11 +126,8 @@ module.exports = async function handler(req, res) {
                 campos.logo_url = await enviarArquivo("logos", uid + "/logo-" + Date.now() + "." + tipos[b.logo_tipo], buf, b.logo_tipo);
             }
             if (!Object.keys(campos).length) return res.status(400).json({ error: "Nada para salvar." });
-            // loja ativada so pelo Reportei ainda nao tem linha: cria com o nome do cadastro do Reportei
-            if (!linha && !campos.nome) {
-                const cc = await banco("connect_clientes?user_id=eq." + uid + "&select=nome");
-                campos.nome = (cc && cc[0] && cc[0].nome) || "Minha loja";
-            }
+            // conta sem linha de loja (a do admin): cria com um nome padrao
+            if (!linha && !campos.nome) campos.nome = "Minha loja";
             // loja que ja tem linha: atualiza so o que mudou (um insert sem o nome seria recusado pelo banco)
             const dados = Object.assign({ atualizado_em: new Date().toISOString() }, campos);
             if (linha) await banco("lojas?user_id=eq." + uid, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: dados });
@@ -144,15 +140,10 @@ module.exports = async function handler(req, res) {
             const uid = String(b.user_id || "");
             if (!uid) return res.status(400).json({ error: "Informe a loja." });
             if (uid === ADMIN_ID || uid === admin.id) return res.status(400).json({ error: "A conta do admin nao pode ser removida." });
-            // tira a cliente do Reportei Connect para nao deixar conta orfa por la
-            try {
-                const c = await banco("connect_clientes?user_id=eq." + encodeURIComponent(uid) + "&select=customer_uuid");
-                if (c && c.length) await connect("/customers/" + c[0].customer_uuid, { method: "DELETE" });
-            } catch (e) { console.error("[lojas] reportei: " + e.message); }
             await auditar(admin.id, "removeu loja", uid);
             await banco("projetos?user_id=eq." + encodeURIComponent(uid), { method: "DELETE" });
             try { await banco("perfil_publico?user_id=eq." + encodeURIComponent(uid), { method: "DELETE" }); } catch (e) { /* tabela sem registro */ }
-            // apagar o login leva junto loja, dossie, numeros, recados e o token do Reportei (on delete cascade)
+            // apagar o login leva junto loja, dossie, numeros e recados (on delete cascade)
             await authAdmin("admin/users/" + encodeURIComponent(uid), { method: "DELETE" });
             return res.status(200).json({ ok: true });
         }

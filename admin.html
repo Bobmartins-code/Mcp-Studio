@@ -264,15 +264,7 @@ tr.clic{cursor:pointer}
 
     <!-- ================= CONEXOES ================= -->
     <section class="aba" id="aba-conexoes">
-      <div class="head"><div><div class="h1">Conexões</div><div class="sub">Reportei Connect traz os números de cada loja. A Meta completa com o vídeo, a capa e o texto dos anúncios e os comentários, para o time de agentes saber o que foi falado.</div></div></div>
-      <div class="section">
-        <div class="sec-head">
-          <div class="sec-title">🔌 Reportei Connect · contas das clientes (reserva)</div>
-          <button class="refresh-btn" onclick="carregarConnect()">&#8635; Atualizar</button>
-        </div>
-        <div id="connect-status" style="padding:14px 20px;font-size:13px;color:var(--mu2);line-height:1.6">Carregando...</div>
-        <div style="overflow-x:auto" id="connect-table"></div>
-      </div>
+      <div class="head"><div><div class="h1">Conexões</div><div class="sub">Os números de cada loja, os vídeos, as capas, os textos dos anúncios e os comentários vêm direto da Meta, com o seu acesso. O Instagram e a conta de anúncios de cada loja são escolhidos na aba Lojas (⋯ &gt; Instagram e anúncios).</div></div></div>
       <div class="section">
         <div class="sec-head">
           <div class="sec-title">Ⓜ️ Meta · números, vídeos, capas, textos dos anúncios e comentários</div>
@@ -403,8 +395,7 @@ function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo
 function nichoSalvo(p){if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.rodadas||[];for(var i=rs.length-1;i>=0;i--){if(rs[i].direcao&&rs[i].direcao.nicho)return rs[i].direcao.nicho;}return "";}
 function csvSeguro(t){t=String(t==null?"":t).replace(/"/g,'""');return /^[=+\-@]/.test(t)?"'"+t:t;}
 function escHtml(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
-// ===== Reportei Connect: ativar cliente, abrir a tela de conexao e ver o que foi conectado =====
-var connectCfg=null,connectClientes={},connectIntegracoes={};
+// ===== acoes do admin numa loja (atualizar os numeros agora e analisar com o time de agentes) =====
 async function apiConnect(body){
   var s=await supaClient.auth.getSession();var tk=s.data&&s.data.session&&s.data.session.access_token;
   var r=await fetch("/api/connect",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify(body)});
@@ -412,50 +403,6 @@ async function apiConnect(body){
   if(!r.ok||d.error)throw new Error(d.error||("Erro "+r.status));
   return d;
 }
-async function carregarConnect(){
-  var box=document.getElementById("connect-status");
-  try{connectCfg=await apiConnect({acao:"status"});}catch(e){connectCfg=null;box.innerHTML='<span style="color:var(--ac2)">Reportei Connect respondeu com erro: '+escHtml(e.message)+'</span>';renderConnect();return;}
-  if(!connectCfg.configurado){box.innerHTML='<b style="color:var(--gold)">Falta a chave do Reportei Connect.</b> Ela entra no Vercel como CONNECT_API_KEY.';}
-  else{
-    var plats=(connectCfg.plataformas||[]).map(function(p){return p.name;}).join(", ");
-    box.innerHTML='Conta <b>'+escHtml(connectCfg.nome||"")+'</b> conectada · '+(connectCfg.pagante?'<b style="color:var(--ok)">plano ativo</b>':'em teste'+(connectCfg.teste_ate?' ate '+new Date(connectCfg.teste_ate).toLocaleDateString("pt-BR"):''))+' · '+(connectCfg.total_clientes||0)+' clientes<br><span style="font-size:12px">Plataformas liberadas: '+escHtml(plats||"-")+'. Clique em Ativar, depois em Conectar contas: abre a tela do Reportei para autorizar o Instagram e o Meta Ads da cliente (voce mesmo ou mandando o link para ela).</span>';
-  }
-  if(connectCfg&&connectCfg.configurado){try{var rr=await apiConnect({acao:"listar"});connectClientes={};(rr.clientes||[]).forEach(function(c){connectClientes[c.user_id]=c;});}catch(e){}}
-  renderConnect();renderLojas();
-}
-function renderConnect(){
-  var el=document.getElementById("connect-table"),ok=!!(connectCfg&&connectCfg.configurado);
-  if(!allUsers.length||!ok){el.innerHTML="";return;}
-  var html='<table><thead><tr><th>Cliente</th><th>Connect</th><th>Contas conectadas</th><th></th></tr></thead><tbody>';
-  allUsers.forEach(function(u){
-    var c=connectClientes[u.id],ints=connectIntegracoes[u.id];
-    var contas=!c?"-":(ints?(ints.length?ints.map(function(i){return escHtml((i.plataforma_nome||i.plataforma)+": "+i.nome)+(i.status!=="active"?' <span style="color:var(--ac2)">('+escHtml(i.status)+')</span>':"");}).join("<br>"):"Nenhuma ainda"):'<a href="#" onclick="verConexoes(\''+u.id+'\');return false" style="color:var(--ac2)">Ver</a>');
-    var acoes=!c?'<button class="btn-filter" onclick="ativarConnect(\''+u.id+'\')">Ativar</button>':'<button class="btn-filter" onclick="abrirSessao(\''+u.id+'\',false)">Conectar contas</button> <button class="btn-sm" onclick="abrirSessao(\''+u.id+'\',true)">Copiar link</button>';
-    html+='<tr><td>'+escHtml(u.email)+'</td><td id="cs-'+u.id+'" style="font-size:12px;color:var(--mu2)">'+(c?"Ativa desde "+new Date(c.criado_em).toLocaleDateString("pt-BR"):"Nao ativada")+'</td><td style="font-size:12px;white-space:normal;max-width:320px">'+contas+'</td><td style="white-space:nowrap">'+acoes+'</td></tr>';
-  });
-  el.innerHTML=html+'</tbody></table>';
-}
-async function ativarConnect(uid){
-  var u=allUsers.find(function(x){return x.id===uid;}),cel=document.getElementById("cs-"+uid);
-  if(cel)cel.textContent="Ativando...";
-  try{await apiConnect({acao:"ativar",user_id:uid,nome:(u&&u.email)||"Cliente"});await carregarConnect();}catch(e){if(cel)cel.textContent="Erro: "+e.message;}
-}
-async function abrirSessao(uid,copiar){
-  var cel=document.getElementById("cs-"+uid);
-  // abre a aba ja no clique (senao o navegador bloqueia) e depois leva ao link
-  var aba=copiar?null:window.open("","_blank");
-  try{
-    var d=await apiConnect({acao:"sessao",user_id:uid});
-    if(copiar){await navigator.clipboard.writeText(d.link);if(cel)cel.textContent="Link copiado (vale ate "+new Date(d.expira).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"). Mande para a cliente.";}
-    else if(aba){aba.location.href=d.link;if(cel)cel.textContent="Tela de conexao aberta em outra aba. Depois clique em Atualizar.";}
-    delete connectIntegracoes[uid];
-  }catch(e){if(aba)aba.close();if(cel)cel.textContent="Erro: "+e.message;}
-}
-async function verConexoes(uid){
-  try{var d=await apiConnect({acao:"integracoes",user_id:uid});connectIntegracoes[uid]=d.integracoes||[];renderConnect();}
-  catch(e){var cel=document.getElementById("cs-"+uid);if(cel)cel.textContent="Erro: "+e.message;}
-}
-
 // ===== Meta: de onde vem o video, a capa e o texto dos anuncios e os comentarios =====
 // Dois jeitos de conectar: login do Facebook (vale 60 dias) ou o codigo de um usuario do sistema (pode nunca expirar)
 var metaCfg=null,metaState="";
@@ -486,7 +433,7 @@ async function carregarMeta(){
   var alerta=metaCfg.conexao.erro?'<div style="margin-top:6px;color:var(--ac2)">'+escHtml(metaCfg.conexao.erro)+'</div>'
     :(pausa?'<div style="margin-top:6px;color:var(--gold)">Consultas pausadas até '+pausa.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+' porque a Meta pediu para esperar. Volta sozinho; enquanto isso ficam os números da última coleta.</div>':'');
   box.innerHTML='Meta conectada como <b>'+escHtml(metaCfg.conexao.nome||"")+'</b> · '+(exp?'acesso vale por mais <b style="color:'+(dias<10?"var(--ac2)":"var(--ok)")+'">'+dias+' dias</b>':'<b style="color:var(--ok)">acesso sem prazo para expirar</b>')
-    +alerta+'<div style="font-size:12px;margin-top:6px">Só leitura: os números dos posts e dos anúncios vêm direto da Meta (o Reportei fica de reserva), e o sistema pausa sozinho se a Meta pedir.</div>'
+    +alerta+'<div style="font-size:12px;margin-top:6px">Só leitura: os números dos posts e dos anúncios vêm direto da Meta, e o sistema pausa sozinho se a Meta pedir.</div>'
     +'<div id="meta-contas" style="font-size:12px;margin-top:6px">Conferindo o que este acesso enxerga...</div>'
     +'<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px">Trocar a conexão</summary><div style="margin-top:10px"><button class="btn-sm" onclick="conectarMeta()">Entrar com o Facebook (vale 60 dias)</button></div>'+colar+'</details>';
   if(pausa||metaCfg.conexao.erro){document.getElementById("meta-contas").textContent="";return;}
@@ -635,7 +582,6 @@ async function loadData(){
     atualizarStats();
     renderUsuarios();
     renderProjetos();
-    carregarConnect();
     carregarMeta();
     document.getElementById("last-update").textContent="Ultima atualizacao: "+new Date().toLocaleString("pt-BR");
   }catch(e){
@@ -771,7 +717,7 @@ async function carregarLojas(){
   try{var r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em,produtos_dona,produtos_admin,publico_admin,objetivo_anuncios");if(r.error)r=await supaClient.from("lojas").select("user_id,nome,nicho,site,criado_em");if(r.error)throw r.error;lojas={};(r.data||[]).forEach(function(l){lojas[l.user_id]=l;});lojasErro=false;}
   catch(e){lojasErro=true;}
   try{
-    var c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,metricas_em,status,atualizado_em,conta:metricas->conta,avisos:metricas->avisos,posts:metricas->organico->total_posts,ads90:metricas->anuncios->p90->totais,dossie_em:dossie->>gerado_em,dossie_versao:dossie->>versao,meta_em:meta->>em,meta_erro:meta->>erro");
+    var c=await supaClient.from("contas_meta").select("user_id,ig_id,ig_username,ad_account_id,ad_account_nome,metricas_em,status,atualizado_em,conta:metricas->conta,avisos:metricas->avisos,posts:metricas->organico->total_posts,ads90:metricas->anuncios->p90->totais,dossie_em:dossie->>gerado_em,dossie_versao:dossie->>versao,meta_em:meta->>em,meta_erro:meta->>erro");
     if(c.error)c=await supaClient.from("contas_meta").select("user_id,ig_username,ad_account_nome,status,atualizado_em");
     numeros={};((c&&c.data)||[]).forEach(function(x){numeros[x.user_id]=x;});
   }catch(e){}
@@ -818,7 +764,7 @@ function blocoUso7(uid){
   return '<div style="font-size:13px">'+(p.join(" · ")||"Sem uso")+'</div>'+(s.falhas?'<div class="mini" style="color:var(--ac2)" title="'+escHtml(s.erros.join("\n"))+'">'+s.falhas+(s.falhas===1?" falha":" falhas")+' · '+escHtml(String(s.erros[0]||"").slice(0,70))+'</div>':'')+(s.custo?'<div class="mini">IA em 7 dias: '+fmtUsd(s.custo)+'</div>':'');
 }
 function fmtUsd(v){return "US$ "+(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
-function temConexao(n){var ct=(n&&n.conta)||{};return !!(ct.username||ct.anuncios||(n&&(n.ig_username||n.ad_account_nome)));}
+function temConexao(n){return !!(n&&(n.ig_id||n.ad_account_id));}
 function renderLojas(){
   var el=document.getElementById("lojas-tabela");if(!el)return;
   document.getElementById("lojas-aviso").innerHTML=lojasErro?'<div class="caixa" style="margin-bottom:16px"><b>Falta criar as tabelas novas no banco.</b> Rode o arquivo supabase/lojas.sql no SQL Editor do Supabase.</div>':"";
@@ -830,10 +776,10 @@ function renderLojas(){
   if(!lista.length){el.innerHTML='<div class="empty">Nenhuma loja encontrada.</div>';return;}
   var html='<table><thead><tr><th>Loja</th><th>Instagram</th><th>Anúncios</th><th>Acesso da dona</th><th>Últimos 7 dias</th><th>Números</th><th></th></tr></thead><tbody>';
   lista.forEach(function(u){
-    var l=lojas[u.id],n=numeros[u.id]||{},ct=n.conta||{},cc=connectClientes[u.id];
-    var conectar='<button class="lk" onclick="conectarLoja(\''+u.id+'\')">Conectar →</button>';
-    var ig=ct.username?'<span class="ch ch-ok">@'+escHtml(String(ct.username).replace(/^@/,""))+'</span>':n.ig_username?'<span class="ch ch-ok">@'+escHtml(n.ig_username)+'</span>':cc?'<span class="ch ch-av">Falta autorizar</span><div class="mini">'+conectar+'</div>':conectar;
-    var ads=ct.anuncios?'<span class="ch ch-ok">'+escHtml(ct.anuncios)+'</span>':n.ad_account_nome?'<span class="ch ch-ok">'+escHtml(n.ad_account_nome)+'</span>':cc?'<span class="ch ch-av">Falta autorizar</span>':'<span class="ch ch-mu">Não conectada</span>';
+    var l=lojas[u.id],n=numeros[u.id]||{},ct=n.conta||{};
+    var conectar='<button class="lk" onclick="conectarLoja(\''+u.id+'\')">Escolher →</button>';
+    var ig=n.ig_id?'<span class="ch ch-ok">@'+escHtml(String(n.ig_username||ct.username||"").replace(/^@/,""))+'</span>':conectar;
+    var ads=n.ad_account_id?'<span class="ch ch-ok">'+escHtml(n.ad_account_nome||ct.anuncios||"Conta de anúncios")+'</span>':n.ig_id?'<span class="ch ch-mu">Não escolhida</span><div class="mini">'+conectar+'</div>':'<span class="ch ch-mu">Não escolhida</span>';
     var acesso=u.last_sign_in_at?'<span class="ch ch-ok">Ativo</span><div class="mini">Entrou '+fmtCurto(u.last_sign_in_at)+'</div>':'<span class="ch ch-av">Aguardando 1º acesso</span><div class="mini"><button class="lk" onclick="definirSenha(\''+u.id+'\')">Definir senha</button></div>';
     var t90=n.ads90||null;
     var num=n.metricas_em?fmtCurto(n.metricas_em)+'<div class="mini">'+(n.posts!=null?n.posts+" posts":"")+(t90&&t90.gasto!=null?(n.posts!=null?" · ":"")+"R$ "+Math.round(t90.gasto).toLocaleString("pt-BR")+" em 90d":"")+'</div>':'<span class="mini" style="margin:0">Ainda sem números</span>';
@@ -866,7 +812,7 @@ function abrirMenu(uid,btn){
   var m=document.getElementById("menu-loja");
   if(menuUid===uid&&m.style.display==="block"){fecharMenu();return;}
   menuUid=uid;
-  var itens=[["editar","Editar dados da loja"],["senha","Definir senha da dona"],["conectar","Conectar Instagram e anúncios"],["atualizar","Atualizar dados agora"],["analisar","Analisar com o time de agentes"],["recado","Mandar recado para a loja"]];
+  var itens=[["editar","Editar dados da loja"],["senha","Definir senha da dona"],["conectar","Instagram e anúncios"],["atualizar","Atualizar dados agora"],["analisar","Analisar com o time de agentes"],["recado","Mandar recado para a loja"]];
   if(uid!==ADMIN_ID)itens.push(["-"],["remover","Remover loja"]);
   m.innerHTML=itens.map(function(i){return i[0]==="-"?"<hr>":'<button role="menuitem"'+(i[0]==="remover"?' class="perigo"':'')+' onclick="acaoLoja(\''+i[0]+'\')">'+i[1]+'</button>';}).join("");
   m.style.display="block";
@@ -919,20 +865,40 @@ async function copiarLinkAcesso(uid){
     avisar((d.ja_entrou?"Link para criar uma nova senha copiado. ":"Link de acesso copiado. ")+"Mande para "+d.email+". Ele vale por tempo limitado; se expirar, gere outro aqui.");
   }catch(e){setStatusLoja(uid,"");avisar("Nao consegui gerar o link: "+e.message,true);}
 }
+// Instagram e conta de anuncios da loja: escolhidos na lista do que o seu acesso a Meta enxerga
+var contasMetaLista=null;
 async function conectarLoja(uid){
-  // abre a aba ja no clique (senao o navegador bloqueia) e depois leva a tela do Reportei
-  var aba=window.open("","_blank");
+  drawerUid=uid;
+  var n=numeros[uid]||{},dr=document.getElementById("drawer-loja");
+  dr.innerHTML='<div class="dr-h"><div class="dr-t">Instagram e anúncios · '+escHtml(nomeLoja(uid))+'</div><button class="btn-dots" aria-label="Fechar" onclick="fecharDrawerLoja()">×</button></div>'
+    +'<div class="dr-b" id="dr-corpo"><div class="dica">Carregando as contas que o seu acesso à Meta enxerga...</div></div>'
+    +'<div class="dr-f" id="dr-rodape"><button class="btn-out" style="height:46px" onclick="fecharDrawerLoja()">Cancelar</button></div>';
+  document.getElementById("drawer-ov").style.display="block";dr.style.display="flex";
+  try{if(!contasMetaLista)contasMetaLista=await apiMeta({acao:"contas"});}
+  catch(e){document.getElementById("dr-corpo").innerHTML='<div class="dica" style="color:var(--ac2)">Não consegui listar as contas da Meta: '+escHtml(e.message)+'. Confira a conexão na aba Conexões.</div>';return;}
+  // conta que ja e de outra loja aparece com o nome dela
+  var donoIg={},donoAds={};
+  Object.keys(numeros).forEach(function(k){var x=numeros[k];if(k===uid)return;if(x.ig_id)donoIg[x.ig_id]=nomeLoja(k);if(x.ad_account_id)donoAds[String(x.ad_account_id).replace(/^act_/,"")]=nomeLoja(k);});
+  var ig=contasMetaLista.instagram||[],ads=contasMetaLista.anuncios||[];
+  var atualIg=n.ig_id||"",atualAds=String(n.ad_account_id||"").replace(/^act_/,"");
+  var opIg='<option value="">Nenhum</option>'+ig.map(function(i){return '<option value="'+escHtml(i.id)+'"'+(i.id===atualIg?' selected':'')+'>@'+escHtml(i.username||i.id)+' · '+Number(i.seguidores||0).toLocaleString("pt-BR")+' seguidores'+(i.empresa?' · '+escHtml(i.empresa):'')+(donoIg[i.id]?' (já é de '+escHtml(donoIg[i.id])+')':'')+'</option>';}).join("");
+  var opAds='<option value="">Nenhuma</option>'+ads.map(function(a){var id=String(a.id).replace(/^act_/,"");return '<option value="'+escHtml(id)+'"'+(id===atualAds?' selected':'')+'>'+escHtml(a.nome||id)+(a.ativa?'':' (desativada)')+(a.empresa?' · '+escHtml(a.empresa):'')+(donoAds[id]?' (já é de '+escHtml(donoAds[id])+')':'')+'</option>';}).join("");
+  document.getElementById("dr-corpo").innerHTML='<section><div class="passo"><span>1</span>Instagram da loja</div><label class="campo">Conta do Instagram<select id="vc-ig">'+opIg+'</select></label></section>'
+    +'<section><div class="passo"><span>2</span>Conta de anúncios</div><label class="campo">Conta do Gerenciador de Anúncios<select id="vc-ads">'+opAds+'</select></label></section>'
+    +'<div class="dica">A lista mostra o que o seu acesso à Meta enxerga ('+ig.length+' Instagrams e '+ads.length+' contas de anúncios). Se a conta da loja não aparecer, peça para a loja dar acesso ao seu perfil ou à sua empresa no Gerenciador de Negócios e clique em <a href="#" onclick="contasMetaLista=null;conectarLoja(\''+uid+'\');return false" style="color:var(--ac2)">recarregar a lista</a>.</div>'
+    +'<div id="vc-erro" style="color:var(--ac2);font-size:13px" role="alert"></div>';
+  document.getElementById("dr-rodape").innerHTML='<button class="btn-out" style="height:46px" onclick="fecharDrawerLoja()">Cancelar</button><button class="btn-pri" style="height:46px" id="vc-salvar" onclick="salvarContasLoja(\''+uid+'\')">Salvar e puxar os números</button>';
+}
+async function salvarContasLoja(uid){
+  var igId=val("vc-ig"),conta=val("vc-ads"),erro=document.getElementById("vc-erro"),btn=document.getElementById("vc-salvar");
+  if(!igId&&!conta){erro.textContent="Escolha o Instagram, a conta de anúncios ou os dois.";return;}
+  btn.disabled=true;btn.textContent="Salvando e puxando os números...";erro.textContent="";
   try{
-    if(!connectClientes[uid]){
-      setStatusLoja(uid,"Ativando no Reportei...");
-      await apiConnect({acao:"ativar",user_id:uid,nome:nomeLoja(uid)});
-      var rr=await apiConnect({acao:"listar"});connectClientes={};(rr.clientes||[]).forEach(function(c){connectClientes[c.user_id]=c;});
-    }
-    var d=await apiConnect({acao:"sessao",user_id:uid});
-    if(aba)aba.location.href=d.link;else window.open(d.link,"_blank");
-    setStatusLoja(uid,"Tela do Reportei aberta. Depois de autorizar, use ⋯ > Atualizar dados agora.");
-    avisar("Tela do Reportei aberta em outra aba. Autorize o Instagram e a conta de anúncios da loja e depois clique em Atualizar dados agora.");
-  }catch(e){if(aba)aba.close();setStatusLoja(uid,"Erro: "+e.message);avisar("Erro ao conectar: "+e.message,true);}
+    var d=await apiMeta({acao:"vincular",user_id:uid,ig_id:igId,ad_account_id:conta});
+    fecharDrawerLoja();
+    var t=d.erro?"Contas salvas, mas os números ainda não vieram: "+d.erro:"Contas salvas"+(d.resumo?": "+d.resumo.posts+" posts e "+d.resumo.anuncios+" anúncios.":".");
+    avisar(t,!!d.erro);await carregarLojas();setStatusLoja(uid,t);
+  }catch(e){erro.textContent="Erro: "+e.message;btn.disabled=false;btn.textContent="Salvar e puxar os números";}
 }
 async function atualizarNumeros(uid){
   setStatusLoja(uid,"Puxando posts e anúncios... pode levar 1 ou 2 minutos.");
@@ -977,7 +943,7 @@ function abrirDrawerLoja(uid){
     +'<div class="dica" style="margin-top:8px">Quando ela entrar com esse e-mail, cai direto na loja já pronta: vídeos, anúncios e roteiros. Se ela já usa o app, a loja é ligada à conta dela.'+(uid?' Para trocar a senha dela, use o menu da loja: Definir senha da dona.':'')+'</div>'
     +(uid?'':'<label class="campo" style="margin-top:10px">Senha da dona (pelo menos 8 caracteres)<input id="lj-senha" value="'+escHtml(sugerirSenha(""))+'" maxlength="72" autocomplete="off"/></label><div class="dica" style="margin-top:6px">Já vem uma sugestão, pode trocar. Depois de criar, você copia uma mensagem pronta com o endereço, o e-mail e a senha para mandar pelo WhatsApp. Se o e-mail já usa o app, a senha dela não muda.</div>')
     +'</section>'
-    +'<section><div class="passo"><span>3</span>Instagram e anúncios</div><div class="dica">Depois de salvar, clique em <b>Conectar Instagram e anúncios</b>: abre a tela do Reportei para autorizar as contas da loja (você mesmo ou mandando o link para a dona). Os números passam a ser atualizados a cada 5 minutos.</div></section>'
+    +'<section><div class="passo"><span>3</span>Instagram e anúncios</div><div class="dica">Depois de criar, você escolhe o Instagram e a conta de anúncios da loja na lista do que o seu acesso à Meta enxerga. Os números passam a ser atualizados sozinhos a cada 30 minutos.</div></section>'
     +'<div id="lj-erro" style="color:var(--ac2);font-size:13px" role="alert"></div>'
     +'</div><div class="dr-f" id="dr-rodape"><button class="btn-out" style="height:46px" onclick="fecharDrawerLoja()">Cancelar</button><button class="btn-pri" style="height:46px" id="lj-salvar" onclick="salvarLoja()">'+(uid?"Salvar":"Criar loja")+'</button></div>';
   document.getElementById("drawer-ov").style.display="block";dr.style.display="flex";
@@ -1017,7 +983,7 @@ function mostrarLojaCriada(d,email,nome,senha){
     :(!d.ja_entrou?'<button class="btn-out" style="height:44px" onclick="copiarLinkAcesso(\''+d.user_id+'\')">Gerar link para mandar pelo WhatsApp</button>':'');
   corpo.innerHTML='<div style="display:flex;gap:12px;align-items:center"><div class="av" style="background:rgba(45,222,152,.14);color:var(--ok)">✓</div><div><div style="font-weight:700;font-size:17px">'+escHtml(nome)+' criada</div><div class="mini">'+escHtml(email)+'</div></div></div>'
     +'<section><div class="passo"><span>1</span>Acesso da dona</div>'+acesso+'<div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">'+link+'</div></section>'
-    +'<section><div class="passo"><span>2</span>Instagram e anúncios</div><div class="dica" style="margin-bottom:10px">Abra a tela do Reportei e autorize o Instagram e a conta de anúncios da loja. Depois use ⋯ > Atualizar dados agora.</div><button class="btn-pri" onclick="conectarLoja(\''+d.user_id+'\')">Conectar Instagram e anúncios</button></section>';
+    +'<section><div class="passo"><span>2</span>Instagram e anúncios</div><div class="dica" style="margin-bottom:10px">Copie a mensagem da dona antes. Depois escolha o Instagram e a conta de anúncios da loja: os números vêm na hora.</div><button class="btn-pri" onclick="conectarLoja(\''+d.user_id+'\')">Escolher Instagram e anúncios</button></section>';
   rod.innerHTML='<button class="btn-out" style="height:46px" onclick="fecharDrawerLoja()">Concluir</button>';
 }
 
@@ -1133,7 +1099,6 @@ async function enviarRecado(uid,projetoId,texto){
 }
 function mandarRecado(uid){var t=window.prompt("Recado para "+nomeLoja(uid)+" (aparece no app dela):");if(t&&t.trim())enviarRecado(uid,null,t.trim());}
 
-// ===== numeros do Reportei no formato que o time de agentes ja entende =====
 initAdmin();
 </script>
 </body>
