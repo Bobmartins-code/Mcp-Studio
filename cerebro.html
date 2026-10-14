@@ -68,7 +68,6 @@ body.video .app { max-width: none; height: 100%; }
     <div id="dica" hidden></div>
     <div class="canto" id="canto">Passe o mouse no cérebro</div>
   </div>
-  <div class="leg" id="leg"></div>
   <div class="rodape">Cada ponto é um item real guardado pelo MCP Studio, lido agora do banco (atualiza sozinho a cada 5 minutos). As lojas aparecem só por número, na ordem em que entraram: nenhuma vê a outra. As lições douradas em volta do núcleo vêm do cérebro central, que só guarda padrões anônimos vistos em 3 lojas ou mais.</div>
 </div>
 
@@ -324,7 +323,6 @@ function marcar(i) {
 function desenharLegendas() {
 document.getElementById("chips").innerHTML = CATS.map(function (c, i) { return '<button class="chip" data-cat="' + i + '" style="color:rgb(' + c.cor + ')"><i style="background:rgb(' + c.cor + ')"></i><span style="color:var(--apagado)">' + c.nome + '</span><b>' + c.total.toLocaleString("pt-BR") + '</b></button>'; }).join("") +
   '<span class="chip" style="cursor:default;color:#FFCE6E"><i style="background:#FFCE6E"></i><span style="color:var(--apagado)">Lições do central</span><b>' + LICOES + '</b></span>';
-document.getElementById("leg").innerHTML = CATS.map(function (c, i) { return '<button data-cat="' + i + '"><i style="background:rgb(' + c.cor + ')"></i><span class="nome">' + c.nome + '</span><span class="n">' + c.total.toLocaleString("pt-BR") + '</span><span class="d">' + c.d + '</span></button>'; }).join("");
 document.querySelectorAll("[data-cat]").forEach(function (b) { b.addEventListener("click", function () { marcar(+b.getAttribute("data-cat")); }); });
 }
 cv.addEventListener("pointermove", function (e) { var r = cv.getBoundingClientRect(); mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; mouse.dentro = true; document.getElementById("canto").hidden = true; });
