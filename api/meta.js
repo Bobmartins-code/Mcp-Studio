@@ -133,6 +133,27 @@ async function coletarOrganico(igId, token) {
 // ---------- ANUNCIOS ----------
 const TIPOS_COMPRA = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "onsite_web_purchase"];
 const TIPO_CONVERSA = ["onsite_conversion.messaging_conversation_started_7d"];
+
+// periodo pedido no Painel Admin (aba Resultados), no horario de Sao Paulo
+function diaSP(d) { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d); }
+function faixaResultados(b) {
+    const hoje = new Date(), fim = diaSP(hoje), DIA = 864e5;
+    const per = String(b.periodo || "p30");
+    if (per === "maximo") return { maximo: true, fim: fim };
+    if (per === "p7" || per === "p30" || per === "p90") return { inicio: diaSP(new Date(hoje.getTime() - (Number(per.slice(1)) - 1) * DIA)), fim: fim };
+    if (per === "mes") return { inicio: fim.slice(0, 7) + "-01", fim: fim };
+    if (per === "mes_ant") { const ult = diaSP(new Date(new Date(fim.slice(0, 7) + "-01T12:00:00Z").getTime() - DIA)); return { inicio: ult.slice(0, 7) + "-01", fim: ult }; }
+    if (per === "personalizado") {
+        const ini = String(b.inicio || ""), f = String(b.fim || "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ini) || !/^\d{4}-\d{2}-\d{2}$/.test(f)) throw new Error("Escolha a data de início e a de fim.");
+        if (ini > f) throw new Error("A data de início precisa ser antes da data de fim.");
+        if (f > fim) throw new Error("A data de fim não pode ser depois de hoje.");
+        // a Meta guarda os numeros dos ultimos 37 meses
+        if (ini < diaSP(new Date(hoje.getTime() - 37 * 30 * DIA))) throw new Error("A Meta só guarda os números dos últimos 37 meses. Escolha uma data mais recente.");
+        return { inicio: ini, fim: f };
+    }
+    throw new Error("Período inválido.");
+}
 function acao(lista, tipos) {
     const l = lista || [];
     for (const t of tipos) { const a = l.find(function (x) { return x.action_type === t; }); if (a) return num(a.value); }
@@ -279,6 +300,43 @@ module.exports = async function handler(req, res) {
             });
             const porNome = function (x, y) { return String(x.username || x.nome || "").localeCompare(String(y.username || y.nome || ""), "pt-BR"); };
             return res.status(200).json({ instagram: Object.keys(ig).map(function (k) { return ig[k]; }).sort(porNome), anuncios: Object.keys(ads).map(function (k) { return ads[k]; }).sort(porNome) });
+        }
+
+        // investimento e vendas de todas as lojas num periodo (direto da Meta, uma consulta por conta de anuncios)
+        if (b.acao === "resultados") {
+            const faixa = faixaResultados(b);
+            const [lojas, contas] = await Promise.all([
+                banco("lojas?select=user_id,nome,objetivo_anuncios"),
+                banco("contas_meta?ad_account_id=not.is.null&select=user_id,ad_account_id,ad_account_nome")
+            ]);
+            const porId = {};
+            (lojas || []).forEach(function (l) { porId[l.user_id] = l; });
+            const lista = (contas || []).filter(function (c) { return porId[c.user_id]; });
+            const linhas = [];
+            for (let i = 0; i < lista.length; i += 3) {
+                await Promise.all(lista.slice(i, i + 3).map(async function (c) {
+                    const l = porId[c.user_id], conta = String(c.ad_account_id).replace(/^act_/, "");
+                    const linha = { nome: l.nome, objetivo: l.objetivo_anuncios || "auto", conta: c.ad_account_nome || "", gasto: 0, receita: 0, compras: 0, conversas: 0, alcance: 0, cliques: 0 };
+                    try {
+                        const p = { level: "account", fields: "spend,actions,action_values,reach,clicks" };
+                        if (faixa.maximo) p.date_preset = "maximum"; else p.time_range = JSON.stringify({ since: faixa.inicio, until: faixa.fim });
+                        const r = ((await g("/act_" + conta + "/insights", p, token)).data || [])[0] || {};
+                        linha.gasto = Math.round(num(r.spend) * 100) / 100;
+                        linha.receita = Math.round(acao(r.action_values, TIPOS_COMPRA) * 100) / 100;
+                        linha.compras = acao(r.actions, TIPOS_COMPRA);
+                        linha.conversas = acao(r.actions, TIPO_CONVERSA);
+                        linha.alcance = num(r.reach); linha.cliques = num(r.clicks);
+                        if (r.date_start) linha.desde = r.date_start;
+                    } catch (e) { linha.erro = e.message || "erro na Meta"; }
+                    linhas.push(linha);
+                }));
+            }
+            linhas.sort(function (a, c) { return c.gasto - a.gasto; });
+            const tot = linhas.reduce(function (t, x) { ["gasto", "receita", "compras", "conversas", "alcance", "cliques"].forEach(function (k) { t[k] += x[k]; }); return t; }, { gasto: 0, receita: 0, compras: 0, conversas: 0, alcance: 0, cliques: 0 });
+            tot.gasto = Math.round(tot.gasto * 100) / 100; tot.receita = Math.round(tot.receita * 100) / 100;
+            tot.roas = tot.gasto > 0 ? Math.round(tot.receita / tot.gasto * 100) / 100 : null;
+            const desde = linhas.map(function (x) { return x.desde; }).filter(Boolean).sort()[0] || null;
+            return res.status(200).json({ periodo: faixa.maximo ? { maximo: true, inicio: desde, fim: faixa.fim } : faixa, lojas: linhas, totais: tot, em: new Date().toISOString() });
         }
 
         // escolhe o Instagram e a conta de anuncios de uma loja (confere na Meta que o acesso enxerga os dois)

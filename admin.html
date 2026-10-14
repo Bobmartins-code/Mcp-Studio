@@ -103,6 +103,13 @@ tr:hover td{background:var(--sur2)}
 .ch-ok{background:rgba(45,222,152,.12);color:var(--ok)}.ch-av{background:rgba(245,200,66,.12);color:var(--gold)}.ch-mu{background:rgba(255,255,255,.06);color:var(--mu2)}.ch-ac{background:rgba(255,77,0,.12);color:var(--ac2)}
 .av{width:40px;height:40px;border-radius:50%;background:#5A4636;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
 .mini{font-size:12px;color:var(--mu2);margin-top:4px}
+.per-res{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.per-res button{padding:8px 14px;border-radius:9px;border:1px solid var(--bo);background:var(--sur);color:var(--mu2);font:600 13px 'DM Sans',sans-serif;cursor:pointer}
+.per-res button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.res-custom{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px}
+.res-custom label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu2)}
+.res-custom input{background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:14px;padding:9px 10px;color-scheme:dark}
+.num-td{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .lk{background:none;border:none;color:var(--ac2);font-size:13px;font-weight:600;cursor:pointer;padding:0;font-family:'DM Sans',sans-serif}
 .menu{position:fixed;z-index:300;width:260px;background:#1C1C24;border:1px solid var(--boh);border-radius:12px;padding:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);display:none}
 .menu button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--tx);font-size:14px;padding:10px 12px;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif}
@@ -167,10 +174,12 @@ tr.clic{cursor:pointer}
     <div class="adm-logo"><div class="adm-mark">M</div><div>MCP<span style="color:var(--ac)">Studio</span></div></div>
     <div class="adm-lbl">ADMIN</div>
     <button class="adm-btn on" data-aba="lojas" onclick="abrirAba('lojas')">Lojas <span class="adm-bx" id="nav-lojas"></span></button>
+    <button class="adm-btn" data-aba="resultados" onclick="abrirAba('resultados')">Resultados</button>
     <button class="adm-btn" data-aba="projetos" onclick="abrirAba('projetos')">Projetos e roteiros</button>
     <button class="adm-btn" data-aba="visao" onclick="abrirAba('visao')">Visão geral</button>
     <button class="adm-btn" data-aba="conexoes" onclick="abrirAba('conexoes')">Conexões</button>
     <button class="adm-btn" data-aba="central" onclick="abrirAba('central')">Cérebro central</button>
+    <a class="adm-btn" href="cerebro.html" target="_blank" rel="noopener">Cérebro MCP ↗</a>
     <button class="adm-btn" data-aba="seguranca" onclick="abrirAba('seguranca')">Segurança</button>
     <div class="fim" style="flex:1"></div>
     <a class="adm-btn fim" href="app.html">← Voltar ao app</a>
@@ -276,6 +285,21 @@ tr.clic{cursor:pointer}
     </section>
 
     <!-- ================= SEGURANCA ================= -->
+    <!-- ================= RESULTADOS ================= -->
+    <section class="aba" id="aba-resultados">
+      <div class="head"><div><div class="h1">Resultados</div><div class="sub">Quanto todas as lojas investiram em anúncios e quanto venderam, direto da Meta. Escolha o período como no Gerenciador de Anúncios.</div></div></div>
+      <div class="per-res" id="res-per" role="group" aria-label="Período"></div>
+      <div class="res-custom" id="res-custom" hidden>
+        <label for="res-ini">De<input type="date" id="res-ini"/></label>
+        <label for="res-fim">Até<input type="date" id="res-fim"/></label>
+        <button class="btn-pri" onclick="aplicarPersonalizado()">Aplicar</button>
+      </div>
+      <div class="mini" id="res-info" style="margin:0 0 14px"></div>
+      <div class="tiles" id="res-tiles"></div>
+      <div class="section"><div style="overflow-x:auto" id="res-tabela"></div></div>
+      <div class="mini">Vendido é o valor das compras que a Meta registrou (pelo pixel do site ou pelo catálogo). Loja que vende pelo direct ou WhatsApp aparece com conversas iniciadas: a venda dela acontece fora da Meta e não entra no vendido.</div>
+    </section>
+
     <!-- ================= CEREBRO CENTRAL ================= -->
     <section class="aba" id="aba-central">
       <div class="head">
@@ -405,6 +429,50 @@ function metodoDoRoteiro(s){if(s.metodo&&s.metodo!=="fullfunnel")return s.metodo
 function nichoSalvo(p){if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.rodadas||[];for(var i=rs.length-1;i>=0;i--){if(rs[i].direcao&&rs[i].direcao.nicho)return rs[i].direcao.nicho;}return "";}
 function csvSeguro(t){t=String(t==null?"":t).replace(/"/g,'""');return /^[=+\-@]/.test(t)?"'"+t:t;}
 function escHtml(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+// ===== resultados: investimento e vendas de todas as lojas (direto da Meta) =====
+var resCarregado=false,resPer="p30",resSeq=0;
+var PER_RES=[["p7","7 dias"],["p30","30 dias"],["p90","90 dias"],["mes","Este mês"],["mes_ant","Mês anterior"],["maximo","Máximo"],["personalizado","Personalizado"]];
+function brlAdm(v){return "R$ "+Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function nBR(v){return Number(v||0).toLocaleString("pt-BR");}
+function dataBR(s){return s?String(s).slice(0,10).split("-").reverse().join("/"):"";}
+function hojeLocal(){var d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);}
+function desenharPeriodos(){
+  var el=document.getElementById("res-per");el.innerHTML="";
+  PER_RES.forEach(function(p){var b=document.createElement("button");b.textContent=p[1];b.className=resPer===p[0]?"on":"";b.setAttribute("aria-pressed",String(resPer===p[0]));b.onclick=function(){escolherPeriodo(p[0]);};el.appendChild(b);});
+  ["res-ini","res-fim"].forEach(function(id){document.getElementById(id).max=hojeLocal();});
+}
+function escolherPeriodo(p){
+  resPer=p;desenharPeriodos();
+  document.getElementById("res-custom").hidden=p!=="personalizado";
+  if(p!=="personalizado"){carregarResultados(p);return;}
+  var i=document.getElementById("res-ini"),fi=document.getElementById("res-fim");
+  if(!i.value)i.value=hojeLocal().slice(0,8)+"01";
+  if(!fi.value)fi.value=hojeLocal();
+}
+function aplicarPersonalizado(){var i=val("res-ini"),f=val("res-fim");if(!i||!f){avisar("Escolha a data de início e a de fim.",true);return;}carregarResultados("personalizado",i,f);}
+async function carregarResultados(p,ini,fim){
+  resCarregado=true;var seq=++resSeq;
+  var info=document.getElementById("res-info"),tiles=document.getElementById("res-tiles"),tab=document.getElementById("res-tabela");
+  info.textContent="Buscando os números na Meta...";tiles.style.opacity=".45";tab.style.opacity=".45";
+  var d;
+  try{d=await apiMeta({acao:"resultados",periodo:p,inicio:ini,fim:fim});}
+  catch(e){if(seq!==resSeq)return;info.innerHTML='<span style="color:var(--ac2)">Não consegui buscar: '+escHtml(e.message)+'</span>';tiles.style.opacity=1;tab.style.opacity=1;return;}
+  if(seq!==resSeq)return;
+  tiles.style.opacity=1;tab.style.opacity=1;
+  var per=d.periodo||{},t=d.totais||{};
+  info.textContent=(per.maximo?"Período máximo"+(per.inicio?": desde "+dataBR(per.inicio):"")+" até "+dataBR(per.fim):"De "+dataBR(per.inicio)+" a "+dataBR(per.fim))+" · "+(d.lojas||[]).length+" lojas · consultado agora na Meta";
+  tiles.innerHTML=[["Investido",brlAdm(t.gasto),""],["Vendido",brlAdm(t.receita),"var(--ok)"],["Retorno (ROAS)",t.roas!=null?String(t.roas).replace(".",",")+"x":"-",t.roas>=1?"var(--ok)":""],["Compras",nBR(t.compras),""],["Conversas iniciadas",nBR(t.conversas),""]].map(function(x){return '<div class="tile"><div class="tile-l">'+x[0]+'</div><div class="tile-v"'+(x[2]?' style="color:'+x[2]+'"':'')+'>'+x[1]+'</div></div>';}).join("");
+  var html='<table><thead><tr><th>Loja</th><th class="num-td">Investido</th><th class="num-td">Vendido</th><th class="num-td">ROAS</th><th class="num-td">Compras</th><th class="num-td">Por compra</th><th class="num-td">Conversas</th><th class="num-td">Por conversa</th></tr></thead><tbody>';
+  (d.lojas||[]).forEach(function(l){
+    var roas=l.gasto>0&&l.receita>0?String(Math.round(l.receita/l.gasto*100)/100).replace(".",",")+"x":"-";
+    html+='<tr><td><div style="font-weight:600">'+escHtml(l.nome)+'</div><div class="mini">'+escHtml(l.conta||"")+(l.objetivo==="conversas_visitas"?" · medida por conversas":"")+'</div>'+(l.erro?'<div class="mini" style="color:var(--ac2)">Erro: '+escHtml(l.erro)+'</div>':'')+'</td>'
+      +'<td class="num-td">'+brlAdm(l.gasto)+'</td><td class="num-td" style="color:var(--ok)">'+(l.receita?brlAdm(l.receita):"-")+'</td><td class="num-td">'+roas+'</td>'
+      +'<td class="num-td">'+(l.compras?nBR(l.compras):"-")+'</td><td class="num-td">'+(l.compras?brlAdm(l.gasto/l.compras):"-")+'</td>'
+      +'<td class="num-td">'+(l.conversas?nBR(l.conversas):"-")+'</td><td class="num-td">'+(l.conversas?brlAdm(l.gasto/l.conversas):"-")+'</td></tr>';
+  });
+  html+='<tr style="font-weight:700"><td>Total</td><td class="num-td">'+brlAdm(t.gasto)+'</td><td class="num-td" style="color:var(--ok)">'+brlAdm(t.receita)+'</td><td class="num-td">'+(t.roas!=null?String(t.roas).replace(".",",")+"x":"-")+'</td><td class="num-td">'+nBR(t.compras)+'</td><td class="num-td">'+(t.compras?brlAdm(t.gasto/t.compras):"-")+'</td><td class="num-td">'+nBR(t.conversas)+'</td><td class="num-td">'+(t.conversas?brlAdm(t.gasto/t.conversas):"-")+'</td></tr>';
+  tab.innerHTML=html+'</tbody></table>';
+}
 // ===== cerebro central (modo observacao) =====
 async function carregarCentral(){
   var el=document.getElementById("central-corpo");if(!el)return;
@@ -726,7 +794,7 @@ function exportarCSV(){
 }
 
 // ===== Abas do painel =====
-var ABAS=["lojas","projetos","visao","conexoes","central","seguranca"];
+var ABAS=["lojas","resultados","projetos","visao","conexoes","central","seguranca"];
 function abrirAba(id){
   if(ABAS.indexOf(id)<0)id="lojas";
   document.querySelectorAll(".aba").forEach(function(s){s.classList.toggle("on",s.id==="aba-"+id);});
@@ -734,6 +802,7 @@ function abrirAba(id){
   fecharMenu();
   try{history.replaceState(null,"","#"+id);}catch(e){}
   window.scrollTo(0,0);
+  if(id==="resultados"&&!resCarregado){desenharPeriodos();carregarResultados("p30");}
 }
 function avisar(t,erro){var el=document.getElementById("toast-adm");if(!el)return;el.textContent=t;el.style.display="block";el.style.borderColor=erro?"rgba(255,77,0,.6)":"var(--boh)";clearTimeout(avisar.t);avisar.t=setTimeout(function(){el.style.display="none";},erro?9000:5000);}
 function iniciais(t){var p=String(t||"?").replace(/[^A-Za-zÀ-ÿ0-9 ]/g," ").trim().split(/\s+/).filter(Boolean);if(!p.length)return "?";return ((p[0][0]||"")+(p.length>1?p[p.length-1][0]:"")).toUpperCase();}

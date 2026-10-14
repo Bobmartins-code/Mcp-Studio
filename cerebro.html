@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Cérebro MCP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: painel de controle escuro de ponta a ponta; topo com marca, modos e contadores; o cerebro ocupa o centro; legenda clicavel embaixo. Tema escuro unico, de proposito (e o visual do MCP Studio). */
+:root {
+  --fundo: #06070C; --painel: #0D0F17; --linha: rgba(150,160,210,.13); --texto: #ECEDF3; --apagado: #8C90A6;
+  --laranja: #FF5A1F; --ambar: #FFB547; --ouro: #FFCE6E;
+  --f-marca: 'Syne', 'Segoe UI', sans-serif; --f-dado: 'IBM Plex Mono', Consolas, monospace; --f-texto: 'DM Sans', 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--fundo); color: var(--texto); font-family: var(--f-texto); margin: 0; }
+.app { display: flex; flex-direction: column; gap: 14px; padding-inline: clamp(16px, 3vw, 36px); padding-block: 18px 22px; min-height: 100%; box-sizing: border-box; max-width: 1500px; margin: 0 auto; }
+.topo { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.marca { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.marca h1 { font-family: var(--f-marca); font-weight: 800; font-size: clamp(22px, 3vw, 30px); margin: 0; letter-spacing: .01em; text-wrap: balance; }
+.marca h1 span { color: var(--laranja); }
+.marca small { font-family: var(--f-dado); font-size: 11px; color: var(--apagado); letter-spacing: .12em; text-transform: uppercase; }
+.modos { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--linha); border-radius: 10px; background: var(--painel); }
+.modos button { font: 600 12px var(--f-dado); letter-spacing: .1em; text-transform: uppercase; color: var(--apagado); background: none; border: 1px solid transparent; border-radius: 7px; padding: 7px 14px; cursor: pointer; }
+.modos button:hover { color: var(--texto); }
+.modos button[aria-pressed="true"] { color: #0B0B0F; background: var(--ambar); }
+.modos button:focus-visible, .chip:focus-visible, .leg button:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 500 11px var(--f-dado); letter-spacing: .08em; text-transform: uppercase; color: var(--apagado); border: 1px solid var(--linha); background: var(--painel); border-radius: 6px; padding: 6px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; font-variant-numeric: tabular-nums; }
+.chip b { color: var(--texto); font-weight: 600; }
+.chip i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.chip.on { border-color: currentColor; color: var(--texto); }
+.palco { position: relative; flex: 1; min-height: 440px; border: 1px solid var(--linha); border-radius: 14px; overflow: hidden; background: radial-gradient(ellipse at center, #1B1218 0%, #0C0D16 46%, var(--fundo) 100%); }
+#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+#dica { position: absolute; pointer-events: none; min-width: 180px; max-width: 260px; background: rgba(10,11,18,.92); border: 1px solid var(--linha); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; color: var(--texto); box-shadow: 0 10px 30px rgba(0,0,0,.45); transform: translate(14px, 14px); }
+#dica .t { font: 600 11px var(--f-dado); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 4px; display: flex; gap: 8px; justify-content: space-between; }
+#dica .d { color: var(--apagado); }
+.canto { position: absolute; left: 14px; bottom: 12px; font: 400 10.5px var(--f-dado); letter-spacing: .1em; color: var(--apagado); text-transform: uppercase; pointer-events: none; }
+.leg { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.leg button { text-align: left; background: var(--painel); border: 1px solid var(--linha); border-radius: 10px; padding: 10px 12px; color: var(--texto); cursor: pointer; display: grid; grid-template-columns: 10px 1fr auto; gap: 4px 10px; align-items: center; min-width: 0; }
+.leg button.on { border-color: rgba(255,181,71,.6); }
+.leg i { width: 10px; height: 10px; border-radius: 50%; }
+.leg .n { font: 600 13px var(--f-dado); font-variant-numeric: tabular-nums; }
+.leg .nome { font-weight: 600; font-size: 13px; min-width: 0; }
+.leg .d { grid-column: 2 / 4; font-size: 12px; color: var(--apagado); line-height: 1.4; }
+.rodape { font-size: 12px; color: var(--apagado); line-height: 1.5; max-width: 80ch; }
+@media (max-width: 640px) { .palco { min-height: 380px; } .modos button { padding: 7px 10px; } }
+@media (prefers-reduced-motion: reduce) { .palco { animation: none; } }
+/* gravacao do video: so o painel, sem a legenda */
+body.video .leg, body.video .rodape, body.video .canto { display: none; }
+body.video .app { max-width: none; height: 100%; }
+</style>
+</head><body>
+
+<div class="app">
+  <div class="topo">
+    <div class="marca"><h1>Cérebro <span>MCP</span></h1><small id="sub">carregando...</small></div>
+    <div class="modos" role="group" aria-label="Modo de ver">
+      <button id="m-disco" aria-pressed="true">Disco</button>
+      <button id="m-forca" aria-pressed="false">Força</button>
+      <button id="m-aneis" aria-pressed="false">Anéis</button>
+    </div>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="palco" id="palco">
+    <canvas id="cv" aria-label="Mapa do cérebro do MCP Studio: cada ponto é um item real guardado pelo sistema"></canvas>
+    <div id="dica" hidden></div>
+    <div class="canto" id="canto">Passe o mouse no cérebro</div>
+  </div>
+  <div class="leg" id="leg"></div>
+  <div class="rodape">Cada ponto é um item real guardado pelo MCP Studio, lido agora do banco (atualiza sozinho a cada 5 minutos). As lojas aparecem só por número, na ordem em que entraram: nenhuma vê a outra. As lições douradas em volta do núcleo vêm do cérebro central, que só guarda padrões anônimos vistos em 3 lojas ou mais.</div>
+</div>
+
+<script>
+// ---------- dados ao vivo (funcao cerebro_contagens do banco: so contagens por loja, sem nomes) ----------
+var SUPA_URL = "https://yutqrrcdlkocrpznryqi.supabase.co", SUPA_KEY = "sb_publishable_U3wOTwbeEvXtHOqP_I29VQ_ARH5CAkH", ADMIN_ID = "1c4d2a2b-c60b-4e99-982b-5b4a09e8cc0f";
+var supaClient = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+var LOJAS = [], LICOES = 0, TOTAL = 0, PONTOS = [], N = 0;
+var CATS = [
+  { id: "posts", nome: "Posts e Reels", cor: "79,209,197", d: "Cada post dos últimos 90 dias com os números, inclusive os collabs." },
+  { id: "ads", nome: "Anúncios", cor: "96,165,250", d: "Cada anúncio dos últimos 90 dias: investimento, vendas, conversas, gancho." },
+  { id: "videos", nome: "Vídeos assistidos", cor: "163,147,255", d: "Vídeos campeões que a IA assistiu: cenário, gancho, sequência, ritmo." },
+  { id: "falas", nome: "Falas lidas", cor: "255,110,170", d: "Falas dos vídeos transcritas, para saber o que foi dito." },
+  { id: "cerebro", nome: "Cérebro das lojas", cor: "255,90,31", d: "O que cada loja já comprovou, o que vale testar, o que não funciona e quem é o público." },
+  { id: "ideias", nome: "Ideias", cor: "255,181,71", d: "Ideias de conteúdo que o time de agentes montou para cada loja." },
+  { id: "roteiros", nome: "Roteiros", cor: "120,220,120", d: "Roteiros gerados pelas lojas no app." },
+  { id: "stories", nome: "Stories", cor: "250,120,60", d: "Stories guardados com os números, desde 13/10/2026." }
+];
+var semente = 21; function rnd() { semente = (semente * 16807) % 2147483647; return (semente - 1) / 2147483646; }
+var TAU = Math.PI * 2, OURO = Math.PI * (3 - Math.sqrt(5));
+var ultimoJson = "";
+function montarDados(d) {
+  var lojas = (d && d.lojas) || [];
+  LOJAS = lojas.map(function (_, i) { return String(i + 1); });
+  CATS.forEach(function (c) { c.n = lojas.map(function (l) { return Number(l[c.id]) || 0; }); c.total = c.n.reduce(function (a, b) { return a + b; }, 0); });
+  LICOES = Number(d && d.licoes) || 0;
+  TOTAL = CATS.reduce(function (a, c) { return a + c.total; }, 0) + LICOES;
+  semente = 21; PONTOS = [];
+  CATS.forEach(function (c, ci) { var k = 0; c.n.forEach(function (q, li) { for (var j = 0; j < q; j++) PONTOS.push({ c: ci, l: li, k: k++, s: rnd() }); }); });
+  N = PONTOS.length;
+  var hora = new Date((d && d.em) || Date.now()).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  document.getElementById("sub").textContent = LOJAS.length + " lojas · ao vivo · " + hora;
+  desenharLegendas();
+}
+
+// ---------- tela ----------
+var cv = document.getElementById("cv"), ctx = cv.getContext("2d"), palco = document.getElementById("palco"), dica = document.getElementById("dica");
+var W = 0, H = 0, DPR = 1, CX = 0, CY = 0, R = 0, ESC = 1;
+var ALVO = { disco: [], forca: [], aneis: [] }, HUBS = [], HEX = [];
+function medir() {
+  var r = palco.getBoundingClientRect();
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = r.width; H = r.height; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  CX = W / 2; CY = H / 2; R = Math.min(W, H) * 0.5; ESC = Math.max(0.8, Math.min(1.5, R / 430));
+  calcularAlvos();
+}
+function calcularAlvos() {
+  if (!CATS[0].n) return;   // os numeros ainda nao chegaram
+  // DISCO: cada categoria e uma fatia; dentro dela, pontos em espiral
+  var R0 = R * 0.21, R1 = R * 0.64, gap = 0.035, usaveis = CATS.filter(function (c) { return c.total > 0; });
+  var soma = usaveis.reduce(function (a, c) { return a + c.total; }, 0), a = -Math.PI / 2;
+  CATS.forEach(function (c) {
+    var fat = c.total > 0 ? (TAU - gap * usaveis.length) * c.total / soma : 0.18;
+    c.a0 = a; c.a1 = a + fat; a = c.a1 + gap;
+  });
+  ALVO.disco = PONTOS.map(function (p) {
+    var c = CATS[p.c], u = (p.k + 0.5) / Math.max(1, c.total);
+    var r = R0 + (R1 - R0) * Math.sqrt(u), ang = c.a0 + (c.a1 - c.a0) * ((p.k * 0.618034) % 1);
+    return [CX + Math.cos(ang) * r, CY + Math.sin(ang) * r];
+  });
+  // FORCA: um hexagono por categoria em volta do nucleo, pontos em nuvem perto dele
+  HUBS = CATS.map(function (c, i) {
+    var ang = -Math.PI / 2 + i / CATS.length * TAU + 0.25, rr = R * (i % 2 ? 0.66 : 0.52);
+    return { c: i, x: CX + Math.cos(ang) * rr * (W > H ? 1.25 : 0.95), y: CY + Math.sin(ang) * rr * (W > H ? 0.92 : 1.1), raio: 10 + Math.sqrt(c.total) * 0.9 };
+  });
+  ALVO.forca = PONTOS.map(function (p) {
+    var h = HUBS[p.c], c = CATS[p.c], esc = Math.max(4, R * 0.0105), rr = h.raio + 6 + Math.sqrt(p.k + 1) * esc * (c.total > 300 ? 0.75 : 1), ang = p.k * OURO;
+    return [h.x + Math.cos(ang) * rr, h.y + Math.sin(ang) * rr * 0.86];
+  });
+  // ANEIS: cada categoria num anel
+  ALVO.aneis = PONTOS.map(function (p) {
+    var c = CATS[p.c], rr = R * (0.24 + p.c * 0.062);
+    return [p.c, rr, (p.k + 0.5) / Math.max(1, c.total) * TAU];
+  });
+  // hexagonos das lojas no anel de fora (disco e aneis)
+  HEX = LOJAS.map(function (n, i) { var ang = -Math.PI / 2 + i / LOJAS.length * TAU + Math.PI / LOJAS.length; return { l: i, ang: ang, x: CX + Math.cos(ang) * R * 0.86, y: CY + Math.sin(ang) * R * 0.86 }; });
+}
+
+// ---------- estado ----------
+var modo = "disco", modoAnt = "disco", trocaEm = -10, TROCA = 1.4;
+var mouse = { x: -999, y: -999, dentro: false }, travado = null; // { tipo: "cat"|"loja", i }
+var foco = null;
+function easing(x) { return x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x); }
+function posDe(m, i, t) {
+  if (m === "aneis") { var a = ALVO.aneis[i], dir = a[0] % 2 ? -1 : 1, ang = a[2] + t * 0.05 * dir * (1 + a[0] * 0.08); return [CX + Math.cos(ang) * a[1] * (W > H ? 1.2 : 1), CY + Math.sin(ang) * a[1] * (W > H ? 0.95 : 1)]; }
+  if (m === "disco") { var d = ALVO.disco[i], ga = t * 0.035, dx = d[0] - CX, dy = d[1] - CY, c = Math.cos(ga), s = Math.sin(ga); return [CX + dx * c - dy * s, CY + dx * s + dy * c]; }
+  return ALVO.forca[i];
+}
+function hexPos(m, h, t) {
+  var giro = m === "disco" ? t * 0.035 : m === "aneis" ? t * 0.02 : 0, ang = h.ang + giro, rr = Math.min(R * (m === "forca" ? 0.95 : 0.86), W / 2 - 34);
+  return [CX + Math.cos(ang) * rr * (m === "aneis" && W > H ? 1.25 : (m === "forca" && W > H ? 1.35 : 1)), CY + Math.sin(ang) * rr * (m === "forca" && W <= H ? 1.2 : (m === "aneis" && W > H ? 0.95 : 1))];
+}
+
+// ---------- quem esta sob o mouse ----------
+function acharFoco(t, pos) {
+  if (!mouse.dentro) return null;
+  var m = modo;
+  for (var i = 0; i < HEX.length; i++) { var p = hexPos(m, HEX[i], t); if (Math.hypot(mouse.x - p[0], mouse.y - p[1]) < 26) return { tipo: "loja", i: i }; }
+  if (Math.hypot(mouse.x - CX, mouse.y - CY) < R * 0.17) return { tipo: "nucleo" };
+  if (m === "forca") { for (var j = 0; j < HUBS.length; j++) if (Math.hypot(mouse.x - HUBS[j].x, mouse.y - HUBS[j].y) < HUBS[j].raio + 26) return { tipo: "cat", i: j }; }
+  // ponto mais perto
+  var melhor = -1, md = 22 * 22;
+  for (var k = 0; k < N; k += 2) { var q = pos[k], dx = q[0] - mouse.x, dy = q[1] - mouse.y, dd = dx * dx + dy * dy; if (dd < md) { md = dd; melhor = k; } }
+  return melhor > -1 ? { tipo: "cat", i: PONTOS[melhor].c } : null;
+}
+function aceso(p) {
+  var f = travado || foco;
+  if (!f || f.tipo === "nucleo") return 1;
+  if (f.tipo === "cat") return p.c === f.i ? 1 : 0.26;
+  if (f.tipo === "loja") return p.l === f.i ? 1 : 0.24;
+  return 1;
+}
+function hash(n) { n = Math.sin(n * 127.1 + 311.7) * 43758.5453; return n - Math.floor(n); }
+
+// ---------- desenho ----------
+function quadro(t) {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  var p = easing((t - trocaEm) / TROCA);
+  // posicoes (com a transicao entre modos, um balanco leve e o mouse empurrando)
+  var pos = new Array(N);
+  for (var i = 0; i < N; i++) {
+    var a = posDe(modoAnt, i, t), b = posDe(modo, i, t), q = PONTOS[i];
+    var x = a[0] + (b[0] - a[0]) * p, y = a[1] + (b[1] - a[1]) * p;
+    x += Math.sin(t * 0.9 + q.s * 40) * 1.4; y += Math.cos(t * 0.8 + q.s * 30) * 1.4;
+    if (mouse.dentro) { var dx = x - mouse.x, dy = y - mouse.y, d = Math.hypot(dx, dy); if (d < 90 && d > 0.1) { var f = (90 - d) / 90 * 16; x += dx / d * f; y += dy / d * f; } }
+    pos[i] = [x, y];
+  }
+  foco = acharFoco(t, pos);
+  // grade de fundo: aneis finos e raios
+  ctx.strokeStyle = "rgba(120,130,190,.07)"; ctx.lineWidth = 1;
+  for (var g = 1; g <= 5; g++) { ctx.beginPath(); ctx.arc(CX, CY, R * 0.19 * g, 0, TAU); ctx.stroke(); }
+  // forca: ligacoes do nucleo aos hexagonos
+  var pf = modo === "forca" ? p : (modoAnt === "forca" ? 1 - p : 0);
+  if (pf > 0.01) {
+    HUBS.forEach(function (h, i) {
+      var ac = !foco || foco.tipo !== "cat" || foco.i === i ? 1 : 0.25;
+      ctx.strokeStyle = "rgba(" + CATS[i].cor + "," + 0.22 * pf * ac + ")"; ctx.setLineDash([3, 6]); ctx.lineDashOffset = -t * 18;
+      ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(h.x, h.y); ctx.stroke(); ctx.setLineDash([]);
+    });
+  }
+  // sinapses: pulsos de um item ate o nucleo (o cerebro "pensando")
+  ctx.globalCompositeOperation = "lighter";
+  var passo = 0.32, k0 = Math.floor(t / passo);
+  for (var j = k0 - 5; j <= k0; j++) {
+    var u = (t - j * passo) / 1.4; if (u < 0 || u > 1) continue;
+    var idx = Math.floor(hash(j) * N), q2 = pos[idx], c2 = CATS[PONTOS[idx].c].cor;
+    if (aceso(PONTOS[idx]) < 0.5) continue;
+    var hx = q2[0] + (CX - q2[0]) * u, hy = q2[1] + (CY - q2[1]) * u, tx = q2[0] + (CX - q2[0]) * Math.max(0, u - 0.18), ty = q2[1] + (CY - q2[1]) * Math.max(0, u - 0.18);
+    var gr = ctx.createLinearGradient(tx, ty, hx, hy); gr.addColorStop(0, "rgba(" + c2 + ",0)"); gr.addColorStop(1, "rgba(" + c2 + "," + (0.75 * Math.sin(Math.PI * u)) + ")");
+    ctx.strokeStyle = gr; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
+  }
+  // pontos
+  for (var n = 0; n < N; n++) {
+    var pt = PONTOS[n], al = aceso(pt), cc = CATS[pt.c].cor, brilho = 0.55 + 0.45 * Math.sin(t * 1.7 + pt.s * 50);
+    ctx.fillStyle = "rgba(" + cc + "," + (al * (0.62 + brilho * 0.38)) + ")";
+    var rr = ((al > 0.5 ? 2.5 : 1.8) + (pt.s > 0.93 ? 1.1 : 0)) * ESC;
+    ctx.fillRect(pos[n][0] - rr / 2, pos[n][1] - rr / 2, rr, rr);
+    if (al > 0.5 && pt.s > 0.985) { ctx.fillStyle = "rgba(" + cc + ",.25)"; ctx.beginPath(); ctx.arc(pos[n][0], pos[n][1], 5, 0, TAU); ctx.fill(); }
+  }
+  // nucleo
+  var pulso = 0.5 + 0.5 * Math.sin(t * 2.2), rN = R * 0.13;
+  var halo = ctx.createRadialGradient(CX, CY, 0, CX, CY, rN * 3);
+  halo.addColorStop(0, "rgba(255,90,31," + (0.45 + pulso * 0.15) + ")"); halo.addColorStop(0.45, "rgba(255,90,31,.10)"); halo.addColorStop(1, "rgba(255,90,31,0)");
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(CX, CY, rN * 3, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.save(); ctx.translate(CX, CY);
+  [[rN * 1.05, 1, 24, "255,181,71", 0.8, 2], [rN * 1.3, -0.6, 60, "255,90,31", 0.45, 1.2], [rN * 1.55, 0.35, 8, "255,206,110", 0.35, 1]].forEach(function (an) {
+    ctx.save(); ctx.rotate(t * an[1] * 0.5);
+    for (var s = 0; s < an[2]; s++) { var a0 = s / an[2] * TAU; ctx.strokeStyle = "rgba(" + an[3] + "," + an[4] + ")"; ctx.lineWidth = an[5]; ctx.beginPath(); ctx.arc(0, 0, an[0], a0, a0 + TAU / an[2] * 0.6); ctx.stroke(); }
+    ctx.restore();
+  });
+  ctx.restore();
+  var gN = ctx.createRadialGradient(CX - rN * 0.3, CY - rN * 0.3, 0, CX, CY, rN);
+  gN.addColorStop(0, "#FFE3B0"); gN.addColorStop(0.5, "#FFB547"); gN.addColorStop(1, "#FF5A1F");
+  ctx.fillStyle = gN; ctx.beginPath(); ctx.arc(CX, CY, rN * (0.78 + pulso * 0.03), 0, TAU); ctx.fill();
+  // licoes do cerebro central: 8 pontos dourados em orbita
+  ctx.globalCompositeOperation = "lighter";
+  for (var lz = 0; lz < LICOES; lz++) {
+    var al2 = lz / LICOES * TAU + t * 0.4, lx = CX + Math.cos(al2) * rN * 1.55, ly = CY + Math.sin(al2) * rN * 1.55;
+    var gl = ctx.createRadialGradient(lx, ly, 0, lx, ly, 9); gl.addColorStop(0, "rgba(255,206,110,.9)"); gl.addColorStop(1, "rgba(255,206,110,0)");
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(lx, ly, 9, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = "source-over";
+  // hexagonos: lojas (disco e aneis) e categorias (forca)
+  function hexagono(x, y, r, cor, a, cheio) {
+    ctx.beginPath(); for (var h = 0; h < 6; h++) { var aa = h / 6 * TAU + Math.PI / 6; ctx[h ? "lineTo" : "moveTo"](x + Math.cos(aa) * r, y + Math.sin(aa) * r); } ctx.closePath();
+    ctx.fillStyle = cheio ? "rgba(" + cor + "," + 0.18 * a + ")" : "rgba(10,11,18,.85)"; ctx.fill();
+    ctx.strokeStyle = "rgba(" + cor + "," + a + ")"; ctx.lineWidth = 1.6; ctx.stroke();
+  }
+  function rotulo(x, y, txt, cor, a, alinha) {
+    ctx.font = "600 11px 'IBM Plex Mono', monospace"; ctx.textBaseline = "middle";
+    var w = ctx.measureText(txt).width + 14, x0 = alinha === "left" ? x : alinha === "right" ? x - w : x - w / 2;
+    ctx.fillStyle = "rgba(10,11,18,.85)"; ctx.strokeStyle = "rgba(" + cor + "," + 0.6 * a + ")"; ctx.lineWidth = 1;
+    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x0, y - 10, w, 20, 10); else ctx.rect(x0, y - 10, w, 20); ctx.fill(); ctx.stroke();
+    ctx.textAlign = "center"; ctx.fillStyle = "rgba(236,237,243," + a + ")"; ctx.fillText(txt, x0 + w / 2, y + 0.5);
+  }
+  var ph = 1 - pf;
+  if (ph > 0.02) {
+    HEX.forEach(function (h) {
+      var hp = hexPos(modo === "forca" ? modoAnt : modo, h, t), ac = (!foco || foco.tipo !== "loja" || foco.i === h.l) ? 1 : 0.35, quente = foco && foco.tipo === "loja" && foco.i === h.l;
+      hexagono(hp[0], hp[1], quente ? 17 : 13, "255,181,71", ac * ph, quente);
+      var tot = CATS.reduce(function (a, c) { return a + c.n[h.l]; }, 0);
+      var fora = [Math.cos(Math.atan2(hp[1] - CY, hp[0] - CX)), Math.sin(Math.atan2(hp[1] - CY, hp[0] - CX))];
+      // tela em pe: rotulo acima ou abaixo do hexagono (de lado ele sairia da tela)
+      if (W <= H) rotulo(Math.max(70, Math.min(W - 70, hp[0])), hp[1] + (fora[1] >= 0 ? 30 : -30), "LOJA " + LOJAS[h.l] + " · " + tot, "255,181,71", ac * ph);
+      else rotulo(hp[0] + fora[0] * 30, hp[1] + fora[1] * 30, "LOJA " + LOJAS[h.l] + " · " + tot, "255,181,71", ac * ph, Math.abs(fora[0]) < 0.35 ? "center" : (fora[0] > 0 ? "left" : "right"));
+    });
+  }
+  if (pf > 0.02) {
+    HUBS.forEach(function (h, i) {
+      var c = CATS[i], ac = (!foco || foco.tipo !== "cat" || foco.i === i) ? 1 : 0.35, quente = foco && foco.tipo === "cat" && foco.i === i;
+      hexagono(h.x, h.y, h.raio * (quente ? 1.15 : 1), c.cor, ac * pf, true);
+      rotulo(h.x, h.y - h.raio - 16, c.nome.toUpperCase() + " · " + c.total, c.cor, ac * pf);
+      if (!c.total) { ctx.strokeStyle = "rgba(" + c.cor + "," + (0.25 + 0.25 * Math.sin(t * 3)) * pf + ")"; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.arc(h.x, h.y, h.raio + 10, 0, TAU); ctx.stroke(); ctx.setLineDash([]); }
+    });
+  } else if (modo === "disco" && p > 0.6) {
+    // rotulos das fatias do disco
+    CATS.forEach(function (c) {
+      var am = (c.a0 + c.a1) / 2 + t * 0.035, x = CX + Math.cos(am) * R * 0.74, y = CY + Math.sin(am) * R * 0.74;
+      var ac = (!foco || foco.tipo !== "cat" || foco.i === CATS.indexOf(c)) ? 1 : 0.3;
+      if (c.a1 - c.a0 > 0.3) rotulo(x, y, c.nome.toUpperCase() + " · " + c.total, c.cor, ac * Math.min(1, (p - 0.6) * 2.5) * 0.9);
+    });
+  }
+  return pos;
+}
+
+// ---------- dica do mouse ----------
+function mostrarDica() {
+  var f = travado || foco;
+  if (!f || !mouse.dentro) { dica.hidden = true; return; }
+  var html = "";
+  if (f.tipo === "cat") { var c = CATS[f.i]; html = '<div class="t"><span style="color:rgb(' + c.cor + ')">' + c.nome + '</span><span>' + c.total.toLocaleString("pt-BR") + '</span></div><div class="d">' + c.d + '</div>'; }
+  else if (f.tipo === "loja") { var l = f.i; html = '<div class="t"><span style="color:#FFB547">Loja ' + LOJAS[l] + '</span><span>' + CATS.reduce(function (a, c) { return a + c.n[l]; }, 0) + '</span></div><div class="d">' + CATS.filter(function (c) { return c.n[l]; }).map(function (c) { return c.nome + ": " + c.n[l]; }).join(" · ") + '</div>'; }
+  else { html = '<div class="t"><span style="color:#FF5A1F">Núcleo</span></div><div class="d">Tudo o que as ' + LOJAS.length + ' lojas já ensinaram ao sistema. Os ' + LICOES + ' pontos dourados são as lições do cérebro central.</div>'; }
+  dica.innerHTML = html; dica.hidden = false;
+  var x = Math.max(0, Math.min(mouse.x, W - 292)), y = Math.min(mouse.y, H - 130);
+  dica.style.left = x + "px"; dica.style.top = y + "px";
+}
+
+// ---------- controles ----------
+function trocarModo(m, t) {
+  if (m === modo) return;
+  modoAnt = modo; modo = m; trocaEm = t;
+  ["disco", "forca", "aneis"].forEach(function (x) { document.getElementById("m-" + x).setAttribute("aria-pressed", String(x === m)); });
+}
+var agora = function () { return performance.now() / 1000; };
+["disco", "forca", "aneis"].forEach(function (m) { document.getElementById("m-" + m).addEventListener("click", function () { trocarModo(m, agora()); }); });
+function marcar(i) {
+  travado = travado && travado.tipo === "cat" && travado.i === i ? null : { tipo: "cat", i: i };
+  document.querySelectorAll("[data-cat]").forEach(function (b) { b.classList.toggle("on", !!travado && +b.getAttribute("data-cat") === travado.i); });
+}
+function desenharLegendas() {
+document.getElementById("chips").innerHTML = CATS.map(function (c, i) { return '<button class="chip" data-cat="' + i + '" style="color:rgb(' + c.cor + ')"><i style="background:rgb(' + c.cor + ')"></i><span style="color:var(--apagado)">' + c.nome + '</span><b>' + c.total.toLocaleString("pt-BR") + '</b></button>'; }).join("") +
+  '<span class="chip" style="cursor:default;color:#FFCE6E"><i style="background:#FFCE6E"></i><span style="color:var(--apagado)">Lições do central</span><b>' + LICOES + '</b></span>';
+document.getElementById("leg").innerHTML = CATS.map(function (c, i) { return '<button data-cat="' + i + '"><i style="background:rgb(' + c.cor + ')"></i><span class="nome">' + c.nome + '</span><span class="n">' + c.total.toLocaleString("pt-BR") + '</span><span class="d">' + c.d + '</span></button>'; }).join("");
+document.querySelectorAll("[data-cat]").forEach(function (b) { b.addEventListener("click", function () { marcar(+b.getAttribute("data-cat")); }); });
+}
+cv.addEventListener("pointermove", function (e) { var r = cv.getBoundingClientRect(); mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; mouse.dentro = true; document.getElementById("canto").hidden = true; });
+cv.addEventListener("pointerleave", function () { mouse.dentro = false; });
+cv.addEventListener("click", function () { if (foco && foco.tipo === "loja") travado = travado && travado.tipo === "loja" && travado.i === foco.i ? null : foco; else if (foco && foco.tipo === "cat") marcar(foco.i); else { travado = null; marcar(-1); travado = null; } });
+window.addEventListener("resize", medir);
+
+// ---------- passeio automatico (para gravar o video): modo, mouse e destaque em funcao do tempo ----------
+var ROTEIRO = [[0, "disco"], [10, "forca"], [20, "aneis"], [28, "disco"]];
+function passeio(t) {
+  var m = "disco"; ROTEIRO.forEach(function (r) { if (t >= r[0]) m = r[1]; });
+  if (m !== modo) { modoAnt = modo; modo = m; trocaEm = ROTEIRO.filter(function (r) { return r[1] === m && t >= r[0]; }).pop()[0]; ["disco", "forca", "aneis"].forEach(function (x) { document.getElementById("m-" + x).setAttribute("aria-pressed", String(x === m)); }); }
+  // o cursor visita as fatias, uma loja, os hexagonos e o nucleo
+  var alvo = null;
+  if (t < 9) { var ci = Math.floor(t / 1.6) % 6, c = CATS[ci], am = (c.a0 + c.a1) / 2 + t * 0.035; alvo = [CX + Math.cos(am) * R * 0.48, CY + Math.sin(am) * R * 0.48]; if (t > 7.4) { var hp = hexPos("disco", HEX[1], t); alvo = hp; } }
+  else if (t < 20) { var hi = Math.floor((t - 11) / 1.6); if (t >= 11 && hi < HUBS.length) alvo = [HUBS[hi].x, HUBS[hi].y]; }
+  else if (t < 27) { if (t > 21) alvo = hexPos("aneis", HEX[Math.floor((t - 21) / 2) % 6], t); }
+  else alvo = t < 29.5 ? [CX + 4, CY + 3] : null;
+  if (alvo) { mouse.x += (alvo[0] - mouse.x) * 0.18; mouse.y += (alvo[1] - mouse.y) * 0.18; mouse.dentro = true; } else mouse.dentro = false;
+}
+var VIDEO = /video=1/.test(location.search);
+if (VIDEO) document.body.classList.add("video");
+async function buscar() {
+  var r = await supaClient.rpc("cerebro_contagens");
+  if (r.error) throw r.error;
+  var j = JSON.stringify(r.data);
+  if (j !== ultimoJson) { ultimoJson = j; montarDados(r.data); if (W) calcularAlvos(); }
+}
+function aviso(t) { document.getElementById("sub").textContent = ""; var c = document.getElementById("canto"); c.hidden = false; c.style.fontSize = "13px"; c.style.textTransform = "none"; c.innerHTML = t; }
+(async function iniciar() {
+  var s0 = await supaClient.auth.getSession(), sess = s0.data && s0.data.session;
+  if (!sess) { location.href = "index.html"; return; }
+  if (sess.user.id !== ADMIN_ID) { aviso("Esta página é só do administrador. <a href='app.html' style='color:#FFB547'>Voltar ao app</a>"); return; }
+  try { await buscar(); }
+  catch (e) { aviso("Não consegui ler os números: " + String(e.message || e) + ". Abra o <a href='admin.html' style='color:#FFB547'>Painel Admin</a>, confirme o acesso e volte."); return; }
+  medir();
+  setInterval(function () { if (!document.hidden) buscar().catch(function () {}); }, 5 * 60000);
+  if (VIDEO) { mouse.x = CX; mouse.y = CY; window.__quadro = function (t) { passeio(t); quadro(t); mostrarDica(); }; window.__pronto = (document.fonts ? document.fonts.ready : Promise.resolve()).then(function () { medir(); return true; }); }
+  else (function laco() { if (!document.hidden) { quadro(agora()); mostrarDica(); } requestAnimationFrame(laco); })();
+})();
+</script>
+</body></html>
