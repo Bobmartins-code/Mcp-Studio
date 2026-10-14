@@ -316,7 +316,7 @@ module.exports = async function handler(req, res) {
             for (let i = 0; i < lista.length; i += 3) {
                 await Promise.all(lista.slice(i, i + 3).map(async function (c) {
                     const l = porId[c.user_id], conta = String(c.ad_account_id).replace(/^act_/, "");
-                    const linha = { nome: l.nome, objetivo: l.objetivo_anuncios || "auto", conta: c.ad_account_nome || "", gasto: 0, receita: 0, compras: 0, conversas: 0, alcance: 0, cliques: 0 };
+                    const linha = { uid: c.user_id, nome: l.nome, objetivo: l.objetivo_anuncios || "auto", conta: c.ad_account_nome || "", gasto: 0, receita: 0, compras: 0, conversas: 0, alcance: 0, cliques: 0 };
                     try {
                         const p = { level: "account", fields: "spend,actions,action_values,reach,clicks" };
                         if (faixa.maximo) p.date_preset = "maximum"; else p.time_range = JSON.stringify({ since: faixa.inicio, until: faixa.fim });

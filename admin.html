@@ -110,6 +110,15 @@ tr:hover td{background:var(--sur2)}
 .res-custom label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu2)}
 .res-custom input{background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:14px;padding:9px 10px;color-scheme:dark}
 .num-td{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.res-custom[hidden]{display:none}
+#res-tiles .tile-v{font-family:'DM Sans',sans-serif;font-weight:700;font-size:26px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+#res-tabela td,#res-tabela th{font-family:'DM Sans',sans-serif}
+#res-tabela td{font-size:14px;font-weight:500;font-variant-numeric:tabular-nums;vertical-align:middle}
+#res-tabela .loja-nome{font-weight:600;font-size:14px}
+#res-tabela tr.total td{font-weight:700;border-top:1px solid var(--boh)}
+.btn-olho{background:none;border:1px solid var(--bo);border-radius:7px;color:var(--mu2);font:500 12px 'DM Sans',sans-serif;padding:5px 9px;cursor:pointer;white-space:nowrap}
+.btn-olho:hover{color:var(--tx);border-color:var(--boh)}
+.ocultas{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 14px;font-size:12.5px;color:var(--mu2)}
 .lk{background:none;border:none;color:var(--ac2);font-size:13px;font-weight:600;cursor:pointer;padding:0;font-family:'DM Sans',sans-serif}
 .menu{position:fixed;z-index:300;width:260px;background:#1C1C24;border:1px solid var(--boh);border-radius:12px;padding:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);display:none}
 .menu button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--tx);font-size:14px;padding:10px 12px;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif}
@@ -297,6 +306,7 @@ tr.clic{cursor:pointer}
       <div class="mini" id="res-info" style="margin:0 0 14px"></div>
       <div class="tiles" id="res-tiles"></div>
       <div class="section"><div style="overflow-x:auto" id="res-tabela"></div></div>
+      <div class="ocultas" id="res-ocultas"></div>
       <div class="mini">Vendido é o valor das compras que a Meta registrou (pelo pixel do site ou pelo catálogo). Loja que vende pelo direct ou WhatsApp aparece com conversas iniciadas: a venda dela acontece fora da Meta e não entra no vendido.</div>
     </section>
 
@@ -430,7 +440,9 @@ function nichoSalvo(p){if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.roda
 function csvSeguro(t){t=String(t==null?"":t).replace(/"/g,'""');return /^[=+\-@]/.test(t)?"'"+t:t;}
 function escHtml(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
 // ===== resultados: investimento e vendas de todas as lojas (direto da Meta) =====
-var resCarregado=false,resPer="p30",resSeq=0;
+var resCarregado=false,resPer="p30",resSeq=0,resDados=null;
+var resOcultas=(function(){try{return JSON.parse(localStorage.getItem("mcp_res_ocultas")||"[]");}catch(e){return [];}})();
+function ocultarLoja(uid,sim){resOcultas=resOcultas.filter(function(x){return x!==uid;});if(sim)resOcultas.push(uid);try{localStorage.setItem("mcp_res_ocultas",JSON.stringify(resOcultas));}catch(e){}desenharResultados();}
 var PER_RES=[["p7","7 dias"],["p30","30 dias"],["p90","90 dias"],["mes","Este mês"],["mes_ant","Mês anterior"],["maximo","Máximo"],["personalizado","Personalizado"]];
 function brlAdm(v){return "R$ "+Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
 function nBR(v){return Number(v||0).toLocaleString("pt-BR");}
@@ -459,19 +471,31 @@ async function carregarResultados(p,ini,fim){
   catch(e){if(seq!==resSeq)return;info.innerHTML='<span style="color:var(--ac2)">Não consegui buscar: '+escHtml(e.message)+'</span>';tiles.style.opacity=1;tab.style.opacity=1;return;}
   if(seq!==resSeq)return;
   tiles.style.opacity=1;tab.style.opacity=1;
-  var per=d.periodo||{},t=d.totais||{};
-  info.textContent=(per.maximo?"Período máximo"+(per.inicio?": desde "+dataBR(per.inicio):"")+" até "+dataBR(per.fim):"De "+dataBR(per.inicio)+" a "+dataBR(per.fim))+" · "+(d.lojas||[]).length+" lojas · consultado agora na Meta";
+  resDados=d;desenharResultados();
+}
+function desenharResultados(){
+  var d=resDados;if(!d)return;
+  var info=document.getElementById("res-info"),tiles=document.getElementById("res-tiles"),tab=document.getElementById("res-tabela"),oc=document.getElementById("res-ocultas");
+  var per=d.periodo||{},todas=d.lojas||[];
+  var vis=todas.filter(function(l){return resOcultas.indexOf(l.uid)<0;}),esc=todas.filter(function(l){return resOcultas.indexOf(l.uid)>-1;});
+  var t=vis.reduce(function(a,l){a.gasto+=l.gasto;a.receita+=l.receita;a.compras+=l.compras;a.conversas+=l.conversas;return a;},{gasto:0,receita:0,compras:0,conversas:0});
+  t.roas=t.gasto>0?Math.round(t.receita/t.gasto*100)/100:null;
+  info.textContent=(per.maximo?"Período máximo"+(per.inicio?": desde "+dataBR(per.inicio):"")+" até "+dataBR(per.fim):"De "+dataBR(per.inicio)+" a "+dataBR(per.fim))+" · "+vis.length+(vis.length===1?" loja":" lojas")+(esc.length?" ("+esc.length+" oculta"+(esc.length===1?"":"s")+")":"")+" · consultado agora na Meta";
   tiles.innerHTML=[["Investido",brlAdm(t.gasto),""],["Vendido",brlAdm(t.receita),"var(--ok)"],["Retorno (ROAS)",t.roas!=null?String(t.roas).replace(".",",")+"x":"-",t.roas>=1?"var(--ok)":""],["Compras",nBR(t.compras),""],["Conversas iniciadas",nBR(t.conversas),""]].map(function(x){return '<div class="tile"><div class="tile-l">'+x[0]+'</div><div class="tile-v"'+(x[2]?' style="color:'+x[2]+'"':'')+'>'+x[1]+'</div></div>';}).join("");
-  var html='<table><thead><tr><th>Loja</th><th class="num-td">Investido</th><th class="num-td">Vendido</th><th class="num-td">ROAS</th><th class="num-td">Compras</th><th class="num-td">Por compra</th><th class="num-td">Conversas</th><th class="num-td">Por conversa</th></tr></thead><tbody>';
-  (d.lojas||[]).forEach(function(l){
+  var html='<table><thead><tr><th>Loja</th><th class="num-td">Investido</th><th class="num-td">Vendido</th><th class="num-td">ROAS</th><th class="num-td">Compras</th><th class="num-td">Por compra</th><th class="num-td">Conversas</th><th class="num-td">Por conversa</th><th></th></tr></thead><tbody>';
+  vis.forEach(function(l){
     var roas=l.gasto>0&&l.receita>0?String(Math.round(l.receita/l.gasto*100)/100).replace(".",",")+"x":"-";
-    html+='<tr><td><div style="font-weight:600">'+escHtml(l.nome)+'</div><div class="mini">'+escHtml(l.conta||"")+(l.objetivo==="conversas_visitas"?" · medida por conversas":"")+'</div>'+(l.erro?'<div class="mini" style="color:var(--ac2)">Erro: '+escHtml(l.erro)+'</div>':'')+'</td>'
+    html+='<tr><td><div class="loja-nome">'+escHtml(l.nome)+'</div><div class="mini">'+escHtml(l.conta||"")+(l.objetivo==="conversas_visitas"?" · medida por conversas":"")+'</div>'+(l.erro?'<div class="mini" style="color:var(--ac2)">Erro: '+escHtml(l.erro)+'</div>':'')+'</td>'
       +'<td class="num-td">'+brlAdm(l.gasto)+'</td><td class="num-td" style="color:var(--ok)">'+(l.receita?brlAdm(l.receita):"-")+'</td><td class="num-td">'+roas+'</td>'
       +'<td class="num-td">'+(l.compras?nBR(l.compras):"-")+'</td><td class="num-td">'+(l.compras?brlAdm(l.gasto/l.compras):"-")+'</td>'
-      +'<td class="num-td">'+(l.conversas?nBR(l.conversas):"-")+'</td><td class="num-td">'+(l.conversas?brlAdm(l.gasto/l.conversas):"-")+'</td></tr>';
+      +'<td class="num-td">'+(l.conversas?nBR(l.conversas):"-")+'</td><td class="num-td">'+(l.conversas?brlAdm(l.gasto/l.conversas):"-")+'</td>'
+      +'<td class="num-td"><button class="btn-olho" data-ocultar="'+escHtml(l.uid)+'" title="Tirar esta loja da tabela e das somas">Ocultar</button></td></tr>';
   });
-  html+='<tr style="font-weight:700"><td>Total</td><td class="num-td">'+brlAdm(t.gasto)+'</td><td class="num-td" style="color:var(--ok)">'+brlAdm(t.receita)+'</td><td class="num-td">'+(t.roas!=null?String(t.roas).replace(".",",")+"x":"-")+'</td><td class="num-td">'+nBR(t.compras)+'</td><td class="num-td">'+(t.compras?brlAdm(t.gasto/t.compras):"-")+'</td><td class="num-td">'+nBR(t.conversas)+'</td><td class="num-td">'+(t.conversas?brlAdm(t.gasto/t.conversas):"-")+'</td></tr>';
+  html+='<tr class="total"><td>Total'+(esc.length?' <span class="mini">(sem as ocultas)</span>':'')+'</td><td class="num-td">'+brlAdm(t.gasto)+'</td><td class="num-td" style="color:var(--ok)">'+brlAdm(t.receita)+'</td><td class="num-td">'+(t.roas!=null?String(t.roas).replace(".",",")+"x":"-")+'</td><td class="num-td">'+nBR(t.compras)+'</td><td class="num-td">'+(t.compras?brlAdm(t.gasto/t.compras):"-")+'</td><td class="num-td">'+nBR(t.conversas)+'</td><td class="num-td">'+(t.conversas?brlAdm(t.gasto/t.conversas):"-")+'</td><td></td></tr>';
   tab.innerHTML=html+'</tbody></table>';
+  oc.innerHTML=esc.length?'<span>Ocultas:</span>'+esc.map(function(l){return '<button class="btn-olho" data-mostrar="'+escHtml(l.uid)+'" title="Voltar com esta loja para a tabela">'+escHtml(l.nome)+' · mostrar</button>';}).join("")+(esc.length>1?'<button class="btn-olho" data-mostrar="*">Mostrar todas</button>':''):"";
+  tab.querySelectorAll("[data-ocultar]").forEach(function(b){b.onclick=function(){ocultarLoja(b.getAttribute("data-ocultar"),true);};});
+  oc.querySelectorAll("[data-mostrar]").forEach(function(b){b.onclick=function(){var u=b.getAttribute("data-mostrar");if(u==="*"){resOcultas=[];try{localStorage.setItem("mcp_res_ocultas","[]");}catch(e){}desenharResultados();}else ocultarLoja(u,false);};});
 }
 // ===== cerebro central (modo observacao) =====
 async function carregarCentral(){
