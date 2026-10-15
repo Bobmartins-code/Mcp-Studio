@@ -1687,13 +1687,20 @@ function App(){
     return linhas.map(function(x,i){var forte=!x.outro&&x.pct>0&&fortes.indexOf(x.pct)>-1;return ce("div",{key:i,className:"rs-lin"},ce("span",null,x.nome),ce("div",{className:"rs-bar"},ce("i",{style:{width:Math.max(2,x.pct/maior*100)+"%",background:forte?"var(--ac2)":"#4A4A58"}})),ce("b",null,x.pct+"%"));});
   }
   var DESTINOS=[["direct","Direct","#C77DFF"],["whatsapp","WhatsApp","#25D366"],["messenger","Messenger","#4D9FFF"],["varios","Direct ou WhatsApp","#8C8C9B"],["outros","Outros","#4A4A58"]];
-  function blocoConversas(total,c){
+  // uma regua: total no titulo, barra dividida pelo destino e a legenda com os numeros
+  function reguaDestinos(titulo,total,c,primeira){
     var partes=c?DESTINOS.filter(function(d){return c[d[0]]>0;}):[],soma=partes.reduce(function(s,d){return s+c[d[0]];},0);
-    return ce("section",{className:"rs-card","aria-label":"Conversas pelos anúncios"},
-      ce("div",{className:"rs-th"},ce("h2",{className:"rs-t",style:{margin:0}},"Conversas pelos anúncios"),ce("b",{className:"rs-big"},numBR(total))),
+    return ce("div",{style:primeira?null:{marginTop:16,paddingTop:16,borderTop:"1px solid var(--bo)"}},
+      ce("div",{className:"rs-th"},ce("h2",{className:"rs-t",style:{margin:0}},titulo),ce("b",{className:"rs-big"},numBR(total))),
       soma>0?ce("div",{className:"rs-bar","aria-hidden":"true",style:{marginBottom:10}},partes.map(function(d){return ce("i",{key:d[0],style:{width:(c[d[0]]/soma*100)+"%",background:d[2]}});})):null,
-      soma>0?ce("div",{className:"rs-tiles dois",style:{gap:"8px 16px",gridTemplateColumns:"1fr 1fr"}},partes.map(function(d){return ce("div",{key:d[0],style:{display:"flex",alignItems:"center",gap:8,fontSize:13}},ce("span",{"aria-hidden":"true",style:{width:10,height:10,borderRadius:3,background:d[2],flexShrink:0}}),ce("span",{style:{color:"var(--mu2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}},d[1]),ce("b",{style:{marginLeft:"auto",paddingLeft:6}},numBR(c[d[0]])));})):null,
-      c&&c.varios>0?ce("div",{className:"rs-nota"},"Quando o anúncio leva para o Direct e para o WhatsApp ao mesmo tempo, a Meta não separa as conversas."):null);
+      soma>0?ce("div",{className:"rs-tiles dois",style:{gap:"8px 16px",gridTemplateColumns:"1fr 1fr"}},partes.map(function(d){return ce("div",{key:d[0],style:{display:"flex",alignItems:"center",gap:8,fontSize:13}},ce("span",{"aria-hidden":"true",style:{width:10,height:10,borderRadius:3,background:d[2],flexShrink:0}}),ce("span",{style:{color:"var(--mu2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}},d[1]),ce("b",{style:{marginLeft:"auto",paddingLeft:6}},numBR(c[d[0]])));})):null);
+  }
+  function blocoConversas(a,d){
+    var c=d.conversas,n=d.novos_contatos;
+    return ce("section",{className:"rs-card","aria-label":"Conversas e novos contatos pelos anúncios"},
+      reguaDestinos("Conversas pelos anúncios",a.conversas,c,true),
+      a.novos_contatos!=null?reguaDestinos("Novos contatos através dos anúncios",a.novos_contatos,n,false):null,
+      (c&&c.varios>0)||(n&&n.varios>0)?ce("div",{className:"rs-nota"},"Quando o anúncio leva para o Direct e para o WhatsApp ao mesmo tempo, a Meta não separa as conversas."):null);
   }
   function linhaComp(rot,ads,org){
     if(ads==null&&org==null)return null;
@@ -1714,7 +1721,7 @@ function App(){
     var ads=a&&ce("section",{className:"rs-card","aria-label":"Anúncios"},ce("h2",{className:"rs-t"},"Anúncios"),ce("div",{className:"rs-tiles"},
       tileRs("Impressões",numBR(a.impressoes)),tileRs("Alcance",numBR(a.alcance),"pessoas diferentes"),tileRs("Cliques",numBR(a.cliques)),
       tileRs("Cliques no link",numBR(a.cliques_link)),tileRs("Engajamento com a página",numBR(a.engajamento)),tileRs("Compras",numBR(a.compras),null,"var(--ok)")));
-    var conv=a&&a.conversas>0?blocoConversas(a.conversas,d.conversas):null;
+    var conv=a&&(a.conversas>0||a.novos_contatos>0)?blocoConversas(a,d):null;
     var vis=o&&o.visitas_perfil!=null?ce("section",{className:"rs-card rs-linha","aria-label":"Visitas ao perfil"},ce("div",null,ce("h2",{className:"rs-t",style:{margin:0}},"Visitas ao perfil"),ce("div",{className:"rs-sub"},"com e sem anúncio")),ce("b",{className:"rs-big"},numBR(o.visitas_perfil))):null;
     var comp=o?ce("section",{className:"rs-card","aria-label":"Anúncios e orgânico"},
       ce("div",{className:"rs-th"},ce("h2",{className:"rs-t",style:{margin:0}},a?"Anúncios × orgânico":"Orgânico"),a?ce("div",{className:"rs-leg"},ce("span",null,ce("i",{style:{background:"#FF8A50"}}),"Anúncios"),ce("span",null,ce("i",{style:{background:"#4FD1C5"}}),"Orgânico")):null),
@@ -1735,18 +1742,16 @@ function App(){
   var ST_AD={ativo:"Ativo",analise:"Em análise pela Meta",problema:"Com problema"};
   function seloSt(s){return ce("span",{className:"st "+s},ce("i",null),ST_AD[s]||s);}
   function quandoAtivo(x){if(x.situacao==="ativo")return x.desde?"ativo desde "+diaMes(x.desde):"ativo";return x.desde&&new Date(x.desde).toDateString()===new Date().toDateString()?"criado hoje":(x.desde?"criado em "+diaMes(x.desde):"");}
-  function textoOrc(o){return o?(o.tipo==="dia"?brl(o.valor)+" por dia":"orçamento total de "+brl(o.valor)):"";}
   function resultadoAtivo(x){
     var conv=x.objetivo==="Mensagens"||(!x.sete.compras&&x.sete.conversas>0);
     var compras=[numBR(x.hoje.compras),x.hoje.compras===1?"compra hoje":"compras hoje"],conversas=[numBR(x.hoje.conversas),x.hoje.conversas===1?"conversa hoje":"conversas hoje"];
     return conv?[conversas,[x.sete.conversas?brl(x.sete.gasto/x.sete.conversas):"—","por conversa (7 dias)"],compras]:[compras,[x.sete.compras?brl(x.sete.gasto/x.sete.compras):"—","por compra (7 dias)"],conversas];
   }
   function cartaoAtivo(x){
-    var o=x.orcamento,pct=o&&o.tipo==="dia"&&o.valor>0?Math.min(100,Math.round(x.hoje.gasto/o.valor*100)):null;
     return ce("button",{key:x.id,className:"at-card",onClick:function(){setAdAberto(x);}},
       ce("div",{className:"at-top"},ce("div",{className:"thumb",style:{width:62,height:82}},img(x.capa)),
         ce("div",{style:{minWidth:0,display:"flex",flexDirection:"column",gap:6,alignItems:"flex-start"}},seloSt(x.situacao),ce("b",{className:"at-nome"},x.nome),ce("span",{className:"rs-sub"},[x.objetivo,quandoAtivo(x)].filter(Boolean).join(" · ")))),
-      ce("div",null,ce("div",{className:"at-gl"},ce("span",null,"Gasto hoje"),ce("span",null,ce("b",null,brl(x.hoje.gasto)),o?ce("span",{style:{color:"var(--mu)"}},o.tipo==="dia"?" de "+brl(o.valor)+"/dia":" · total de "+brl(o.valor)):null)),pct!=null?ce("div",{className:"rs-bar fina"},ce("i",{style:{width:Math.max(2,pct)+"%",background:"var(--ac)"}})):null),
+      ce("div",{className:"at-gl"},ce("span",null,"Gasto hoje"),ce("b",null,brl(x.hoje.gasto))),
       ce("div",{className:"at-res"},resultadoAtivo(x).map(function(r,i){return ce("div",{key:i},ce("b",null,r[0]),ce("div",{className:"rs-sub"},r[1]));})));
   }
   function resAtivos(at){
@@ -1758,7 +1763,7 @@ function App(){
     return ce("div",null,
       ce("div",{className:"rs-info",style:{display:"flex",alignItems:"center",gap:8}},ce("span",{className:"pt-ok vivo","aria-hidden":"true"}),(vivos===1?"1 anúncio ativo agora":vivos+" anúncios ativos agora")+" · atualizado "+quando(d.em)),
       d.lista.length?ce("section",{className:"rs-card rs-din","aria-label":"Hoje"},
-        ce("div",null,ce("div",{className:"l"},"Gasto hoje"),ce("div",{className:"v"},brl(d.hoje.gasto)),d.hoje.orcamento_dia?ce("div",{className:"rs-sub"},"de "+brl(d.hoje.orcamento_dia)+" por dia"):null),
+        ce("div",null,ce("div",{className:"l"},"Gasto hoje"),ce("div",{className:"v"},brl(d.hoje.gasto))),
         ce("div",null,ce("div",{className:"l"},"Compras hoje"),ce("div",{className:"v ok"},numBR(d.hoje.compras)),ce("div",{className:"rs-sub"},"+ "+numBR(d.hoje.conversas)+(d.hoje.conversas===1?" conversa":" conversas")))):null,
       d.lista.length?ce("div",{className:"at-lista"},d.lista.map(cartaoAtivo))
         :ce("div",{className:"emp",style:{padding:"36px 10px"}},ce("div",{className:"emp-ic"},"📣"),ce("div",{className:"emp-h"},"Nenhum anúncio ativo agora"),ce("div",{className:"emp-p"},"Quando um anúncio entrar no ar, ele aparece aqui.")),
@@ -1770,7 +1775,7 @@ function App(){
       ce("button",{className:"back",onClick:function(){setAdAberto(null);}},ico("voltar",22),"Anúncios ativos"),
       ce("div",{className:"ad-capa"},x.capa?ce("img",{src:x.capa,alt:"",referrerPolicy:"no-referrer",onError:function(e){e.target.style.display="none";}}):ce("span",{className:"thumb-vazio"},ico("videos",40,"var(--mu)")),ce("div",{className:"ad-selo"},seloSt(x.situacao))),
       ce("div",{className:"ad-nome"},x.nome),
-      ce("div",{className:"rs-sub",style:{fontSize:13,marginBottom:10}},[x.objetivo,quandoAtivo(x),textoOrc(x.orcamento)].filter(Boolean).join(" · ")),
+      ce("div",{className:"rs-sub",style:{fontSize:13,marginBottom:10}},[x.objetivo,quandoAtivo(x)].filter(Boolean).join(" · ")),
       x.link?ce("a",{href:linkIG(x.link),target:"_blank",rel:"noopener",className:"link-mini",style:{display:"inline-block",marginBottom:12,textDecoration:"none"}},"Ver no Instagram ↗"):null,
       barraPeriodo(perAd,setPerAd),
       d&&d.periodo?ce("div",{className:"rs-info"},dataBR(d.periodo.inicio)+" a "+dataBR(d.periodo.fim)):null,

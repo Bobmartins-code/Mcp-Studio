@@ -14,6 +14,8 @@ const meta = require("./_meta-leitura.js");
 
 const TIPOS_COMPRA = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "onsite_web_purchase"];
 const TIPO_CONVERSA = ["onsite_conversion.messaging_conversation_started_7d"];
+// "Novos contatos de mensagem" no Gerenciador: quem falou com a loja pela primeira vez
+const TIPO_NOVO_CONTATO = ["onsite_conversion.messaging_first_reply"];
 const TIPO_ENGAJAMENTO = ["page_engagement", "post_engagement"];
 const GUARDA_PAINEL_MS = 10 * 60000, GUARDA_ATIVOS_MS = 2 * 60000, GUARDA_ANUNCIO_MS = 10 * 60000;
 const DIA = 864e5;
@@ -127,13 +129,14 @@ async function painel(uid, per) {
             out.anuncios = {
                 gasto: centavos(r.spend), receita: centavos(acao(r.action_values, TIPOS_COMPRA)),
                 impressoes: num(r.impressions), alcance: num(r.reach), cliques: num(r.clicks), cliques_link: num(r.inline_link_clicks),
-                engajamento: acao(r.actions, TIPO_ENGAJAMENTO), compras: acao(r.actions, TIPOS_COMPRA), conversas: acao(r.actions, TIPO_CONVERSA)
+                engajamento: acao(r.actions, TIPO_ENGAJAMENTO), compras: acao(r.actions, TIPOS_COMPRA), conversas: acao(r.actions, TIPO_CONVERSA),
+                novos_contatos: acao(r.actions, TIPO_NOVO_CONTATO)
             };
         }
 
-        // conversas por destino: cada conjunto de anuncios leva para um lugar (Direct, WhatsApp, Messenger ou varios)
-        if (porConjunto && out.anuncios && out.anuncios.conversas > 0) {
-            const com = porConjunto.filter(function (r) { return acao(r.actions, TIPO_CONVERSA) > 0 && /^\d+$/.test(String(r.adset_id || "")); });
+        // conversas e novos contatos por destino: cada conjunto de anuncios leva para um lugar (Direct, WhatsApp, Messenger ou varios)
+        if (porConjunto && out.anuncios && (out.anuncios.conversas > 0 || out.anuncios.novos_contatos > 0)) {
+            const com = porConjunto.filter(function (r) { return (acao(r.actions, TIPO_CONVERSA) > 0 || acao(r.actions, TIPO_NOVO_CONTATO) > 0) && /^\d+$/.test(String(r.adset_id || "")); });
             const destinos = await parte("destino das conversas", avisos, async function () {
                 const mapa = {};
                 for (let i = 0; i < com.length; i += 50) {
@@ -145,9 +148,10 @@ async function painel(uid, per) {
                 return mapa;
             });
             if (destinos) {
-                const soma = { direct: 0, whatsapp: 0, messenger: 0, varios: 0, outros: 0 };
-                com.forEach(function (r) { soma[destinoDe(destinos[r.adset_id])] += acao(r.actions, TIPO_CONVERSA); });
+                const soma = { direct: 0, whatsapp: 0, messenger: 0, varios: 0, outros: 0 }, novos = Object.assign({}, soma);
+                com.forEach(function (r) { const d = destinoDe(destinos[r.adset_id]); soma[d] += acao(r.actions, TIPO_CONVERSA); novos[d] += acao(r.actions, TIPO_NOVO_CONTATO); });
                 out.conversas = soma;
+                out.novos_contatos = novos;
             }
         }
 
@@ -172,7 +176,7 @@ async function painel(uid, per) {
             out.organico = o;
         }
         if (avisos.length) out.faltou = avisos;
-        console.log("[painel] " + uid.slice(0, 8) + " " + f.per + " " + JSON.stringify({ anuncios: out.anuncios, conversas: out.conversas, ig: out.organico && out.organico.total_instagram, faltou: out.faltou || [] }));
+        console.log("[painel] " + uid.slice(0, 8) + " " + f.per + " " + JSON.stringify({ anuncios: out.anuncios, conversas: out.conversas, novos_contatos: out.novos_contatos, ig: out.organico && out.organico.total_instagram, faltou: out.faltou || [] }));
         return out;
     });
 }
