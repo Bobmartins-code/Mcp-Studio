@@ -43,6 +43,7 @@ const SISTEMA_CENTRAL = "Você é o CÉREBRO CENTRAL do MCP Studio, um sistema q
     "3. Números só para a estrutura (ex.: 'nos 2 primeiros segundos', 'em 3 cenas').\n" +
     "4. Nada de conselho óbvio ou vago ('use um bom gancho', 'poste com frequência', 'mostre o produto'): a lição precisa ensinar algo que dá para gravar amanhã, com detalhe.\n" +
     "5. Prefira poucas lições muito boas a muitas fracas. Se não houver lição que cumpra as regras, devolva a lista vazia.\n" +
+    "6. Algumas lojas trazem VENDAS (o padrão das vendas reais delas, sem números). Use para lições que ligam formato e momento à venda (ex.: lojas que vivem de cliente que volta e vendem mais na primeira quinzena), sempre com 3 lojas ou mais.\n" +
     "Escreva em português do Brasil, com acentuação completa, frases simples.";
 
 function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n) + "..." : t; }
@@ -79,6 +80,15 @@ function blocoLoja(cod, l, proibidos) {
         linhas.push("COMO SÃO OS VÍDEOS CAMPEÕES:");
         fichas.slice(0, 14).forEach(function (f) { linhas.push("- " + corta(limpar(f, proibidos), 420)); });
     }
+    // vendas reais (CRM da loja): so categorias, sem nenhum numero
+    const v = l.vendas;
+    if (v && v.perfil) {
+        const PERFIL = { depende_de_cliente_nova: "depende de cliente nova", vive_de_cliente_que_volta: "vive de cliente que volta", equilibrado: "equilibrado entre cliente nova e cliente que volta" };
+        const formatos = (v.formatos_antes_das_vendas || []).filter(function (x) { return x.confianca !== "baixa"; }).map(function (x) { return corta(limpar(x.formato, proibidos).replace(/\d+([.,]\d+)?/g, ""), 120); });
+        linhas.push("VENDAS (CRM da loja, só o padrão): " + (PERFIL[v.perfil] || v.perfil) + " | vende mais na " + (v.quinzena_forte === "primeira" ? "primeira quinzena do mês" : v.quinzena_forte === "segunda" ? "segunda quinzena do mês" : "mesma medida nas duas quinzenas") +
+            ((v.dias_fortes || []).length ? " | dias fortes: " + v.dias_fortes.join(", ") : "") + " | clientes: " + (v.alcance_geografico === "local" ? "da própria cidade" : v.alcance_geografico === "regional" ? "do próprio estado" : "de vários estados") +
+            (formatos.length ? " | formatos que aparecem antes de dias de venda acima do normal: " + formatos.join("; ") : ""));
+    }
     return linhas.join("\n");
 }
 
@@ -93,12 +103,12 @@ function licaoLimpa(li, proibidos) {
 async function lojasParaOCentral() {
     const [lojas, contas] = await Promise.all([
         banco("lojas?select=user_id,nome,nicho"),
-        banco("contas_meta?caderno=not.is.null&select=user_id,ig_username,caderno,meta")
+        banco("contas_meta?caderno=not.is.null&select=user_id,ig_username,caderno,meta,vendas_leitura:vendas->leitura")
     ]);
     const porId = {};
     (lojas || []).forEach(function (l) { porId[l.user_id] = l; });
     return (contas || []).filter(function (c) { return porId[c.user_id] && c.caderno && ((c.caderno.comprovado || []).length || (c.caderno.nao_funciona || []).length); })
-        .map(function (c) { return { nome: porId[c.user_id].nome, nicho: porId[c.user_id].nicho, ig: c.ig_username, caderno: c.caderno, meta: c.meta }; });
+        .map(function (c) { return { nome: porId[c.user_id].nome, nicho: porId[c.user_id].nicho, ig: c.ig_username, caderno: c.caderno, meta: c.meta, vendas: c.vendas_leitura || null }; });
 }
 
 // monta, filtra e grava; devolve o resumo

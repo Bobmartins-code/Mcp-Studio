@@ -38,6 +38,10 @@
 //    - "agora": primeira analise, loja que volta depois de parada, ou o botao do admin;
 //      as etapas rodam na hora, e o que ficou pronto e guardado entre as rodadas
 //
+//  VENDAS REAIS (lojas ligadas ao CRM): o Agente de Vendas le os totais do CRM (api/_crm.js) e
+//  escreve a leitura (perfil, preco que vende, calendario, regiao e conteudo antes das vendas),
+//  que entra no Diretor, nos especialistas, no avaliador, no Agente do Cerebro e no roteirista.
+//
 //  Cada loja aprende so com os proprios dados: nada passa de uma loja para outra.
 //  Fica em /api com "_" no nome: nao vira rota publica.
 // =====================================================================
@@ -226,6 +230,30 @@ const ESQ_MEMORIA = objeto({
         type: "array", description: "Cada post recente (R) que seguiu um roteiro escrito pelo time (S): a fala ou a legenda repete o gancho, a estrutura ou a peça do roteiro.",
         items: objeto({ roteiro: { type: "string", description: "Código do roteiro (S1...)." }, post: { type: "string", description: "Código do post (R1...)." }, confianca: confianca, resultado: { type: "string", enum: ["acima", "na_media", "abaixo", "sem_dado"] } })
     }
+});
+// o que as vendas reais (CRM da loja) ensinam para o conteudo
+const DIAS_SEMANA = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"];
+const ESQ_VENDAS = objeto({
+    resumo: textoPT("2 frases para a dona: o que as vendas dela mostram e o que isso muda no conteúdo."),
+    perfil: { type: "string", enum: ["depende_de_cliente_nova", "vive_de_cliente_que_volta", "equilibrado"], description: "De onde vem o faturamento desta loja." },
+    perfil_texto: textoPT("Uma frase com o número que prova o perfil (exemplo: 37% do faturamento dos últimos 90 dias veio de quem já tinha comprado antes)."),
+    preco_que_vende: textoPT("As faixas de preço que mais vendem e o valor mais comum de uma venda (exemplo: metade das vendas fica entre R$ 150 e R$ 299; o valor mais comum é R$ 160)."),
+    calendario: textoPT("Quando a loja vende mais e menos: dias da semana, parte do mês e meses fortes do ano, com números."),
+    quinzena_forte: { type: "string", enum: ["primeira", "segunda", "sem_diferenca"] },
+    dias_fortes: { type: "array", items: { type: "string", enum: DIAS_SEMANA }, description: "Os 2 ou 3 dias da semana que mais faturam." },
+    regiao: textoPT("De onde são as clientes (pelo DDD) e o que isso muda no fechamento do vídeo."),
+    alcance_geografico: { type: "string", enum: ["local", "regional", "nacional"] },
+    formatos_antes_das_vendas: {
+        type: "array", description: "Tipos de post que aparecem antes de dias de venda acima do normal. Lista vazia se o dado não permitir concluir.",
+        items: objeto({
+            formato: textoPT("O tipo de post e o que ele mostrava (exemplo: Reels de provador com a dona falando)."),
+            evidencia: textoPT("Os posts, pela data e uma descrição curta, e quanto as vendas ficaram acima do normal nos 3 dias seguintes."),
+            confianca: confianca
+        })
+    },
+    recomendacoes: listaPT("De 3 a 6 recomendações práticas para as ideias e os roteiros, cada uma ligada a um número das vendas."),
+    para_roteiros: textoPT("Até 500 caracteres para o roteirista: o preço que a cliente paga, quem compra (cliente nova ou que volta) e como fechar o vídeo (chamar para a loja física ou reforçar a entrega)."),
+    confianca: confianca
 });
 
 // ---------- chamada da IA ----------
@@ -542,7 +570,7 @@ async function carregar(userId) {
     const desde = encodeURIComponent(new Date(Date.now() - 60 * DIA_MS).toISOString());
     const desde30 = encodeURIComponent(new Date(Date.now() - 30 * DIA_MS).toISOString());
     const [contas, lojas, projetos, gostei, conversas, stories] = await Promise.all([
-        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job,memoria,caderno"),
+        banco("contas_meta?user_id=eq." + id + "&select=metricas,dossie,meta,dossie_job,memoria,caderno,vendas"),
         banco("lojas?user_id=eq." + id + "&select=nome,nicho,site,produtos_dona,produtos_dona_em,produtos_admin,publico_admin,objetivo_anuncios").catch(function () { return []; }),
         banco("projetos?user_id=eq." + id + "&select=id,nome,form,rodadas,criado_em&order=criado_em.desc&limit=6").catch(function () { return []; }),
         banco("gostei?user_id=eq." + id + "&criado_em=gte." + desde + "&select=tipo,titulo,conteudo,criado_em&order=criado_em.desc&limit=30").catch(function () { return []; }),
@@ -550,7 +578,7 @@ async function carregar(userId) {
         banco("stories?user_id=eq." + id + "&publicado_em=gte." + desde30 + "&select=publicado_em,tipo,metricas&order=publicado_em.desc&limit=200").catch(function () { return []; })
     ]);
     const conta = (contas && contas[0]) || {};
-    return { userId: userId, storiesLista: stories || [], conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, caderno: conta.caderno || null, gostei: gostei || [], conversas: conversas || [] };
+    return { userId: userId, vendas: vendasValidas(conta.vendas), leituraVendas: (vendasValidas(conta.vendas) && conta.vendas.leitura) || null, storiesLista: stories || [], conta: conta, met: conta.metricas, dossie: conta.dossie || {}, job: conta.dossie_job || null, loja: (lojas && lojas[0]) || {}, projetos: projetos || [], memoria: conta.memoria || {}, caderno: conta.caderno || null, gostei: gostei || [], conversas: conversas || [] };
 }
 // comMeta: consulta a Meta (so na primeira etapa); nas outras usa o que ja foi guardado
 async function preparar(ctx, comMeta) {
@@ -749,6 +777,81 @@ function memoriaNova(ctx, p, mapaMem, ideias) {
     return comSugeridas(mem, ideias);
 }
 
+// ---------- vendas reais (CRM da loja; a calculadora fica em api/_crm.js) ----------
+// O Agente de Vendas le os totais do CRM e escreve a leitura (contas_meta.vendas.leitura), que o
+// Diretor, os especialistas, o avaliador, o Agente do Cerebro, o roteirista e o cerebro central usam.
+// Roda sozinho (api/atualizar.js): sem leitura, com vendas novas depois de 3 dias ou 1 vez por semana.
+const LEITURA_RENOVA_MS = 3 * DIA_MS, LEITURA_SEMANA_MS = 7 * DIA_MS;
+function vendasValidas(v) { return v && v.d365 && v.d365.vendas >= 30 ? v : null; }
+function leituraVencida(v) {
+    if (!vendasValidas(v)) return false;
+    const l = v.leitura;
+    if (!l || !l.em) return true;
+    const idade = Date.now() - new Date(l.em).getTime();
+    return idade >= LEITURA_SEMANA_MS || (idade >= LEITURA_RENOVA_MS && l.assinatura !== v.assinatura);
+}
+function dataCompleta(ymd) { return ymd ? String(ymd).slice(0, 10).split("-").reverse().join("/") : "sem data"; }
+function vezes(n) { return String(arred(n, 1)).replace(".", ",") + "x"; }
+function dadosDeVendas(v) {
+    const c = v.clientes || {}, r = v.regiao, ct = v.conteudo || {}, linhas = [];
+    linhas.push("PERÍODO DO CRM: vendas de " + dataCompleta(v.primeira_venda) + " até " + dataCompleta(v.ultima_venda) + (v.contas_crm > 1 ? " (" + v.contas_crm + " contas da loja somadas)" : ""));
+    linhas.push("ÚLTIMOS 90 DIAS: faturamento " + brl(v.d90.faturamento) + " | " + v.d90.vendas + " vendas | ticket médio " + brl(v.d90.ticket_medio) + " | valor mais comum de uma venda (mediana) " + brl(v.d90.ticket_mediana));
+    linhas.push("ÚLTIMOS 12 MESES: faturamento " + brl(v.d365.faturamento) + " | " + v.d365.vendas + " vendas | ticket médio " + brl(v.d365.ticket_medio) + " | mediana " + brl(v.d365.ticket_mediana));
+    linhas.push("FAIXAS DE PREÇO DE CADA VENDA (12 meses; % das vendas / % do faturamento): " + (v.faixas || []).map(function (f) { return f.faixa + " " + f.pct_vendas + "% / " + f.pct_faturamento + "%"; }).join(" | "));
+    linhas.push("DIAS DA SEMANA (% do faturamento de 12 meses; o normal seria 14% cada; dia que não aparece não teve venda): " + (v.semana || []).map(function (d) { return d.dia + " " + d.pct_faturamento + "%"; }).join(" | "));
+    linhas.push("PARTES DO MÊS (% do faturamento de 12 meses): " + (v.mes || []).map(function (m) { return m.faixa + " " + m.pct_faturamento + "%"; }).join(" | ") + " | primeira quinzena (dias 1 a 15): " + v.quinzena_1_pct + "%");
+    if ((v.meses || []).length) linhas.push("FATURAMENTO POR MÊS: " + v.meses.map(function (m) { return m.mes + " " + brl(m.faturamento).replace(/,00$/, ""); }).join(" | "));
+    linhas.push("CLIENTES: " + c.total + " clientes com compra no CRM | " + c.voltaram_pct + "% compraram em 2 dias diferentes ou mais | " + c.voltaram_em_60_dias_pct + "% voltaram em até 60 dias" +
+        (c.mediana_dias_segunda != null ? " | quem volta, volta em " + c.mediana_dias_segunda + " dias (mediana)" : "") +
+        " | nos últimos 90 dias: " + c.d90_novas + " clientes novas, " + c.d90_voltaram + " que já tinham comprado, e " + c.d90_fat_voltaram_pct + "% do faturamento veio de quem já tinha comprado");
+    if (r) linhas.push("REGIÃO (DDD das clientes que compraram em 12 meses): " + r.ddds.map(function (d) { return "DDD " + d.ddd + " (" + d.regiao + ") " + d.pct + "%"; }).join(" | ") +
+        " | por estado: " + r.estados.map(function (e) { return e.uf + " " + e.pct + "%"; }).join(", ") + " | leitura da calculadora: " + r.alcance);
+    if (ct.pouco_dado) linhas.push("CONTEÚDO ANTES DAS VENDAS: pouco dado (" + ct.dias_com_venda + " dias com venda nos últimos 90). Não conclua nada sobre isso.");
+    else if (ct.posts_medidos) {
+        linhas.push("CONTEÚDO ANTES DAS VENDAS (para cada post dos últimos 90 dias, as vendas dos 3 dias seguintes comparadas com o normal daqueles dias da semana; 1x = normal; " + ct.posts_medidos + " posts medidos):");
+        if ((ct.por_tipo || []).length) linhas.push("- por tipo de post (mediana): " + ct.por_tipo.map(function (t) { return t.tipo + " " + vezes(t.razao_mediana) + " (" + t.posts + " posts)"; }).join(" | "));
+        (ct.antes_de_dias_fortes || []).forEach(function (m) { linhas.push("- antes de vendas acima do normal: " + m.tipo + " de " + dataCurta(m.data + "T12:00:00Z") + ", vendas " + vezes(m.razao) + " o normal, " + m.visualizacoes + " visualizações | legenda: " + m.legenda); });
+        (ct.antes_de_dias_fracos || []).forEach(function (m) { linhas.push("- antes de vendas abaixo do normal: " + m.tipo + " de " + dataCurta(m.data + "T12:00:00Z") + ", vendas " + vezes(m.razao) + " o normal | legenda: " + m.legenda); });
+    }
+    return linhas.join("\n");
+}
+function pedidoVendas(ctx) {
+    return {
+        chave: "ven", nome: "Agente de Vendas", esquema: ESQ_VENDAS, max: 8000,
+        pedido: "Você é o AGENTE DE VENDAS do time. Você recebe as VENDAS REAIS desta loja, do CRM dela: todas as vendas registradas, inclusive na loja física e no WhatsApp, e não só as que a Meta enxerga. Vêm só totais já calculados, sem nome nem telefone de cliente. Seu trabalho é transformar esses números em direção de conteúdo: o que gravar, para quem, com que preço e quando.\n\n" +
+            "COMO TRABALHAR\n" +
+            "- Perfil: compare o faturamento de quem já tinha comprado com o de clientes novas e quantas voltam. Loja que vive de cliente que volta pede novidade, provador e relacionamento para quem já compra; loja que depende de cliente nova pede mais vídeo curto de alcance para quem ainda não conhece a loja.\n" +
+            "- Preço: use as faixas e o valor mais comum para dizer quanto a cliente realmente paga numa compra. Os roteiros podem usar isso como faixa (look completo até tal valor), nunca como preço de uma peça.\n" +
+            "- Calendário: diga os dias e a parte do mês em que a loja vende mais e menos e os meses fortes do ano. Recomende conteúdo de venda direta nos dias fortes e conteúdo de alcance nos fracos.\n" +
+            "- Região: se a maior parte das clientes é de um DDD, o fechamento chama para a loja física e usa referências da cidade; se é espalhada, reforça a entrega e o envio.\n" +
+            "- Conteúdo antes das vendas: é uma PISTA, não prova, porque a venda tem outros motivos (anúncio, data comemorativa, dia de pagamento). Só aponte um formato com 3 posts ou mais no mesmo sentido e diga a confiança. Com pouco dado, deixe a lista vazia.\n\n" +
+            "REGRAS\n- Cite o número que sustenta cada conclusão. Nunca invente número.\n- Nada de dica genérica: cada recomendação nasce de um número desta loja.\n- O faturamento do CRM depende do que a loja registra: se a última venda for de mais de 10 dias atrás, diga isso no resumo.\n- Em resumo, 2 frases para a dona.\n\n" +
+            ctx.sobreLoja + "\n\nVENDAS REAIS (CRM):\n" + dadosDeVendas(ctx.vendas)
+    };
+}
+// a leitura do Agente de Vendas, para os outros agentes
+function textoVendas(l) {
+    if (!l || !l.perfil_texto) return "";
+    const f = (l.formatos_antes_das_vendas || []).filter(function (x) { return x.confianca !== "baixa"; });
+    return "\n\nVENDAS REAIS DESTA LOJA (CRM da loja: todas as vendas, inclusive loja física e WhatsApp; leitura do Agente de Vendas):\n" +
+        "- Perfil: " + l.perfil_texto + "\n- Preço que vende: " + l.preco_que_vende + "\n- Quando vende: " + l.calendario + "\n- Região: " + l.regiao +
+        (f.length ? "\n- Formatos que aparecem antes de dias de venda acima do normal (pista, não prova): " + f.map(function (x) { return x.formato + " (confiança " + x.confianca + ")"; }).join("; ") : "") +
+        ((l.recomendacoes || []).length ? "\n- Recomendações: " + l.recomendacoes.join(" | ") : "");
+}
+// roda o Agente de Vendas de uma loja e guarda a leitura junto com os numeros (api/atualizar.js)
+async function agenteDeVendas(userId) {
+    const ctx = await carregar(userId);
+    if (!vendasValidas(ctx.vendas)) return { status: "sem_vendas" };
+    ctx.sobreLoja = montarSobreLoja(ctx.loja, ctx.projetos, ctx.met || {});
+    const r = await perguntar(userId, pedidoVendas(ctx));
+    const id = encodeURIComponent(userId);
+    // rele antes de gravar: a calculadora pode ter atualizado os numeros no meio tempo
+    const agora = await banco("contas_meta?user_id=eq." + id + "&select=vendas");
+    const v = (agora && agora[0] && agora[0].vendas) || ctx.vendas;
+    await banco("contas_meta?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: { vendas: Object.assign({}, v, { leitura: Object.assign({}, r, { em: new Date().toISOString(), assinatura: ctx.vendas.assinatura }) }) } });
+    return { status: "ok", perfil: r.perfil };
+}
+
 // ---------- etapa 1: organico, anuncios, publico e memoria ----------
 async function pedidosEtapa1(ctx) {
     const pedidos = [], ads = ctx.ads, posts = ctx.posts, met = ctx.met;
@@ -837,6 +940,7 @@ function regrasDasIdeias(ctx, anteriores) {
         "- Cada ideia se apoia num dado desta loja: um post (P) ou anúncio (A) que funcionou, com o código em inspirado_em; um comentário; uma dor ou situação do MAPA DE PÚBLICO; um produto do momento; ou uma data do calendário.\n" +
         "- Use as peças dos PRODUTOS E OFERTAS DO MOMENTO sempre que fizer sentido. Sem produto informado, use a peça como aparece nos posts que funcionaram ou escreva 'a peça que você quer vender'.\n" +
         "- Fale com a faixa de idade que mais segue a loja e com as situações do dia a dia dela.\n" +
+        "- Se vierem VENDAS REAIS DESTA LOJA (do CRM), elas mostram o que vende de verdade, inclusive na loja física e no WhatsApp: siga o perfil (mais vídeo de alcance se a loja depende de cliente nova; mais novidade e provador se vive de cliente que volta), use a faixa de preço que a cliente paga e feche o vídeo do jeito da região (loja física ou entrega).\n" +
         "- Se vier O QUE O TIME JÁ APRENDEU COM ESTA LOJA, parta disso: repita com variação o que deu resultado aqui, evite o que ficou abaixo, siga os padrões das capas que funcionaram e respeite o gosto da dona. Ideias parecidas com as que ela marcou como Gostei têm prioridade.\n" +
         "- Hoje é " + hoje + ". Datas do varejo das próximas semanas: " + (datas.join(", ") || "nenhuma") + ".\n\n" +
         "REGRAS\n" +
@@ -853,7 +957,7 @@ function regrasDasIdeias(ctx, anteriores) {
 }
 function contextoDasIdeias(ctx, p) {
     const pub = p.pub || ctx.dossie.publico;
-    return cerebro.textoCaderno(ctx.caderno) + textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
+    return cerebro.textoCaderno(ctx.caderno) + textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoVendas(ctx.leituraVendas) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
         "\nDADOS DE SEGUIDORES: " + (ctx.demografia || "não disponível") +
         (ctx.storiesTexto ? "\n" + ctx.storiesTexto + "\n(Os stories mostram o que puxa conversa no direct e onde a seguidora desiste: use para o fechamento das ideias e para o que a dona fala nos stories do dia.)" : "") +
         "\nMAPA DE PÚBLICO: " + resumoRel(pub) +
@@ -919,7 +1023,7 @@ function pedidosAvaliador(ctx, p, anteriores) {
         "- dificil_de_gravar: a dona não consegue gravar sozinha só com o celular.\n" +
         "Prefira as ideias que partem do que está COMPROVADO no CÉREBRO DA LOJA; ideia que repete o que o cérebro diz que NÃO FUNCIONA é generica.\n" +
         (anteriores.length ? "\nJÁ SUGERIDAS NOS ÚLTIMOS 35 DIAS (título [mecânica | peça]):\n" + anteriores.slice(0, 40).join("\n") + "\n" : "") +
-        cerebro.textoCaderno(ctx.caderno) + textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
+        cerebro.textoCaderno(ctx.caderno) + textoOportunidades(oportunidadesDe(ctx, p)) + textoMemoria(p.mem || ctx.memoria) + textoVendas(ctx.leituraVendas) + textoGosto(ctx) + "\n\n" + ctx.sobreLoja +
         (ctx.storiesTexto ? "\n" + ctx.storiesTexto : "") +
         "\nPERGUNTAS DAS CLIENTES: " + JSON.stringify(((p.pub || ctx.dossie.publico || {}).perguntas_clientes) || []) +
         dadosEmTexto(ctx, 20, 12, 30);
@@ -962,7 +1066,8 @@ function pedidoDiretor(ctx, p) {
             "- por_metodo: para cada um dos 5 métodos abaixo, 1 ou 2 frases de como aplicar nesta loja com base nos dados.\n" +
             "- nicho: o nicho desta loja.\n" +
             "- oportunidades: o seu trabalho mais importante. Parta do CÉREBRO DA LOJA (o comprovado vem primeiro) e CRUZE as três fontes: (1) no orgânico, o formato, o gancho e o assunto que mais prendem, olhando o MAPA DOS CAMPEÕES (mais vistos, mais engajamento, mais tempo assistido, melhor gancho, mais compartilhados) e não só o engajamento; (2) nos anúncios, a peça, o argumento e a oferta que mais vendem; (3) no público, as dúvidas dos comentários, as dores, as objeções e as situações do dia a dia. Cada oportunidade junta pelo menos 2 fontes, de preferência as 3, sempre com o número que prova. Procure também as lacunas: peça que vende nos anúncios e nunca apareceu num formato que prende no orgânico; formato campeão do orgânico que nunca virou anúncio; dúvida frequente que nenhum vídeo respondeu ainda. Nada de oportunidade genérica que serviria para qualquer loja.\n" +
-            "- O CÉREBRO DA LOJA e O QUE O TIME JÁ APRENDEU COM ESTA LOJA valem mais que as leituras gerais: coloque no texto o que está comprovado, o que não funciona e o gosto da dona.\n\n" + METODOS_RESUMO + cerebro.textoCaderno(ctx.caderno) + textoMemoria(p.mem || ctx.memoria) + "\n\n" + ctx.sobreLoja +
+            "- O CÉREBRO DA LOJA e O QUE O TIME JÁ APRENDEU COM ESTA LOJA valem mais que as leituras gerais: coloque no texto o que está comprovado, o que não funciona e o gosto da dona.\n" +
+            "- Se vierem VENDAS REAIS DESTA LOJA (do CRM), use o perfil (cliente nova ou que volta), o preço que vende, o calendário e a região para escolher e ordenar as oportunidades, e coloque isso no texto para o Agente MCP.\n\n" + METODOS_RESUMO + cerebro.textoCaderno(ctx.caderno) + textoMemoria(p.mem || ctx.memoria) + textoVendas(ctx.leituraVendas) + "\n\n" + ctx.sobreLoja +
             "\nRELATÓRIO ORGÂNICO: " + resumoRel(p.org) + "\nRELATÓRIO DE ANÚNCIOS: " + resumoRel(p.ads) + "\nMAPA DE PÚBLICO: " + resumoRel(p.pub || ctx.dossie.publico) +
             dadosEmTexto(ctx, 20, 12, 30),
         max: 16000
@@ -1271,12 +1376,13 @@ async function pedidoCaderno(ctx, prazo) {
         "- Cruze com o PÚBLICO: a dúvida, a dor, o desejo ou a situação que cada campeão respondeu, de preferência com um comentário real.\n" +
         "- Olhe os VÍDEOS FRACOS para achar o que não funciona (o que eles têm e os campeões não têm).\n" +
         "- Use as IDEIAS E ROTEIROS DO TIME QUE A DONA GRAVOU: resultado acima da média confirma; abaixo enfraquece.\n" +
+        "- Se vierem VENDAS REAIS DESTA LOJA: um formato campeão que também aparece antes de dias de venda acima do normal ganha prova de venda (diga isso na prova). As vendas sozinhas, sem um campeão, não bastam para comprovar.\n" +
         "- Atualize o CÉREBRO ATUAL em vez de começar do zero: mantenha o que continua valendo, suba de a testar para comprovado quando aparecer mais uma prova, rebaixe ou tire o que os dados não sustentam mais.\n" +
         "- comprovado: 2 ou mais campeões (ou 1 campeão e um pedido real das clientes). a_testar: 1 campeão só. Cada item é uma regra prática desta loja, concreta o bastante para virar vídeo, com o número que prova.\n" +
         "- Cite os vídeos pela data e por uma descrição curta, nunca pelo código (P1, A1).\n" +
         "- mudou: true só se o cérebro mudou de verdade em relação ao CÉREBRO ATUAL.\n\n" +
         ctx.sobreLoja + "\nDADOS DE SEGUIDORES: " + (ctx.demografia || "não disponível") +
-        "\nMAPA DE PÚBLICO: " + resumoDoPublico(ctx.dossie.publico) +
+        "\nMAPA DE PÚBLICO: " + resumoDoPublico(ctx.dossie.publico) + textoVendas(ctx.leituraVendas) +
         textoCampeoes(ctx) +
         "\n\nVÍDEOS CAMPEÕES DO ORGÂNICO:\n" + (campeoesP.map(function (x) { return linhaPost(x.p, x.i); }).join("\n") || "nenhum ainda") +
         (campeoesA.length ? "\n\nANÚNCIOS CAMPEÕES (resultado = " + nomeResultado(ctx.ads.tipo) + "):\n" + campeoesA.map(function (x) { return linhaAnuncio(ctx.ads.tipo, x.a, x.i); }).join("\n") : "") +
@@ -1446,8 +1552,8 @@ function entraNoLote(c, agora, acessoEm, ativaDesde) {
 function lojaAtiva(agora, acessoEm, ativaDesde) { return situacao(null, agora, acessoEm, ativaDesde).ativa; }
 
 module.exports = {
-    analisarLoja, perguntar, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO, cerebroDaLoja, lojaAtiva,
+    analisarLoja, perguntar, agenteDeVendas, leituraVencida, vendasValidas, textoVendas, iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, gerarMaisIdeias, ErroIdeias, VERSAO, cerebroDaLoja, lojaAtiva,
     conversa: { textoCaderno: cerebro.textoCaderno, semCodigos, textoDaLoja, espera, FORMATOS_TEXTO: function () { return Object.keys(ESPECIALISTAS).map(function (f) { return ESPECIALISTAS[f].texto; }).join("\n\n"); }, carregar, preparar, perguntar, contextoDasIdeias, regrasDasIdeias, textoMemoria, textoGosto, comSugeridas, mapaDeCodigos, titulosAnteriores, textoOportunidades, linhaPost, linhaAnuncio, ligarPostsAosAnuncios, anunciosDaLoja, postsDaLoja, MECANICAS, corta, objeto, textoPT, listaPT, ESQ_ESPECIALISTA, ESPECIALISTAS, METODOS_RESUMO, MODELO },
-    _teste: { pedidoCaderno, marcarCampeoes, pedidoMemoria, memoriaNova, pedidoDiretor, pedidosRascunhos, pedidosAvaliador, pedidosEscrita, escolha, montarIdeias, mapaDeCodigos, rodarAgora, textoCampeoes, postsDaLoja, semCodigosEmTudo, titulosAnteriores, ligarPostsAosAnuncios },
+    _teste: { pedidoVendas, dadosDeVendas, pedidoCaderno, marcarCampeoes, pedidoMemoria, memoriaNova, pedidoDiretor, pedidosRascunhos, pedidosAvaliador, pedidosEscrita, escolha, montarIdeias, mapaDeCodigos, rodarAgora, textoCampeoes, postsDaLoja, semCodigosEmTudo, titulosAnteriores, ligarPostsAosAnuncios },
     _interno: { vozEGanchos, primeiraFrase, postsDaLoja, linhaPost, anunciosDaLoja, linhaAnuncio, datasDoVarejo, montarIdeias, candidatas, ESQ_DIRETOR, ESQ_ESPECIALISTA, ESQ_RASCUNHO, ESQ_AVALIADOR, SISTEMA_TIME }
 };

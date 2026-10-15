@@ -15,13 +15,15 @@
 //  5. Cerebro (lojas ativas, ate 2 por rodada, cada uma a cada 15 minutos no maximo):
 //     fichas dos videos campeoes (fala lida e video assistido, uma vez so) e,
 //     quando entra campeao novo, o Agente do Caderno atualiza o que a loja ja sabe.
+//  5b. Vendas do CRM (lojas ligadas ao CRM): a calculadora refaz os padroes de venda
+//     2 vezes por dia (api/_crm.js) e o Agente de Vendas escreve a leitura que o time usa.
 //  6. Cerebro central (modo observacao): 1 vez por semana, licoes anonimas de formato
 //     vistas em 3 lojas ou mais (api/_cerebro-central.js). So o admin ve; nao entra nas ideias.
 // =====================================================================
 
 const { banco, ADMIN_ID } = require("./_seguranca.js");
 const { atualizarLoja } = require("./_coleta.js");
-const { iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, cerebroDaLoja, lojaAtiva } = require("./_time-agentes.js");
+const { iniciarAnalise, continuarAnalise, precisaAnalisarAgora, entraNoLote, cerebroDaLoja, lojaAtiva, agenteDeVendas, leituraVencida } = require("./_time-agentes.js");
 
 const LIMITE_MS = 270000;               // para antes do tempo maximo da funcao
 const JUNTAS = 3;                       // lojas atualizadas ao mesmo tempo
@@ -126,6 +128,22 @@ module.exports = async function handler(req, res) {
         for (const c of cerebroFila.slice(0, CEREBRO_POR_RODADA)) {
             if (passou() > CEREBRO_ATE_MS) break;
             await tentar(c.user_id, "cerebro", function () { return cerebroDaLoja(c.user_id, inicio + LIMITE_MS).then(function (x) { return { status: (x.status || "ok") + " | fichas " + (x.fichas || 0) + " | faltam " + (x.faltam || 0) + (x.caderno ? " | cérebro" + (x.mudou ? " mudou" : " igual") : "") }; }); });
+        }
+
+        // 5b) vendas do CRM: a calculadora (so totais, 2 vezes por dia por loja) e o Agente de Vendas
+        //     (sem leitura, com vendas novas depois de 3 dias ou 1 vez por semana; uma loja por rodada)
+        if (passou() < 170000) {
+            try {
+                const crm = require("./_crm.js");
+                const rv = await crm.atualizarVendas(2, inicio + 200000);
+                if (rv.feitas) analises.push({ oque: "vendas do CRM", status: rv.feitas + " loja(s) recalculada(s)" });
+                if (crm.disponivel() && passou() < 150000) {
+                    const vend = await banco("contas_meta?vendas=not.is.null&select=user_id,vendas");
+                    const vez = (vend || []).filter(function (c) { return leituraVencida(c.vendas); })
+                        .sort(function (a, b) { return ((a.vendas.leitura && a.vendas.leitura.em) || "").localeCompare((b.vendas.leitura && b.vendas.leitura.em) || ""); })[0];
+                    if (vez) await tentar(vez.user_id, "agente de vendas", function () { return agenteDeVendas(vez.user_id); });
+                }
+            } catch (e) { falhasAnalise.push({ oque: "vendas do CRM", erro: (e && e.message) || "erro" }); }
         }
 
         // 6) cerebro central (modo observacao, so o admin ve): 1 vez por semana, de dia e se sobrar tempo na rodada

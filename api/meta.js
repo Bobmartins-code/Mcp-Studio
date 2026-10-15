@@ -330,7 +330,7 @@ module.exports = async function handler(req, res) {
         if (b.acao === "resultados") {
             const faixa = faixaResultados(b);
             const [lojas, contas] = await Promise.all([
-                banco("lojas?select=user_id,nome,objetivo_anuncios"),
+                banco("lojas?select=user_id,nome,objetivo_anuncios,crm_tenants"),
                 banco("contas_meta?ad_account_id=not.is.null&select=user_id,ad_account_id,ad_account_nome")
             ]);
             const porId = {};
@@ -355,12 +355,21 @@ module.exports = async function handler(req, res) {
                     linhas.push(linha);
                 }));
             }
+            // faturamento total da loja (todas as vendas registradas no CRM dela; so totais)
+            let crmErro = null;
+            const crm = require("./_crm.js");
+            if (crm.disponivel() && lista.some(function (c) { return (porId[c.user_id].crm_tenants || []).length; })) {
+                try {
+                    const porConta = await crm.faturamentoPorConta(faixa.maximo ? null : faixa.inicio, faixa.fim);
+                    linhas.forEach(function (x) { const f = crm.somaDaLoja(porConta, porId[x.uid].crm_tenants); if (f) { x.faturamento_total = f.faturamento; x.crm_ultima_venda = f.ultima_venda; } });
+                } catch (e) { crmErro = "Não consegui ler o CRM agora."; console.error("[resultados] crm: " + e.message); }
+            }
             linhas.sort(function (a, c) { return c.gasto - a.gasto; });
             const tot = linhas.reduce(function (t, x) { ["gasto", "receita", "compras", "conversas", "alcance", "cliques"].forEach(function (k) { t[k] += x[k]; }); return t; }, { gasto: 0, receita: 0, compras: 0, conversas: 0, alcance: 0, cliques: 0 });
             tot.gasto = Math.round(tot.gasto * 100) / 100; tot.receita = Math.round(tot.receita * 100) / 100;
             tot.roas = tot.gasto > 0 ? Math.round(tot.receita / tot.gasto * 100) / 100 : null;
             const desde = linhas.map(function (x) { return x.desde; }).filter(Boolean).sort()[0] || null;
-            return res.status(200).json({ periodo: faixa.maximo ? { maximo: true, inicio: desde, fim: faixa.fim } : faixa, lojas: linhas, totais: tot, em: new Date().toISOString() });
+            return res.status(200).json({ periodo: faixa.maximo ? { maximo: true, inicio: desde, fim: faixa.fim } : faixa, lojas: linhas, totais: tot, crm_erro: crmErro, em: new Date().toISOString() });
         }
 
         // escolhe o Instagram e a conta de anuncios de uma loja (confere na Meta que o acesso enxerga os dois)

@@ -109,7 +109,7 @@ const ESQ_DIRECAO = T.objeto({
 // ---------- dados da loja (direto do banco) ----------
 function corta(t, n) { return T.corta(t, n); }
 function aspas(t) { return "'" + String(t || "").replace(/"/g, "'") + "'"; }
-function dadosDaLoja(dossie, memoria, loja, metodo, caderno) {
+function dadosDaLoja(dossie, memoria, loja, metodo, caderno, vendas) {
     const d = dossie || {}, p = [], pub = d.publico || {}, g = d.ganchos || {}, v = d.voz || {};
     if (d.texto) p.push("DOSSIÊ DA CONTA (o time de agentes, com os números reais dos últimos 90 dias do Instagram e dos anúncios desta loja; é a fonte mais importante para decidir assunto, gancho e argumento): " + d.texto);
     if (d.por_metodo && d.por_metodo[metodo]) p.push("ORIENTAÇÃO DO TIME PARA ESTE MÉTODO NESTA CONTA: " + d.por_metodo[metodo]);
@@ -133,6 +133,8 @@ function dadosDaLoja(dossie, memoria, loja, metodo, caderno) {
     if (mem) p.push(mem.trim());
     const lj = T.textoDaLoja(loja || {});
     if (lj) p.push(lj);
+    // vendas reais do CRM da loja (leitura do Agente de Vendas): preco que a cliente paga e jeito de fechar
+    if (vendas && vendas.para_roteiros) p.push("VENDAS REAIS DESTA LOJA (CRM, inclusive loja física e WhatsApp): " + vendas.para_roteiros + (vendas.preco_que_vende ? " | Preço que vende: " + vendas.preco_que_vende : "") + " (use a faixa de preço só como referência de look completo, nunca como preço de uma peça que não foi informada).");
     return p.join("\n\n");
 }
 // ---------- ideia escolhida (vem do app; tudo cortado antes de ir para a IA) ----------
@@ -295,7 +297,7 @@ async function gerarRodada(uid, proj, pedido, carregado) {
     const metodo = METODOS[pedido.metodo] ? pedido.metodo : (formato === "provador" ? "fffundo" : "fftopo");
     const grava = gravador(proj.id, uid);
     const rods0 = proj.rodadas || [];
-    const dossie = carregado.dossie || {}, dados = dadosDaLoja(dossie, carregado.memoria, carregado.loja, metodo, carregado.caderno), ideiaTxt = ideiaNoTopo(ideia, carregado.prova);
+    const dossie = carregado.dossie || {}, dados = dadosDaLoja(dossie, carregado.memoria, carregado.loja, metodo, carregado.caderno, carregado.vendas), ideiaTxt = ideiaNoTopo(ideia, carregado.prova);
     const destino = DESTINOS[(proj.form && proj.form.objetivo) || proj.objetivo] || DESTINOS.site;
     const contexto = "NEGÓCIO E PEDIDO DA DONA:\n" + corta(pedido.contexto, 12000) + "\nDESTINO DOS ROTEIROS: " + destino + ".";
     // a rodada aparece na hora como "escrevendo"
@@ -363,7 +365,7 @@ async function refazerRoteiro(uid, proj, pedido, carregado) {
     if (!alvo) { const e = new Error("Não achei esse roteiro."); e.status = 404; throw e; }
     const metodo = METODOS[alvo.metodo] ? alvo.metodo : (METODOS[rodada.metodo] ? rodada.metodo : "fftopo"), formato = FORMATOS.indexOf(alvo.formato || rodada.formato) > -1 ? (alvo.formato || rodada.formato) : "narrado";
     const ideia = carregado.ideia || null;
-    const dossie = carregado.dossie || {}, dados = dadosDaLoja(dossie, carregado.memoria, carregado.loja, metodo, carregado.caderno);
+    const dossie = carregado.dossie || {}, dados = dadosDaLoja(dossie, carregado.memoria, carregado.loja, metodo, carregado.caderno, carregado.vendas);
     const destino = DESTINOS[(proj.form && proj.form.objetivo) || proj.objetivo] || DESTINOS.site;
     const dir = rodada.direcao;
     const base = ideiaNoTopo(ideia, carregado.prova) + "MÉTODO: " + METODOS[metodo].nome + " (código " + metodo + ").\n" + tamanho(dossie, formato) + "\n\nNEGÓCIO E PEDIDO DA DONA:\n" + corta(pedido.contexto, 12000) + "\nDESTINO: " + destino + "." +
@@ -416,12 +418,12 @@ module.exports = async function handler(req, res) {
         const id = encodeURIComponent(uid);
         const [projs, contas, lojas] = await Promise.all([
             banco("projetos?id=eq." + encodeURIComponent(b.projeto_id) + "&user_id=eq." + id + "&select=id,nome,objetivo,form,rodadas"),
-            banco("contas_meta?user_id=eq." + id + "&select=dossie,memoria,caderno" + (b.ideia || b.acao === "refazer" ? ",metricas,meta" : "")).catch(function () { return []; }),
+            banco("contas_meta?user_id=eq." + id + "&select=dossie,memoria,caderno,vendas_leitura:vendas->leitura" + (b.ideia || b.acao === "refazer" ? ",metricas,meta" : "")).catch(function () { return []; }),
             banco("lojas?user_id=eq." + id + "&select=produtos_dona,produtos_dona_em,produtos_admin").catch(function () { return []; })
         ]);
         const proj = projs && projs[0];
         if (!proj) return res.status(404).json({ error: "Não achei esse projeto." });
-        const carregado = { dossie: (contas && contas[0] && contas[0].dossie) || {}, memoria: (contas && contas[0] && contas[0].memoria) || {}, caderno: (contas && contas[0] && contas[0].caderno) || null, loja: (lojas && lojas[0]) || {} };
+        const carregado = { dossie: (contas && contas[0] && contas[0].dossie) || {}, memoria: (contas && contas[0] && contas[0].memoria) || {}, caderno: (contas && contas[0] && contas[0].caderno) || null, vendas: (contas && contas[0] && contas[0].vendas_leitura) || null, loja: (lojas && lojas[0]) || {} };
         // a ideia que originou o projeto (fica no projeto para "Gerar mais" e "Refazer")
         carregado.ideia = limparIdeia(b.ideia) || limparIdeia(proj.form && proj.form.ideia);
         if (carregado.ideia) { try { carregado.prova = corta(provaDoInspirador(contas && contas[0], carregado.ideia.inspirado), 2500); } catch (e) { console.error("[roteiros] prova: " + (e && e.message)); } }
