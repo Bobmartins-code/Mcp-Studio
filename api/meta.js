@@ -8,9 +8,11 @@
 //    - publico: idade, genero, cidades e comentarios reais
 //    - transcricao dos videos vencedores
 //  Os agentes (no painel admin) leem esses dados e montam o dossie da conta.
+//  Excecao: a aba Resultados do app (acoes painel, ativos e anuncio_ativo) e
+//  usada pela propria loja, so com os numeros dela (api/_painel.js).
 // =====================================================================
 
-const { validarAdmin, banco, criptografar, descriptografar, auditar } = require("./_seguranca.js");
+const { validarAdmin, acessoLiberado, SEM_ACESSO, banco, criptografar, descriptografar, auditar } = require("./_seguranca.js");
 // consulta so de leitura, com o recuo automatico quando a Meta pede para esperar
 const { g, limparEstado, transcrever } = require("./_meta-leitura.js");
 const GRAPH = "https://graph.facebook.com/v23.0";
@@ -236,6 +238,28 @@ module.exports = async function handler(req, res) {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const auth = req.headers && (req.headers.authorization || req.headers.Authorization);
     const jwt = (auth && auth.indexOf("Bearer ") === 0) ? auth.slice(7) : "";
+    const b0 = req.body || {};
+    // aba Resultados do app: a loja ve os numeros dela; o admin pode abrir a de qualquer loja
+    if (b0.acao === "painel" || b0.acao === "ativos" || b0.acao === "anuncio_ativo") {
+        let uid;
+        try { uid = await acessoLiberado(jwt); } catch (e) { return res.status(500).json({ error: "Não consegui confirmar o seu acesso. Tente de novo." }); }
+        if (!uid) return res.status(jwt ? 403 : 401).json({ error: jwt ? SEM_ACESSO : "Entre na sua conta de novo." });
+        let alvo = uid;
+        if (b0.user_id && b0.user_id !== uid) {
+            if (!/^[0-9a-f-]{36}$/i.test(String(b0.user_id)) || !(await validarAdmin(jwt).catch(function () { return null; }))) return res.status(403).json({ error: "Você só pode ver os números da sua loja." });
+            alvo = String(b0.user_id);
+        }
+        try {
+            const painel = require("./_painel.js");
+            if (b0.acao === "painel") return res.status(200).json(await painel.painel(alvo, b0.periodo));
+            if (b0.acao === "ativos") return res.status(200).json(await painel.ativos(alvo));
+            return res.status(200).json(await painel.anuncio(alvo, b0.ad_id, b0.periodo));
+        } catch (e) {
+            if (e instanceof require("./_meta-leitura.js").MetaPausada) return res.status(503).json({ error: "A Meta pediu uma pausa nas consultas. Tente de novo em alguns minutos." });
+            if (!e.status) console.error("[painel] " + alvo.slice(0, 8) + " " + b0.acao + ": " + (e && e.message));
+            return res.status(e.status || 500).json({ error: e.status ? e.message : "Não consegui buscar os números na Meta agora. Tente de novo em alguns minutos." });
+        }
+    }
     let admin;
     try { admin = await validarAdmin(jwt); } catch (e) { admin = null; }
     if (!admin) return res.status(403).json({ error: "Somente o admin pode usar a conexao com a Meta." });

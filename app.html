@@ -307,6 +307,55 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .selo.camp{background:rgba(245,200,66,.16);color:var(--gold)}.selo.guard{background:rgba(155,142,255,.16);color:#C3BBFF}
 .esqueleto{background:linear-gradient(90deg,var(--sur) 0%,var(--sur2) 50%,var(--sur) 100%);background-size:200% 100%;animation:esq 1.2s linear infinite;border-radius:14px}
 @keyframes esq{0%{background-position:100% 0}100%{background-position:-100% 0}}
+/* ---------- aba Resultados (numeros da loja direto da Meta) e anuncios ativos ---------- */
+.sb-grupo{margin:8px 0 6px;padding:10px 0 8px;border-top:1px solid var(--bo);border-bottom:1px solid var(--bo)}
+.sb-grupo .sb-lbl{display:flex;align-items:center;gap:8px}
+.sb-btn.sub{padding-left:18px}
+.sb-btn .bx.ok{background:var(--ok);color:#0A0A0F}
+.pt-ok{width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block;flex-shrink:0}
+.pt-ok.vivo{width:8px;height:8px;box-shadow:0 0 0 4px rgba(45,222,152,.15)}
+.rs-n{font-size:11.5px;font-weight:700;background:var(--sur2);border-radius:20px;padding:1px 7px}
+.rs-info{font-size:12.5px;color:var(--mu);margin:2px 0 14px}
+.rs-card{background:var(--sur);border:1px solid var(--bo);border-radius:18px;padding:16px;margin-bottom:14px}
+.rs-t{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--mu);text-transform:uppercase;margin:0 0 12px}
+.rs-th{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.rs-big{font-size:23px;font-weight:700}
+.rs-sub{font-size:12px;color:var(--mu);line-height:1.45}
+.rs-st{font-size:13px;font-weight:700;margin-bottom:9px}
+.rs-nota{font-size:11.5px;color:var(--mu);line-height:1.5;margin-top:10px}
+.rs-vazio{font-size:13.5px;color:var(--mu2);line-height:1.5}
+.rs-din{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.rs-din .l{font-size:13px;color:var(--mu2)}.rs-din .v{font-size:24px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}.rs-din .v.ok{color:var(--ok)}
+.rs-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.rs-tile{background:var(--sur2);border-radius:14px;padding:13px 14px;min-width:0}
+.rs-tile .l{font-size:12.5px;color:var(--mu2)}.rs-tile .v{font-size:21px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rs-tile .s{font-size:11.5px;color:var(--mu);margin-top:2px}
+.rs-bar{height:10px;border-radius:5px;background:var(--sur2);overflow:hidden;display:flex;gap:2px}.rs-bar i{display:block;height:100%;border-radius:5px}
+.rs-bar.fina{height:6px;border-radius:3px}
+.rs-lin{display:grid;grid-template-columns:52px minmax(0,1fr) 44px;gap:10px;align-items:center;font-size:13px;margin-bottom:9px}
+.rs-lin b{text-align:right}.rs-lin span{color:#C9C7C0}
+.rs-cmp{margin-bottom:12px}.rs-cmp .rs-lin{grid-template-columns:minmax(0,1fr) 100px;margin-bottom:7px}
+.rs-leg{display:flex;gap:12px;font-size:12px;color:var(--mu2);flex-wrap:wrap}.rs-leg span{display:flex;align-items:center;gap:5px}.rs-leg i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.rs-quem{display:grid;gap:18px}
+.rs-linha{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:20px;padding:3px 9px;white-space:nowrap}
+.st i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.st.ativo{color:var(--ok);background:rgba(45,222,152,.12)}.st.analise{color:#FFB547;background:rgba(255,181,71,.12)}.st.problema{color:#FF6B5A;background:rgba(255,107,90,.12)}
+.at-lista{display:grid;gap:12px;margin-bottom:12px}
+.at-card{display:flex;flex-direction:column;gap:12px;width:100%;text-align:left;background:var(--sur);border:1px solid var(--bo);border-radius:18px;padding:14px;color:var(--tx);font-family:inherit;cursor:pointer}
+.at-card:hover{border-color:var(--boh)}
+.at-top{display:flex;gap:12px}
+.at-nome{font-size:15px;line-height:1.3}
+.at-gl{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;margin-bottom:6px}.at-gl>span:first-child{color:var(--mu2)}
+.at-res{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding-top:10px;border-top:1px solid var(--bo)}.at-res b{font-size:15px}
+.ad-pg{max-width:560px}
+.ad-capa{position:relative;height:min(380px,55vh);border-radius:18px;overflow:hidden;background:var(--sur2);margin-bottom:14px}
+.ad-capa img{width:100%;height:100%;object-fit:cover;display:block}
+.ad-selo{position:absolute;left:12px;bottom:12px}.ad-selo .st{background:rgba(10,10,15,.75)}
+.ad-nome{font-size:19px;font-weight:700;margin-bottom:4px}
+@media(min-width:769px){.rs-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}.rs-tiles.dois{grid-template-columns:1fr 1fr}.ad-pg .rs-tiles{grid-template-columns:1fr 1fr}.at-lista{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}}
+@media(min-width:1000px){.rs-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px;align-items:start}.rs-grid .rs-card{margin-bottom:0}.rs-grid>div{display:flex;flex-direction:column;gap:14px}.rs-quem{grid-template-columns:1fr 1fr;gap:28px}}
+@media(max-width:768px){.tb-it{flex:1;min-width:0}}
+@media(max-width:380px){.tb-it{font-size:9.5px}}
 </style>
 </head>
 <body>
@@ -389,12 +438,17 @@ function postsDoPeriodo(dl,per){var f=faixaDoPeriodo(per);return ((dl&&dl.posts)
 function porVisita(a){return a&&a.visitas>0?(a.gasto||0)/a.visitas:1e12;}
 function rotRes(tipo,n,nome){var um=n===1;if(tipo!=="vendas"&&tipo!=="conversas"&&nome&&nome.length===2)return um?nome[0]:nome[1];if(tipo==="vendas")return um?"compra":"compras";if(tipo==="conversas")return um?"conversa":"conversas";return um?"resultado":"resultados";}
 function quando(iso){if(!iso)return "";var d=new Date(iso),h=d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}),hoje=new Date();var ontem=new Date(Date.now()-864e5);if(d.toDateString()===hoje.toDateString())return "hoje às "+h;if(d.toDateString()===ontem.toDateString())return "ontem às "+h;return "em "+d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" às "+h;}
+// estado da Meta (sem acento, as vezes em ingles) vira a sigla
+var UF={"acre":"AC","alagoas":"AL","amapa":"AP","amazonas":"AM","bahia":"BA","ceara":"CE","distrito federal":"DF","federal district":"DF","espirito santo":"ES","goias":"GO","maranhao":"MA","mato grosso":"MT","mato grosso do sul":"MS","minas gerais":"MG","para":"PA","paraiba":"PB","parana":"PR","pernambuco":"PE","piaui":"PI","rio de janeiro":"RJ","rio grande do norte":"RN","rio grande do sul":"RS","rondonia":"RO","roraima":"RR","santa catarina":"SC","sao paulo":"SP","sergipe":"SE","tocantins":"TO"};
+function siglaUF(n){var k=String(n||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().trim();return UF[k]||n;}
+function dataBR(ymd){var p=String(ymd||"").split("-");return p.length===3?p[2]+"/"+p[1]:"";}
+function diaMes(iso){return iso?new Date(iso).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";}
 function compacto(n){if(n==null)return "-";n=Number(n)||0;if(n>=1e6)return (n/1e6).toFixed(1).replace(".",",")+" mi";if(n>=1e4)return (n/1e3).toFixed(1).replace(".",",")+" mil";return n.toLocaleString("pt-BR");}
 // curtidas + comentarios + salvamentos + compartilhamentos: o que a dona ve nos icones do post
 function totalInteracoes(p){return (p.curtidas||0)+(p.comentarios||0)+(p.salvamentos||0)+(p.compartilhamentos||0);}
 function mediana(v){var a=v.filter(function(x){return isFinite(x)&&x>0;}).sort(function(x,y){return x-y;});if(!a.length)return 0;var m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2;}
 function iniciais(t){var p=String(t||"?").replace(/[^A-Za-zÀ-ÿ0-9 ]/g," ").trim().split(/\s+/).filter(Boolean);if(!p.length)return "?";return ((p[0][0]||"")+(p.length>1?p[p.length-1][0]:"")).toUpperCase();}
-var ICONES={olho:"M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",home:"M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z",videos:"M3 7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4zM3 8h18M8 3l3 5M14 3l3 5M10 12v5l4-2.5z",roteiros:"M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5",conta:"M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6",mais:"M12 5v14M5 12h14",voltar:"M15 18l-6-6 6-6",ig:"M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",ads:"M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1zM16 8a5 5 0 0 1 0 8",coracao:"M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z",balao:"M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.6A8.5 8.5 0 1 1 21 11.5z",enviar:"M22 2 11 13M22 2 15 22l-4-9-9-4z",salvo:"M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z",check:"M20 6 9 17l-5-5",ideias:"M9 18h6M10 21h4M12 3a6 6 0 0 0-3.8 10.6c.6.6.8 1.3.8 2.4h6c0-1.1.2-1.8.8-2.4A6 6 0 0 0 12 3z",seta:"M9 18l6-6-6-6"};
+var ICONES={olho:"M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",home:"M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z",videos:"M3 7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4zM3 8h18M8 3l3 5M14 3l3 5M10 12v5l4-2.5z",roteiros:"M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5",conta:"M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6",mais:"M12 5v14M5 12h14",voltar:"M15 18l-6-6 6-6",ig:"M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",ads:"M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1zM16 8a5 5 0 0 1 0 8",coracao:"M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z",balao:"M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.6A8.5 8.5 0 1 1 21 11.5z",enviar:"M22 2 11 13M22 2 15 22l-4-9-9-4z",salvo:"M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z",check:"M20 6 9 17l-5-5",ideias:"M9 18h6M10 21h4M12 3a6 6 0 0 0-3.8 10.6c.6.6.8 1.3.8 2.4h6c0-1.1.2-1.8.8-2.4A6 6 0 0 0 12 3z",seta:"M9 18l6-6-6-6",resultados:"M4 20h16M7 16v-5M12 16V6M17 16v-8"};
 function ico(n,tam,cor,larg){return ce("svg",{width:tam||22,height:tam||22,viewBox:"0 0 24 24",fill:"none",stroke:cor||"currentColor",strokeWidth:larg||2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true"},ce("path",{d:ICONES[n]}));}
 function play(t){return ce("svg",{width:t||13,height:t||13,viewBox:"0 0 24 24",fill:"#fff","aria-hidden":"true"},ce("path",{d:"M7 4v16l13-8z"}));}
 function limparTexto(t){return typeof t==="string"?t.replace(/,?[ \t]*[\u2014\u2013][ \t]*/g,", ").replace(/ {2,}/g," ").replace(/ ,/g,",").trim():t;}
@@ -657,6 +711,57 @@ function App(){
     supaClient.from("stories").select("story_id,publicado_em,tipo,capa_url,link,metricas,final").eq("user_id",uid).gte("publicado_em",desde).order("publicado_em",{ascending:false}).limit(400)
       .then(function(r){setStoriesLoja({uid:uid,em:Date.now(),lista:(r&&!r.error&&r.data)||[]});},function(){setStoriesLoja({uid:uid,em:Date.now(),lista:[]});});
   },[view,uidLojaAberta]);
+  // aba Resultados: numeros da loja direto da Meta (o servidor guarda alguns minutos)
+  var sRA=useState("geral"),resAba=sRA[0],setResAba=sRA[1];
+  var sPn=useState({}),painelLoja=sPn[0],setPainelLoja=sPn[1];
+  var sAt=useState(null),ativosLoja=sAt[0],setAtivosLoja=sAt[1];
+  var sAa=useState(null),adAberto=sAa[0],setAdAberto=sAa[1];
+  var sPa=useState(30),perAd=sPa[0],setPerAd=sPa[1];
+  var sNa=useState({}),numerosAd=sNa[0],setNumerosAd=sNa[1];
+  async function pedirPainel(corpo){
+    var ss=await supaClient.auth.getSession();var tk=ss.data&&ss.data.session&&ss.data.session.access_token;
+    if(verComo)corpo.user_id=verComo.id;
+    var r=await fetch("/api/meta",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(tk||"")},body:JSON.stringify(corpo)});
+    var d=await r.json().catch(function(){return {};});
+    if(!r.ok)throw new Error(d.error||"Não consegui buscar os números agora.");
+    return d;
+  }
+  function chavePainel(){return uidLojaAberta+"|"+periodo;}
+  function carregarPainel(forcar){
+    var k=chavePainel(),atual=painelLoja[k];
+    if(!forcar&&atual&&(atual.carregando||(atual.dados&&Date.now()-atual.em<10*60000)))return;
+    var antes=atual&&atual.dados,emAntes=atual&&atual.em;
+    setPainelLoja(function(p){var n=Object.assign({},p);n[k]={carregando:true,dados:antes,em:emAntes};return n;});
+    pedirPainel({acao:"painel",periodo:periodo}).then(function(d){setPainelLoja(function(p){var n=Object.assign({},p);n[k]={dados:d,em:Date.now()};return n;});},
+      function(e){setPainelLoja(function(p){var n=Object.assign({},p);n[k]={erro:e.message,dados:antes,em:emAntes};return n;});});
+  }
+  function carregarAtivos(forcar){
+    var uid=uidLojaAberta,a=ativosLoja&&ativosLoja.uid===uid?ativosLoja:null;
+    if(!forcar&&a&&(a.carregando||(a.dados&&Date.now()-a.em<2*60000)))return;
+    var antes=a&&a.dados,emAntes=a&&a.em;
+    setAtivosLoja({uid:uid,carregando:true,dados:antes,em:emAntes});
+    pedirPainel({acao:"ativos"}).then(function(d){setAtivosLoja({uid:uid,dados:d,em:Date.now()});},function(e){setAtivosLoja({uid:uid,erro:e.message,dados:antes,em:emAntes});});
+  }
+  function carregarAd(forcar){
+    if(!adAberto)return;var k=adAberto.id+"|"+perAd,at=numerosAd[k];
+    if(!forcar&&at&&(at.carregando||at.dados))return;
+    setNumerosAd(function(m){var n=Object.assign({},m);n[k]={carregando:true};return n;});
+    pedirPainel({acao:"anuncio_ativo",ad_id:adAberto.id,periodo:perAd}).then(function(d){setNumerosAd(function(m){var n=Object.assign({},m);n[k]={dados:d};return n;});},function(e){setNumerosAd(function(m){var n=Object.assign({},m);n[k]={erro:e.message};return n;});});
+  }
+  useEffect(function(){
+    if(view!=="resultados"||!uidLojaAberta)return;
+    carregarAtivos();
+    if(resAba==="geral")carregarPainel();
+  },[view,resAba,periodo,uidLojaAberta]);
+  // anuncios ativos: confere de novo a cada 2 minutos enquanto a aba esta aberta
+  useEffect(function(){
+    if(view!=="resultados"||resAba!=="ativos"||adAberto)return;
+    var t=setInterval(function(){if(!document.hidden)carregarAtivos(true);},120000);
+    return function(){clearInterval(t);};
+  },[view,resAba,adAberto,uidLojaAberta]);
+  useEffect(function(){if(view==="resultados"&&adAberto)carregarAd();},[view,adAberto,perAd]);
+  useEffect(function(){setAdAberto(null);},[uidLojaAberta]);
+  var nAtivos=(ativosLoja&&ativosLoja.uid===uidLojaAberta&&ativosLoja.dados&&ativosLoja.dados.lista)?ativosLoja.dados.lista.filter(function(x){return x.situacao==="ativo";}).length:null;
   var sOrdA=useState("resultado"),ordemAds=sOrdA[0],setOrdemAds=sOrdA[1];
   var sLim=useState({k:"",n:6}),limVid=sLim[0],setLimVid=sLim[1];
   var sLj=useState(null),lojaInfo=sLj[0],setLojaInfo=sLj[1];
@@ -1223,13 +1328,14 @@ function App(){
       n<total?ce("button",{className:"btn-sec2",onClick:function(){setLimVid({k:chave,n:n+12});}},"Ver mais "+Math.min(12,total-n)):null,
       n<total?ce("button",{className:"btn-sec2",onClick:function(){setLimVid({k:chave,n:total});}},"Ver todos ("+total+")")
         :ce("button",{className:"btn-sec2",onClick:function(){setLimVid({k:chave,n:6});}},"Mostrar só os 6 melhores"));}
-  function chipsPeriodo(){return ce("div",{className:"per",role:"group","aria-label":"Período"},PERIODOS.map(function(p){return ce("button",{key:"p"+p[0],className:periodo===p[0]?"on":"","aria-pressed":periodo===p[0],onClick:function(){setPeriodo(p[0]);}},p[1]);}));}
+  function chipsPeriodo(){return barraPeriodo(periodo,setPeriodo);}
+  function barraPeriodo(v,mudar){return ce("div",{className:"per",role:"group","aria-label":"Período"},PERIODOS.map(function(p){return ce("button",{key:"p"+p[0],className:v===p[0]?"on":"","aria-pressed":v===p[0],onClick:function(){mudar(p[0]);}},p[1]);}));}
   function avatarLoja(tam){
     var logo=lojaInfo&&lojaInfo.logo_url;
     return ce("div",{className:"hello-av",style:{width:tam,height:tam,fontSize:Math.round(tam/3),overflow:"hidden",flexShrink:0}},logo?ce("img",{src:logo,alt:"Logo da loja",style:{width:"100%",height:"100%",objectFit:"cover"}}):iniciais(nomeDaLoja()));
   }
   function nomeDaLoja(){return (lojaInfo&&lojaInfo.nome)||(verComo?verComo.email:userEmail);}
-  function irPara(v){setVideoSel(null);setSbOpen(false);setView(v);}
+  function irPara(v){setVideoSel(null);setAdAberto(null);setSbOpen(false);setView(v);}
   function abrirVideo(sel,aba){setVideoSel(sel);if(aba)setVideosTab(aba);setView("videos");}
   // recado da equipe: na tela inicial e nos roteiros aparece o mais novo nao lido; no projeto, os dele
   function recadoBanner(projetoId){
@@ -1567,6 +1673,120 @@ function App(){
     ));
   }
 
+  // ---------- RESULTADOS: visao geral do periodo e anuncios ativos agora (direto da Meta) ----------
+  function tileRs(l,v,s,cor){return ce("div",{className:"rs-tile"},ce("div",{className:"l"},l),ce("div",{className:"v",style:cor?{color:cor}:undefined},v),s?ce("div",{className:"s"},s):null);}
+  function blocosCarregando(n){return ce("div",{role:"status","aria-label":"Carregando"},Array.from({length:n||3}).map(function(_,i){return ce("div",{key:i,className:"esqueleto",style:{height:i?170:88,marginBottom:14}});}));}
+  function erroPainel(msg,tentar){return ce("div",{className:"emp",role:"alert",style:{padding:"36px 10px"}},ce("div",{className:"emp-ic"},"📶"),ce("div",{className:"emp-h"},"Não consegui carregar os números"),ce("div",{className:"emp-p",style:{marginBottom:16}},msg||"Confira a internet e tente de novo."),ce("button",{className:"btn-pri",style:{maxWidth:260,margin:"0 auto"},onClick:tentar},"Tentar de novo"));}
+  // porcentagem de cada faixa; com "outros", junta o que passar do limite
+  function barrasPct(lista,max,outros){
+    var tot=lista.reduce(function(s,x){return s+x.valor;},0);if(!tot)return null;
+    var ord=outros?lista.slice().sort(function(a,b){return b.valor-a.valor;}):lista.slice(),top=ord.slice(0,max),resto=ord.slice(max).reduce(function(s,x){return s+x.valor;},0);
+    var linhas=top.map(function(x){return {nome:x.nome,pct:Math.round(x.valor/tot*100)};});
+    if(outros&&resto>0)linhas.push({nome:"Outros",pct:Math.round(resto/tot*100),outro:true});
+    var maior=Math.max.apply(null,linhas.map(function(x){return x.pct;}))||1,fortes=linhas.filter(function(x){return !x.outro;}).map(function(x){return x.pct;}).sort(function(a,b){return b-a;}).slice(0,2);
+    return linhas.map(function(x,i){var forte=!x.outro&&x.pct>0&&fortes.indexOf(x.pct)>-1;return ce("div",{key:i,className:"rs-lin"},ce("span",null,x.nome),ce("div",{className:"rs-bar"},ce("i",{style:{width:Math.max(2,x.pct/maior*100)+"%",background:forte?"var(--ac2)":"#4A4A58"}})),ce("b",null,x.pct+"%"));});
+  }
+  var DESTINOS=[["direct","Direct","#C77DFF"],["whatsapp","WhatsApp","#25D366"],["messenger","Messenger","#4D9FFF"],["varios","Direct ou WhatsApp","#8C8C9B"],["outros","Outros","#4A4A58"]];
+  function blocoConversas(total,c){
+    var partes=c?DESTINOS.filter(function(d){return c[d[0]]>0;}):[],soma=partes.reduce(function(s,d){return s+c[d[0]];},0);
+    return ce("section",{className:"rs-card","aria-label":"Conversas pelos anúncios"},
+      ce("div",{className:"rs-th"},ce("h2",{className:"rs-t",style:{margin:0}},"Conversas pelos anúncios"),ce("b",{className:"rs-big"},numBR(total))),
+      soma>0?ce("div",{className:"rs-bar","aria-hidden":"true",style:{marginBottom:10}},partes.map(function(d){return ce("i",{key:d[0],style:{width:(c[d[0]]/soma*100)+"%",background:d[2]}});})):null,
+      soma>0?ce("div",{className:"rs-tiles dois",style:{gap:"8px 16px",gridTemplateColumns:"1fr 1fr"}},partes.map(function(d){return ce("div",{key:d[0],style:{display:"flex",alignItems:"center",gap:8,fontSize:13}},ce("span",{"aria-hidden":"true",style:{width:10,height:10,borderRadius:3,background:d[2],flexShrink:0}}),ce("span",{style:{color:"var(--mu2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}},d[1]),ce("b",{style:{marginLeft:"auto",paddingLeft:6}},numBR(c[d[0]])));})):null,
+      c&&c.varios>0?ce("div",{className:"rs-nota"},"Quando o anúncio leva para o Direct e para o WhatsApp ao mesmo tempo, a Meta não separa as conversas."):null);
+  }
+  function linhaComp(rot,ads,org){
+    if(ads==null&&org==null)return null;
+    var mx=Math.max(ads||0,org||0)||1;
+    function b(v,txt,cor){return ce("div",{className:"rs-lin"},ce("div",{className:"rs-bar"},ce("i",{style:{width:Math.max(2,v/mx*100)+"%",background:cor}})),ce("b",null,txt));}
+    return ce("div",{className:"rs-cmp"},ce("div",{className:"rs-st",style:{marginBottom:7}},rot),ads!=null?b(ads,numBR(ads),"#FF8A50"):null,org!=null?b(org,"≈ "+numBR(org),"#4FD1C5"):null);
+  }
+  function resGeral(){
+    var st=painelLoja[chavePainel()]||{},d=st.dados;
+    var topo=[ce("div",{key:"p"},chipsPeriodo()),d&&d.periodo?ce("div",{key:"i",className:"rs-info"},dataBR(d.periodo.inicio)+" a "+dataBR(d.periodo.fim)+" · direto da Meta"+(d.em?" · atualizado "+quando(d.em):"")):ce("div",{key:"i",className:"rs-info"},"Direto da Meta")];
+    if(!d)return ce("div",null,topo,st.erro?erroPainel(st.erro,function(){carregarPainel(true);}):blocosCarregando());
+    if(d.sem_anuncios&&d.sem_instagram)return ce("div",null,topo,ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"📊"),ce("div",{className:"emp-h"},"Sua conta ainda não foi conectada"),ce("div",{className:"emp-p"},"Assim que a equipe conectar o Instagram e a conta de anúncios, seus resultados aparecem aqui.")));
+    var a=d.anuncios,o=d.organico,pub=d.publico;
+    var din=a?ce("section",{className:"rs-card rs-din","aria-label":"Investimento e vendas"},
+        ce("div",null,ce("div",{className:"l"},"Valor investido"),ce("div",{className:"v"},brl(a.gasto))),
+        ce("div",null,ce("div",{className:"l"},"Valor em vendas"),ce("div",{className:"v ok"},brl(a.receita))))
+      :d.sem_anuncios?ce("div",{className:"rs-card rs-vazio"},"A conta de anúncios ainda não foi conectada. Fale com a equipe do MCP Studio."):null;
+    var ads=a&&ce("section",{className:"rs-card","aria-label":"Anúncios"},ce("h2",{className:"rs-t"},"Anúncios"),ce("div",{className:"rs-tiles"},
+      tileRs("Impressões",numBR(a.impressoes)),tileRs("Alcance",numBR(a.alcance),"pessoas diferentes"),tileRs("Cliques",numBR(a.cliques)),
+      tileRs("Cliques no link",numBR(a.cliques_link)),tileRs("Engajamento com a página",numBR(a.engajamento)),tileRs("Compras",numBR(a.compras),null,"var(--ok)")));
+    var conv=a&&a.conversas>0?blocoConversas(a.conversas,d.conversas):null;
+    var vis=o&&o.visitas_perfil!=null?ce("section",{className:"rs-card rs-linha","aria-label":"Visitas ao perfil"},ce("div",null,ce("h2",{className:"rs-t",style:{margin:0}},"Visitas ao perfil"),ce("div",{className:"rs-sub"},"com e sem anúncio")),ce("b",{className:"rs-big"},numBR(o.visitas_perfil))):null;
+    var comp=o?ce("section",{className:"rs-card","aria-label":"Anúncios e orgânico"},
+      ce("div",{className:"rs-th"},ce("h2",{className:"rs-t",style:{margin:0}},a?"Anúncios × orgânico":"Orgânico"),a?ce("div",{className:"rs-leg"},ce("span",null,ce("i",{style:{background:"#FF8A50"}}),"Anúncios"),ce("span",null,ce("i",{style:{background:"#4FD1C5"}}),"Orgânico")):null),
+      linhaComp("Impressões",a?a.impressoes:null,o.impressoes),
+      linhaComp("Alcance",a?a.alcance:null,o.alcance),
+      ce("div",{className:"rs-tiles dois",style:{marginTop:12,paddingTop:12,borderTop:"1px solid var(--bo)",gridTemplateColumns:"1fr 1fr"}},tileRs("Seguidores",o.seguidores!=null?numBR(o.seguidores):"-","total hoje"),o.novos_seguidores!=null?tileRs("Novos seguidores","+"+numBR(o.novos_seguidores),"no período","#4FD1C5"):null),
+      ce("div",{className:"rs-nota"},"No Instagram, as impressões se chamam visualizações. O orgânico é uma estimativa: o total da conta menos o que veio dos anúncios no Instagram.")):null;
+    var idade=pub&&pub.idade.length?barrasPct(pub.idade.map(function(x){return {nome:x.nome.replace("-","–"),valor:x.valor};}),9):null;
+    var regiao=pub&&pub.regiao.length?barrasPct(pub.regiao.map(function(x){return {nome:siglaUF(x.nome),valor:x.valor};}),4,true):null;
+    var quem=(idade||regiao)?ce("section",{className:"rs-card","aria-label":"Quem compra"},
+      ce("h2",{className:"rs-t",style:{marginBottom:4}},pub.tipo==="compras"?"Quem compra":"Quem chama no direct"),
+      ce("div",{className:"rs-sub",style:{marginBottom:14}},(pub.tipo==="compras"?"Quem comprou":"Quem começou uma conversa")+" depois de ver um anúncio. A Meta mostra só os totais, nunca quem é cada pessoa."),
+      ce("div",{className:"rs-quem"},idade?ce("div",null,ce("div",{className:"rs-st"},"Idade"),idade):null,regiao?ce("div",null,ce("div",{className:"rs-st"},"Região"),regiao):null)):null;
+    return ce("div",null,topo,din,
+      ce("div",{className:"rs-grid"},ce("div",null,ads,comp),ce("div",null,conv,vis,quem)),
+      ehAdmin&&d.faltou?ce("div",{className:"rs-nota"},"Só você vê: a Meta não entregou agora "+d.faltou.join(", ")+"."):null);
+  }
+  var ST_AD={ativo:"Ativo",analise:"Em análise pela Meta",problema:"Com problema"};
+  function seloSt(s){return ce("span",{className:"st "+s},ce("i",null),ST_AD[s]||s);}
+  function quandoAtivo(x){if(x.situacao==="ativo")return x.desde?"ativo desde "+diaMes(x.desde):"ativo";return x.desde&&new Date(x.desde).toDateString()===new Date().toDateString()?"criado hoje":(x.desde?"criado em "+diaMes(x.desde):"");}
+  function textoOrc(o){return o?(o.tipo==="dia"?brl(o.valor)+" por dia":"orçamento total de "+brl(o.valor)):"";}
+  function resultadoAtivo(x){
+    var conv=x.objetivo==="Mensagens"||(!x.sete.compras&&x.sete.conversas>0);
+    var compras=[numBR(x.hoje.compras),x.hoje.compras===1?"compra hoje":"compras hoje"],conversas=[numBR(x.hoje.conversas),x.hoje.conversas===1?"conversa hoje":"conversas hoje"];
+    return conv?[conversas,[x.sete.conversas?brl(x.sete.gasto/x.sete.conversas):"—","por conversa (7 dias)"],compras]:[compras,[x.sete.compras?brl(x.sete.gasto/x.sete.compras):"—","por compra (7 dias)"],conversas];
+  }
+  function cartaoAtivo(x){
+    var o=x.orcamento,pct=o&&o.tipo==="dia"&&o.valor>0?Math.min(100,Math.round(x.hoje.gasto/o.valor*100)):null;
+    return ce("button",{key:x.id,className:"at-card",onClick:function(){setAdAberto(x);}},
+      ce("div",{className:"at-top"},ce("div",{className:"thumb",style:{width:62,height:82}},img(x.capa)),
+        ce("div",{style:{minWidth:0,display:"flex",flexDirection:"column",gap:6,alignItems:"flex-start"}},seloSt(x.situacao),ce("b",{className:"at-nome"},x.nome),ce("span",{className:"rs-sub"},[x.objetivo,quandoAtivo(x)].filter(Boolean).join(" · ")))),
+      ce("div",null,ce("div",{className:"at-gl"},ce("span",null,"Gasto hoje"),ce("span",null,ce("b",null,brl(x.hoje.gasto)),o?ce("span",{style:{color:"var(--mu)"}},o.tipo==="dia"?" de "+brl(o.valor)+"/dia":" · total de "+brl(o.valor)):null)),pct!=null?ce("div",{className:"rs-bar fina"},ce("i",{style:{width:Math.max(2,pct)+"%",background:"var(--ac)"}})):null),
+      ce("div",{className:"at-res"},resultadoAtivo(x).map(function(r,i){return ce("div",{key:i},ce("b",null,r[0]),ce("div",{className:"rs-sub"},r[1]));})));
+  }
+  function resAtivos(at){
+    if(!at||(!at.dados&&!at.erro))return blocosCarregando();
+    if(!at.dados)return erroPainel(at.erro,function(){carregarAtivos(true);});
+    var d=at.dados;
+    if(d.sem_anuncios)return ce("div",{className:"emp"},ce("div",{className:"emp-ic"},"📣"),ce("div",{className:"emp-h"},"Conta de anúncios não conectada"),ce("div",{className:"emp-p"},"Fale com a equipe do MCP Studio para conectar a sua conta de anúncios."));
+    var vivos=d.lista.filter(function(x){return x.situacao==="ativo";}).length;
+    return ce("div",null,
+      ce("div",{className:"rs-info",style:{display:"flex",alignItems:"center",gap:8}},ce("span",{className:"pt-ok vivo","aria-hidden":"true"}),(vivos===1?"1 anúncio ativo agora":vivos+" anúncios ativos agora")+" · atualizado "+quando(d.em)),
+      d.lista.length?ce("section",{className:"rs-card rs-din","aria-label":"Hoje"},
+        ce("div",null,ce("div",{className:"l"},"Gasto hoje"),ce("div",{className:"v"},brl(d.hoje.gasto)),d.hoje.orcamento_dia?ce("div",{className:"rs-sub"},"de "+brl(d.hoje.orcamento_dia)+" por dia"):null),
+        ce("div",null,ce("div",{className:"l"},"Compras hoje"),ce("div",{className:"v ok"},numBR(d.hoje.compras)),ce("div",{className:"rs-sub"},"+ "+numBR(d.hoje.conversas)+(d.hoje.conversas===1?" conversa":" conversas")))):null,
+      d.lista.length?ce("div",{className:"at-lista"},d.lista.map(cartaoAtivo))
+        :ce("div",{className:"emp",style:{padding:"36px 10px"}},ce("div",{className:"emp-ic"},"📣"),ce("div",{className:"emp-h"},"Nenhum anúncio ativo agora"),ce("div",{className:"emp-p"},"Quando um anúncio entrar no ar, ele aparece aqui.")),
+      ce("div",{className:"rs-nota",style:{textAlign:"center"}},"Só leitura: pausar ou mudar um anúncio continua sendo feito no Gerenciador de Anúncios."));
+  }
+  function renderAdAberto(){
+    var x=adAberto,st=numerosAd[x.id+"|"+perAd]||{},d=st.dados;
+    return ce("div",{className:"content"},ce("div",{className:"pg ad-pg"},
+      ce("button",{className:"back",onClick:function(){setAdAberto(null);}},ico("voltar",22),"Anúncios ativos"),
+      ce("div",{className:"ad-capa"},x.capa?ce("img",{src:x.capa,alt:"",referrerPolicy:"no-referrer",onError:function(e){e.target.style.display="none";}}):ce("span",{className:"thumb-vazio"},ico("videos",40,"var(--mu)")),ce("div",{className:"ad-selo"},seloSt(x.situacao))),
+      ce("div",{className:"ad-nome"},x.nome),
+      ce("div",{className:"rs-sub",style:{fontSize:13,marginBottom:10}},[x.objetivo,quandoAtivo(x),textoOrc(x.orcamento)].filter(Boolean).join(" · ")),
+      x.link?ce("a",{href:linkIG(x.link),target:"_blank",rel:"noopener",className:"link-mini",style:{display:"inline-block",marginBottom:12,textDecoration:"none"}},"Ver no Instagram ↗"):null,
+      barraPeriodo(perAd,setPerAd),
+      d&&d.periodo?ce("div",{className:"rs-info"},dataBR(d.periodo.inicio)+" a "+dataBR(d.periodo.fim)):null,
+      d?ce("div",{className:"rs-tiles"},tileRs("Valor investido",brl(d.gasto)),tileRs("Valor em vendas",brl(d.receita),null,"var(--ok)"),tileRs("Alcance",numBR(d.alcance)),tileRs("Cliques no link",numBR(d.cliques_link)),tileRs("Compras",numBR(d.compras)),tileRs("Conversas",numBR(d.conversas)))
+        :st.erro?erroPainel(st.erro,function(){carregarAd(true);}):blocosCarregando(1)));
+  }
+  function renderResultados(){
+    if(adAberto)return renderAdAberto();
+    var at=ativosLoja&&ativosLoja.uid===uidLojaAberta?ativosLoja:null;
+    return ce("div",{className:"content"},ce("div",{className:"pg"},
+      ce("div",{className:"pg-h",style:{marginBottom:10}},"Resultados"),
+      ce("div",{className:"seg",role:"tablist","aria-label":"Resultados"},
+        ce("button",{role:"tab","aria-selected":resAba==="geral",className:resAba==="geral"?"on":"",onClick:function(){setResAba("geral");}},"Visão geral"),
+        ce("button",{role:"tab","aria-selected":resAba==="ativos",className:resAba==="ativos"?"on":"",onClick:function(){setResAba("ativos");}},ce("span",{className:"pt-ok","aria-hidden":"true"}),"Anúncios ativos",nAtivos!=null?ce("span",{className:"rs-n"},nAtivos):null)),
+      resAba==="geral"?resGeral():resAtivos(at)));
+  }
   // ---------- VIDEOS: organicos (grade do Instagram) e anuncios (lista) ----------
   function renderVideos(){
     if(videoSel)return videoSel.tipo==="story"?renderStoryDet():renderDetalhe();
@@ -2026,10 +2246,11 @@ function App(){
     ));
   }
   function ftag(f){if(!f)return null;var m={topo:"TOPO",meio:"MEIO",fundo:"FUNDO",ugc:"UGC"};return ce("span",{className:"tag "+f},m[f]||f.toUpperCase());}
-  var titles={ideias:"Ideias de conteúdo",home:"Início",briefing:"Novo roteiro",results:(activeProject&&activeProject.name)||"Roteiros",history:"Roteiros",videos:"Vídeos",conta:"Conta"};
+  var titles={ideias:"Ideias de conteúdo",home:"Início",briefing:"Novo roteiro",results:(activeProject&&activeProject.name)||"Roteiros",history:"Roteiros",videos:"Vídeos",resultados:"Resultados",conta:"Conta"};
   var abaAtiva=view==="results"?"history":view;
+  function itemMenu(item){var on=item.id==="history"?(view==="history"||view==="results"):view===item.id;return ce("button",{key:item.id,className:"sb-btn"+(on?" on":""),onClick:function(){irPara(item.id);}},item.lb,item.bx&&ce("span",{className:"bx"},item.bx));}
   var tabbar=ce("nav",{className:"tabbar","aria-label":"Menu principal"},
-    [{id:"home",lb:"Início",ic:"home"},{id:"videos",lb:"Vídeos",ic:"videos"},{id:"briefing",plus:true},{id:"ideias",lb:"Ideias",ic:"ideias"},{id:"history",lb:"Roteiros",ic:"roteiros"},{id:"conta",lb:"Conta",ic:"conta"}].map(function(t){
+    [{id:"home",lb:"Início",ic:"home"},{id:"videos",lb:"Vídeos",ic:"videos"},{id:"briefing",plus:true},{id:"ideias",lb:"Ideias",ic:"ideias"},{id:"history",lb:"Roteiros",ic:"roteiros"},{id:"resultados",lb:"Resultados",ic:"resultados"},{id:"conta",lb:"Conta",ic:"conta"}].map(function(t){
       if(t.plus)return ce("button",{key:t.id,className:"tb-plus","aria-label":"Novo roteiro",onClick:function(){irPara("briefing");}},ico("mais",24,"#fff",2.6));
       var on=abaAtiva===t.id;
       return ce("button",{key:t.id,className:"tb-it"+(on?" on":""),"aria-current":on?"page":undefined,onClick:function(){irPara(t.id);}},ico(t.ic,24,on?"var(--ac)":"currentColor"),t.lb);
@@ -2042,7 +2263,12 @@ function App(){
     ce("aside",{className:"sb"+(sbOpen?" op":"")},
       ce("div",{className:"sb-logo"},ce("div",{className:"sb-mark"},"M"),ce("div",{className:"sb-name"},"MCP",ce("span",null,"Studio"))),
       ce("div",{className:"sb-nav"},ce("div",{className:"sb-lbl"},"Menu"),
-        [{id:"home",lb:"Início"},{id:"ideias",lb:"Ideias"},{id:"videos",lb:"Vídeos"},{id:"briefing",lb:"Novo roteiro"},{id:"history",lb:"Roteiros",bx:projects.length||null},{id:"conta",lb:"Conta"}].map(function(item){var on=item.id==="history"?(view==="history"||view==="results"):view===item.id;return ce("button",{key:item.id,className:"sb-btn"+(on?" on":""),onClick:function(){irPara(item.id);}},item.lb,item.bx&&ce("span",{className:"bx"},item.bx));})
+        [{id:"home",lb:"Início"},{id:"ideias",lb:"Ideias"},{id:"videos",lb:"Vídeos"},{id:"briefing",lb:"Novo roteiro"},{id:"history",lb:"Roteiros",bx:projects.length||null}].map(itemMenu),
+        // resultados da loja: logo abaixo de Roteiros, num grupo separado
+        ce("div",{className:"sb-grupo"},ce("div",{className:"sb-lbl"},"Resultados"),
+          ce("button",{className:"sb-btn sub"+(view==="resultados"&&resAba==="geral"?" on":""),onClick:function(){setResAba("geral");irPara("resultados");}},"Visão geral"),
+          ce("button",{className:"sb-btn sub"+(view==="resultados"&&resAba==="ativos"?" on":""),onClick:function(){setResAba("ativos");irPara("resultados");}},ce("span",{className:"pt-ok","aria-hidden":"true"}),"Anúncios ativos",nAtivos!=null?ce("span",{className:"bx ok"},nAtivos):null)),
+        itemMenu({id:"conta",lb:"Conta"})
       ),
       projects.length>0&&ce("div",{className:"sb-nav",style:{marginTop:16}},
         ce("div",{className:"sb-lbl"},"Recentes"),
@@ -2146,6 +2372,7 @@ function App(){
         );
       }(),
       view==="videos"&&renderVideos(),
+      view==="resultados"&&renderResultados(),
       view==="ideias"&&renderIdeias(),
       (view==="history"||(view==="results"&&!activeProject))&&renderRoteiros(),
       view==="conta"&&renderConta()
