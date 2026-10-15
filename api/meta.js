@@ -208,7 +208,10 @@ async function coletarAnuncios(adAccountId, token) {
     // criativo (miniatura, texto e video) dos melhores
     if (top.length) {
         try {
-            const d = await g("/", { ids: top.map(function (x) { return x.id; }).join(","), fields: "creative{thumbnail_url,image_url,video_id,body,title,object_story_spec}" }, token);
+            // a Meta nao aceita mais o "ids" (v26): pergunta pela propria conta, filtrando pelos anuncios
+            const r = await g(act + "/ads", { fields: "id,creative{thumbnail_url,image_url,video_id,body,title,object_story_spec}", filtering: JSON.stringify([{ field: "ad.id", operator: "IN", value: top.map(function (x) { return x.id; }) }]), limit: 50 }, token);
+            const d = {};
+            ((r && r.data) || []).forEach(function (a) { d[a.id] = a; });
             top.forEach(function (x) {
                 const c = (d[x.id] && d[x.id].creative) || {}, oss = c.object_story_spec || {}, vd = oss.video_data || {}, ld = oss.link_data || {};
                 x.miniatura = c.thumbnail_url || c.image_url || vd.image_url || "";

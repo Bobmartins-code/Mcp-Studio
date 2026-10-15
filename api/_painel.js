@@ -137,8 +137,10 @@ async function painel(uid, per) {
             const destinos = await parte("destino das conversas", avisos, async function () {
                 const mapa = {};
                 for (let i = 0; i < com.length; i += 50) {
-                    const d = await meta.g("/", { ids: com.slice(i, i + 50).map(function (r) { return r.adset_id; }).join(","), fields: "destination_type" }, token);
-                    Object.keys(d || {}).forEach(function (k) { mapa[k] = d[k] && d[k].destination_type; });
+                    // a Meta nao aceita mais o "ids" (v26): pergunta pela propria conta, filtrando pelos conjuntos
+                    const ids = com.slice(i, i + 50).map(function (r) { return r.adset_id; });
+                    const d = await meta.g("/" + loja.act + "/adsets", { fields: "id,destination_type", filtering: JSON.stringify([{ field: "adset.id", operator: "IN", value: ids }]), limit: 50 }, token);
+                    ((d && d.data) || []).forEach(function (s) { mapa[s.id] = s.destination_type; });
                 }
                 return mapa;
             });
