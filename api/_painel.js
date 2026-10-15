@@ -53,6 +53,15 @@ async function guardado(chave, ms, fn) {
 }
 
 // cada parte que falhar fica vazia (null) e a tela esconde o bloco; o resto aparece
+// visitas ao perfil pelos anuncios: o campo novo (numero ou lista de acoes) ou, se vier, uma acao de visita ao perfil
+const RE_VISITA = /profile_visit|ig_profile|instagram_profile/i;
+function visitasDosAnuncios(linhas, conta) {
+    const r = linhas && linhas[0], v = r && r.instagram_profile_visits;
+    if (Array.isArray(v)) return v.reduce(function (s, x) { return s + num(x && x.value); }, 0);
+    if (v != null && v !== "") return num(v);
+    const acoes = ((conta && conta[0] && conta[0].actions) || []).filter(function (x) { return RE_VISITA.test(x.action_type || ""); });
+    return acoes.length ? acoes.reduce(function (s, x) { return s + num(x.value); }, 0) : null;
+}
 async function parte(nome, avisos, fn) {
     try { return await fn(); } catch (e) {
         if (e instanceof meta.MetaPausada) throw e;
@@ -115,13 +124,16 @@ async function painel(uid, per) {
         const token = await tokenOuErro(), avisos = [];
         const ins = function (p) { return meta.g("/" + loja.act + "/insights", Object.assign({ time_range: intervalo(f), limit: 200 }, p), token).then(function (d) { return (d && d.data) || []; }); };
 
-        const [conta, porIdade, porRegiao, porConjunto, porPlataforma, ig] = await Promise.all([
+        const [conta, porIdade, porRegiao, porConjunto, porPlataforma, ig, visitasAds] = await Promise.all([
             loja.act ? parte("anúncios", avisos, function () { return ins({ level: "account", fields: "spend,impressions,reach,clicks,inline_link_clicks,actions,action_values" }); }) : null,
             loja.act ? parte("idade", avisos, function () { return ins({ level: "account", fields: "actions", breakdowns: "age" }); }) : null,
             loja.act ? parte("região", avisos, function () { return ins({ level: "account", fields: "actions", breakdowns: "region" }); }) : null,
             loja.act ? parte("conversas", avisos, function () { return ins({ level: "adset", fields: "adset_id,actions" }); }) : null,
             loja.act ? parte("plataformas", avisos, function () { return ins({ level: "account", fields: "impressions,reach", breakdowns: "publisher_platform" }); }) : null,
-            loja.ig ? parte("instagram", avisos, function () { return instagramDoPeriodo(loja.ig, f, token); }) : null
+            loja.ig ? parte("instagram", avisos, function () { return instagramDoPeriodo(loja.ig, f, token); }) : null,
+            // visitas ao perfil vindas dos anuncios: metrica nova da Meta (dez/2025), ainda nao liberada em toda conta;
+            // se a Meta recusar, a tela fica so com o total (sem aviso)
+            loja.act && loja.ig ? ins({ level: "account", fields: "instagram_profile_visits" }).catch(function (e) { if (e instanceof meta.MetaPausada) throw e; console.error("[painel] visitas dos anuncios: " + (e && e.message)); return null; }) : null
         ]);
 
         if (conta) {
@@ -170,13 +182,16 @@ async function painel(uid, per) {
         if (ig) {
             const noIg = (porPlataforma || []).find(function (r) { return r.publisher_platform === "instagram"; }) || null;
             const o = { seguidores: ig.seguidores, novos_seguidores: ig.novos_seguidores, visitas_perfil: ig.visitas_perfil, impressoes: null, alcance: null, alcance_aprox: true };
+            // visitas: total do Instagram menos as que vieram dos anuncios (mesma estimativa das impressoes)
+            const va = visitasDosAnuncios(visitasAds, conta);
+            if (va != null && ig.visitas_perfil != null) { o.visitas_anuncios = va; o.visitas_organico = Math.max(0, ig.visitas_perfil - va); }
             if (ig.views != null) o.impressoes = Math.max(0, ig.views - (noIg ? num(noIg.impressions) : 0));
             if (ig.alcance != null) o.alcance = Math.max(0, ig.alcance - (noIg ? num(noIg.reach) : 0));
             o.total_instagram = { impressoes: ig.views, alcance: ig.alcance, anuncios_impressoes: noIg ? num(noIg.impressions) : null, anuncios_alcance: noIg ? num(noIg.reach) : null };
             out.organico = o;
         }
         if (avisos.length) out.faltou = avisos;
-        console.log("[painel] " + uid.slice(0, 8) + " " + f.per + " " + JSON.stringify({ anuncios: out.anuncios, conversas: out.conversas, novos_contatos: out.novos_contatos, ig: out.organico && out.organico.total_instagram, faltou: out.faltou || [] }));
+        console.log("[painel] " + uid.slice(0, 8) + " " + f.per + " " + JSON.stringify({ anuncios: out.anuncios, conversas: out.conversas, novos_contatos: out.novos_contatos, visitas_anuncios: out.organico ? out.organico.visitas_anuncios : null, ig: out.organico && out.organico.total_instagram, faltou: out.faltou || [] }));
         return out;
     });
 }

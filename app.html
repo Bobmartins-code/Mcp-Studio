@@ -1691,7 +1691,7 @@ function App(){
   function reguaDestinos(titulo,total,c,primeira){
     var partes=c?DESTINOS.filter(function(d){return c[d[0]]>0;}):[],soma=partes.reduce(function(s,d){return s+c[d[0]];},0);
     return ce("div",{style:primeira?null:{marginTop:16,paddingTop:16,borderTop:"1px solid var(--bo)"}},
-      ce("div",{className:"rs-th"},ce("h2",{className:"rs-t",style:{margin:0}},titulo),ce("b",{className:"rs-big"},numBR(total))),
+      ce("div",{className:"rs-th",style:{flexWrap:"nowrap"}},ce("h2",{className:"rs-t",style:{margin:0,minWidth:0}},titulo),ce("b",{className:"rs-big",style:{flexShrink:0}},numBR(total))),
       soma>0?ce("div",{className:"rs-bar","aria-hidden":"true",style:{marginBottom:10}},partes.map(function(d){return ce("i",{key:d[0],style:{width:(c[d[0]]/soma*100)+"%",background:d[2]}});})):null,
       soma>0?ce("div",{className:"rs-tiles dois",style:{gap:"8px 16px",gridTemplateColumns:"1fr 1fr"}},partes.map(function(d){return ce("div",{key:d[0],style:{display:"flex",alignItems:"center",gap:8,fontSize:13}},ce("span",{"aria-hidden":"true",style:{width:10,height:10,borderRadius:3,background:d[2],flexShrink:0}}),ce("span",{style:{color:"var(--mu2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}},d[1]),ce("b",{style:{marginLeft:"auto",paddingLeft:6}},numBR(c[d[0]])));})):null);
   }
@@ -1722,11 +1722,12 @@ function App(){
       tileRs("Impressões",numBR(a.impressoes)),tileRs("Alcance",numBR(a.alcance),"pessoas diferentes"),tileRs("Cliques",numBR(a.cliques)),
       tileRs("Cliques no link",numBR(a.cliques_link)),tileRs("Engajamento com a página",numBR(a.engajamento)),tileRs("Compras",numBR(a.compras),null,"var(--ok)")));
     var conv=a&&(a.conversas>0||a.novos_contatos>0)?blocoConversas(a,d):null;
-    var vis=o&&o.visitas_perfil!=null?ce("section",{className:"rs-card rs-linha","aria-label":"Visitas ao perfil"},ce("div",null,ce("h2",{className:"rs-t",style:{margin:0}},"Visitas ao perfil"),ce("div",{className:"rs-sub"},"com e sem anúncio")),ce("b",{className:"rs-big"},numBR(o.visitas_perfil))):null;
+    var vis=o&&o.visitas_perfil!=null?ce("section",{className:"rs-card rs-linha","aria-label":"Visitas ao perfil"},ce("div",null,ce("h2",{className:"rs-t",style:{margin:0}},"Visitas ao perfil"),ce("div",{className:"rs-sub"},o.visitas_anuncios!=null?numBR(o.visitas_anuncios)+" pelos anúncios · ≈ "+numBR(o.visitas_organico)+" sem anúncio":"com e sem anúncio")),ce("b",{className:"rs-big"},numBR(o.visitas_perfil))):null;
     var comp=o?ce("section",{className:"rs-card","aria-label":"Anúncios e orgânico"},
       ce("div",{className:"rs-th"},ce("h2",{className:"rs-t",style:{margin:0}},a?"Anúncios × orgânico":"Orgânico"),a?ce("div",{className:"rs-leg"},ce("span",null,ce("i",{style:{background:"#FF8A50"}}),"Anúncios"),ce("span",null,ce("i",{style:{background:"#4FD1C5"}}),"Orgânico")):null),
       linhaComp("Impressões",a?a.impressoes:null,o.impressoes),
       linhaComp("Alcance",a?a.alcance:null,o.alcance),
+      o.visitas_anuncios!=null?linhaComp("Visitas ao perfil",o.visitas_anuncios,o.visitas_organico):null,
       ce("div",{className:"rs-tiles dois",style:{marginTop:12,paddingTop:12,borderTop:"1px solid var(--bo)",gridTemplateColumns:"1fr 1fr"}},tileRs("Seguidores",o.seguidores!=null?numBR(o.seguidores):"-","total hoje"),o.novos_seguidores!=null?tileRs("Novos seguidores","+"+numBR(o.novos_seguidores),"no período","#4FD1C5"):null),
       ce("div",{className:"rs-nota"},"No Instagram, as impressões se chamam visualizações. O orgânico é uma estimativa: o total da conta menos o que veio dos anúncios no Instagram.")):null;
     var idade=pub&&pub.idade.length?barrasPct(pub.idade.map(function(x){return {nome:x.nome.replace("-","–"),valor:x.valor};}),9):null;
