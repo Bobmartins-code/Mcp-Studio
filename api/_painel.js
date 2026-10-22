@@ -236,7 +236,8 @@ async function instagramDoPeriodo(igId, f, token) {
 }
 
 // ---------- ANUNCIOS ATIVOS AGORA ----------
-const STATUS_VIVOS = ["ACTIVE", "PENDING_REVIEW", "IN_PROCESS", "WITH_ISSUES"];
+// so o que esta ativo: em analise e com problema ficam de fora (decisao do dono, 22/10/2026)
+const STATUS_VIVOS = ["ACTIVE"];
 const MENSAGENS = /WHATSAPP|INSTAGRAM_DIRECT|MESSENGER/i;
 function objetivoDe(campanha, conjunto) {
     if (MENSAGENS.test((conjunto && conjunto.destination_type) || "")) return "Mensagens";
@@ -256,7 +257,7 @@ function situacaoDe(s) {
 }
 // o anuncio so esta no ar se a campanha e o conjunto tambem estiverem (como a coluna Veiculacao do Gerenciador):
 // ligados, ja comecados, sem data de termino vencida e com orcamento total sobrando
-const PAI_NO_AR = ["ACTIVE", "IN_PROCESS", "WITH_ISSUES"];
+const PAI_NO_AR = ["ACTIVE"];
 function foraDoAr(pai, nivel) {
     if (!pai) return null;
     const agora = Date.now(), fim = pai.end_time || pai.stop_time;
@@ -266,13 +267,6 @@ function foraDoAr(pai, nivel) {
     if (pai.start_time && new Date(pai.start_time).getTime() > agora) return nivel + ": ainda não começou";
     if (num(pai.lifetime_budget) > 0 && pai.budget_remaining != null && num(pai.budget_remaining) <= 0) return nivel + ": orçamento total acabou";
     return null;
-}
-// anuncio ligado, mas campanha ou conjunto com problema ou em analise: mostra o pior dos 3
-function situacaoComPais(a) {
-    const s = [a.effective_status, a.adset && a.adset.effective_status, a.campaign && a.campaign.effective_status];
-    if (s.indexOf("WITH_ISSUES") > -1) return "problema";
-    if (s.some(function (x) { return x && x !== "ACTIVE"; })) return "analise";
-    return situacaoDe(a.effective_status);
 }
 // orcamento vem em centavos; no CBO fica na campanha
 function orcamentoDe(campanha, conjunto) {
@@ -319,7 +313,7 @@ async function ativos(uid) {
             const c = a.creative || {}, orc = orcamentoDe(a.campaign, a.adset);
             if (orc && a.effective_status === "ACTIVE" && orc.tipo === "dia") orcamentos[orc.de] = orc.valor;
             return {
-                id: a.id, nome: a.name || "Anúncio", situacao: situacaoComPais(a), objetivo: objetivoDe(a.campaign, a.adset),
+                id: a.id, nome: a.name || "Anúncio", situacao: situacaoDe(a.effective_status), objetivo: objetivoDe(a.campaign, a.adset),
                 desde: a.created_time || null, orcamento: orc ? { tipo: orc.tipo, valor: orc.valor } : null,
                 capa: c.image_url || c.thumbnail_url || "", link: c.instagram_permalink_url || "",
                 hoje: resumoDe(porHoje[a.id]), sete: resumoDe(porSete[a.id])
@@ -354,4 +348,4 @@ async function anuncio(uid, adId, per) {
     });
 }
 
-module.exports = { painel, ativos, anuncio, _interno: { faixaDoPeriodo, janelas, destinoDe, faixasDe, objetivoDe, orcamentoDe, situacaoDe, foraDoAr, situacaoComPais, guardados } };
+module.exports = { painel, ativos, anuncio, _interno: { faixaDoPeriodo, janelas, destinoDe, faixasDe, objetivoDe, orcamentoDe, situacaoDe, foraDoAr, guardados } };
