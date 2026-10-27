@@ -114,7 +114,7 @@ async function conexao() {
 
 // ---------- apoio ----------
 function num(x) { const n = Number(x); return isFinite(n) ? n : 0; }
-function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n) + "..." : t; }
+function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); if (t.length <= n) return t; const c = t.slice(0, n); return (/[\uD800-\uDBFF]$/.test(c) ? c.slice(0, -1) : c) + "..."; }
 function ehCodigo(id) { return /^\d{8,}$/.test(String(id || "")); }
 function velho(iso, ms) { return !iso || Date.now() - new Date(iso).getTime() >= ms; }
 function espera(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }

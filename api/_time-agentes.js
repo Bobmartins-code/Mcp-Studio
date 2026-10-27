@@ -49,6 +49,7 @@
 const crypto = require("crypto");
 const { banco } = require("./_seguranca.js");
 const { registrarUso } = require("./_uso-ia.js");
+const { jsonParaIA } = require("./_texto.js");
 const { diaSP, assinaturaDe } = require("./_coleta.js");
 const { enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia } = require("./_meta-leitura.js");
 const { textoVisual } = require("./_olhos.js");
@@ -323,7 +324,7 @@ async function perguntar(userId, p, aoComecar) {
         const resta = p.prazo ? p.prazo - Date.now() : 170000;
         if (resta < 15000) throw new Error(p.nome + ": sem tempo para terminar nesta rodada");
         try {
-            r = await fetch(API + "/messages", { method: "POST", headers: cabecalhos(), body: JSON.stringify(corpo), signal: AbortSignal.timeout(Math.min(170000, resta)) });
+            r = await fetch(API + "/messages", { method: "POST", headers: cabecalhos(), body: jsonParaIA(corpo), signal: AbortSignal.timeout(Math.min(170000, resta)) });
         } catch (e) {
             if (t < 2) { await espera(1500 * (t + 1)); continue; }
             throw new Error(p.nome + ": " + (e.name === "TimeoutError" || e.name === "AbortError" ? "a IA demorou demais" : "falha de rede"));
@@ -348,7 +349,7 @@ async function perguntar(userId, p, aoComecar) {
 async function criarLote(pedidos) {
     const r = await fetch(API + "/messages/batches", {
         method: "POST", headers: cabecalhos(), signal: AbortSignal.timeout(60000),
-        body: JSON.stringify({ requests: pedidos.map(function (p) { return { custom_id: p.chave, params: corpoDe(p) }; }) })
+        body: jsonParaIA({ requests: pedidos.map(function (p) { return { custom_id: p.chave, params: corpoDe(p) }; }) })
     });
     const d = await r.json().catch(function () { return {}; });
     if (!r.ok || !d.id) throw new Error("Lote: " + ((d.error && d.error.message) || ("erro " + r.status)));
@@ -368,7 +369,7 @@ async function resultadosDoLote(url) {
 
 // ---------- preparo dos dados ----------
 function arred(n, c) { const f = Math.pow(10, c || 0); return Math.round((n || 0) * f) / f; }
-function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n) + "..." : t; }
+function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); if (t.length <= n) return t; const c = t.slice(0, n); return (/[\uD800-\uDBFF]$/.test(c) ? c.slice(0, -1) : c) + "..."; }
 function brl(n) { return "R$ " + arred(n, 2).toFixed(2).replace(".", ","); }
 function dataCurta(iso) { return iso ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }).format(new Date(iso)) : ""; }
 

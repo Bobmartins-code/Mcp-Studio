@@ -12,6 +12,7 @@
 const fs = require("fs"), os = require("os"), path = require("path");
 const { execFile } = require("child_process");
 const { registrarUso } = require("./_uso-ia.js");
+const { jsonParaIA } = require("./_texto.js");
 
 const MODELO = "claude-sonnet-5";
 const LIMITE_BYTES = 40 * 1024 * 1024;
@@ -114,7 +115,7 @@ async function descrever(userId, q, extra) {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST", signal: AbortSignal.timeout(60000),
         headers: { "Content-Type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY || "", "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: MODELO, max_tokens: 2500, messages: [{ role: "user", content: conteudo }], output_config: { effort: "low", format: { type: "json_schema", schema: ESQ_VISUAL } } })
+        body: jsonParaIA({ model: MODELO, max_tokens: 2500, messages: [{ role: "user", content: conteudo }], output_config: { effort: "low", format: { type: "json_schema", schema: ESQ_VISUAL } } })
     });
     const d = await r.json().catch(function () { return {}; });
     if (!r.ok) throw new Error((d.error && d.error.message) || ("erro " + r.status));

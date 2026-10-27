@@ -46,7 +46,7 @@ const SISTEMA_CENTRAL = "Você é o CÉREBRO CENTRAL do MCP Studio, um sistema q
     "6. Algumas lojas trazem VENDAS (o padrão das vendas reais delas, sem números). Use para lições que ligam formato e momento à venda (ex.: lojas que vivem de cliente que volta e vendem mais na primeira quinzena), sempre com 3 lojas ou mais.\n" +
     "Escreva em português do Brasil, com acentuação completa, frases simples.";
 
-function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n) + "..." : t; }
+function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); if (t.length <= n) return t; const c = t.slice(0, n); return (/[\uD800-\uDBFF]$/.test(c) ? c.slice(0, -1) : c) + "..."; }
 function semAcento(t) { return String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
 
 // tira da entrada o que identifica a loja (a IA nem chega a ver)

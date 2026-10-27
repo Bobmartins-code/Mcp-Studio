@@ -51,7 +51,7 @@ async function emLotes(itens, qtd, fn) {
 
 function mediana(v) { const a = v.filter(x => isFinite(x)).sort((x, y) => x - y); if (!a.length) return 0; const m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
 function num(x) { const n = Number(x); return isFinite(n) ? n : 0; }
-function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n) + "..." : t; }
+function corta(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); if (t.length <= n) return t; const c = t.slice(0, n); return (/[\uD800-\uDBFF]$/.test(c) ? c.slice(0, -1) : c) + "..."; }
 
 // ---------- ORGANICO ----------
 function lerInsights(d) {

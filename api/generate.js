@@ -1,6 +1,7 @@
 const { acessoLiberado, SEM_ACESSO, banco } = require("./_seguranca.js");
 const LIMITE_DIA = 80; // pedidos por dia por loja nesta rota
 const { registrarUso, registrarFalha } = require("./_uso-ia.js");
+const { jsonParaIA } = require("./_texto.js");
 // Agente MCP: o cerebro do agente (quem ele e, como escreve e os metodos) fica em api/_agente-mcp.js
 const { SISTEMA: AGENTE } = require("./_agente-mcp.js");
 const FORMATO = "FORMATO DA RESPOSTA: quando o pedido for JSON, responda só com o JSON puro, sem markdown. Dentro dos textos, use aspas simples para citações, porque aspas duplas quebram o JSON e a cliente perde o resultado.";
@@ -68,7 +69,7 @@ module.exports = async function handler(req, res) {
             r = await fetch("https://api.anthropic.com/v1/messages", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-                body: JSON.stringify(Object.assign({
+                body: jsonParaIA(Object.assign({
                     model: model,
                     max_tokens: maxTokens,
                     system: SYSTEM,
@@ -133,7 +134,7 @@ module.exports = async function handler(req, res) {
                 "x-api-key": apiKey,
                 "anthropic-version": "2023-06-01"
             },
-            body: JSON.stringify(Object.assign({
+            body: jsonParaIA(Object.assign({
                 model: model,
                 max_tokens: maxTokens,
                 system: SYSTEM,
