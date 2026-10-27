@@ -37,6 +37,17 @@ function faixaDoPeriodo(per) {
     if (p === "7" || p === "30" || p === "90") return { per: p, inicio: diaSP(new Date(hoje.getTime() - (Number(p) - 1) * DIA)), fim: fim };
     if (p === "mes") return { per: p, inicio: fim.slice(0, 7) + "-01", fim: fim };
     if (p === "mes_ant") { const ult = diaSP(new Date(new Date(fim.slice(0, 7) + "-01T12:00:00Z").getTime() - DIA)); return { per: p, inicio: ult.slice(0, 7) + "-01", fim: ult }; }
+    // personalizado: "pers:AAAA-MM-DD:AAAA-MM-DD" (o texto inteiro vira a chave do guardado)
+    const m = /^pers:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/.exec(p);
+    if (m) {
+        const erro = function (msg) { return Object.assign(new Error(msg), { status: 400 }); };
+        if (m[1] > m[2]) throw erro("A data de início precisa ser antes da data de fim.");
+        if (m[2] > fim) throw erro("A data de fim não pode ser depois de hoje.");
+        // o Instagram so guarda os numeros dos ultimos 2 anos; e ate 1 ano por vez para abrir rapido
+        if (m[1] < diaSP(new Date(hoje.getTime() - 730 * DIA))) throw erro("O Instagram só guarda os números dos últimos 2 anos. Escolha uma data mais recente.");
+        if ((new Date(m[2] + "T12:00:00Z") - new Date(m[1] + "T12:00:00Z")) / DIA > 365) throw erro("Escolha no máximo 1 ano por vez.");
+        return { per: p, inicio: m[1], fim: m[2] };
+    }
     throw Object.assign(new Error("Período inválido."), { status: 400 });
 }
 function intervalo(f) { return JSON.stringify({ since: f.inicio, until: f.fim }); }
