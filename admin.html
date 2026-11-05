@@ -111,6 +111,9 @@ tr:hover td{background:var(--sur2)}
 .res-custom input{background:var(--sur2);border:1px solid var(--bo);border-radius:8px;color:var(--tx);font-size:14px;padding:9px 10px;color-scheme:dark}
 .num-td{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .res-custom[hidden]{display:none}
+.tk-faixa{background:rgba(255,138,80,.10);border:1px solid rgba(255,138,80,.40);border-radius:16px;padding:14px 16px;margin:-6px 0 20px}.tk-tit{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--ac2);margin-bottom:10px}.tk-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.tk{background:var(--sur2);border:1px solid var(--bo);border-radius:12px;padding:12px 14px;min-width:0}.tk-l{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--mu2)}.tk-l i,.th-i{width:9px;height:9px;border-radius:3px;display:inline-block;flex-shrink:0}.th-i{width:8px;height:8px;border-radius:2px;margin-right:5px}.tk-v{font-family:'DM Sans',sans-serif;font-weight:700;font-size:clamp(18px,1.6vw,24px);letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap;margin-top:4px}.tk-s{font-size:12px;color:var(--mu)}.i-ads{background:#FF8A50}.i-loja{background:#4FD1C5}.i-total{background:var(--tx)}th.tk-n{color:var(--ac2)}.tk-n{background:rgba(255,138,80,.07)}
+@media(max-width:700px){.tk-grade{grid-template-columns:1fr}}
+#res-tabela td:first-child{min-width:190px}#res-tabela .loja-nome{white-space:nowrap}
 #res-tiles .tile-v{font-family:'DM Sans',sans-serif;font-weight:700;font-size:clamp(19px,1.75vw,26px);white-space:nowrap;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
 #res-tabela td,#res-tabela th{font-family:'DM Sans',sans-serif}
 #res-tabela td{font-size:14px;font-weight:500;font-variant-numeric:tabular-nums;vertical-align:middle}
@@ -305,6 +308,7 @@ tr.clic{cursor:pointer}
       </div>
       <div class="mini" id="res-info" style="margin:0 0 14px"></div>
       <div class="tiles" id="res-tiles"></div>
+      <div id="res-tickets"></div>
       <div class="section"><div style="overflow-x:auto" id="res-tabela"></div></div>
       <div class="ocultas" id="res-ocultas"></div>
       <div class="mini" id="res-crm-erro" style="color:var(--ac2);margin-bottom:6px"></div><div class="mini">Faturamento total vem do CRM da loja: todas as vendas registradas lá, inclusive loja física e WhatsApp ("-" quando a loja não está no CRM). Vendas de anúncios é o valor das compras que a Meta registrou (pelo pixel do site ou pelo catálogo). Loja que vende pelo direct ou WhatsApp aparece com conversas iniciadas: a venda dela acontece fora da Meta e não entra nas vendas de anúncios (só no faturamento total, quando a loja está no CRM).</div>
@@ -440,6 +444,13 @@ function nichoSalvo(p){if(p.form&&p.form.nicho)return p.form.nicho;var rs=p.roda
 function csvSeguro(t){t=String(t==null?"":t).replace(/"/g,'""');return /^[=+\-@]/.test(t)?"'"+t:t;}
 function escHtml(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
 // ===== resultados: investimento e vendas de todas as lojas (direto da Meta) =====
+// ticket medio: dos anuncios (Meta), da loja (o que vendeu sem anuncio) e total (CRM)
+function ticketsAdm(receita,compras,fat,vendas,recCrm,compCrm){
+  var div=function(v,n){return n>0&&v>0?v/n:null;},o={ads:div(receita,compras),loja:null,total:null,nLoja:null};
+  if(fat!=null&&vendas>0){o.total=div(fat,vendas);var n=vendas-(compCrm||0);if(n>0&&fat-(recCrm||0)>0){o.loja=(fat-(recCrm||0))/n;o.nLoja=n;}}
+  return o;
+}
+function celulasTicket(o){return [o.ads,o.loja,o.total].map(function(v){return '<td class="num-td tk-n">'+(v!=null?brlAdm(v):"-")+'</td>';}).join("");}
 var resCarregado=false,resPer="p30",resSeq=0,resDados=null;
 var resOcultas=(function(){try{return JSON.parse(localStorage.getItem("mcp_res_ocultas")||"[]");}catch(e){return [];}})();
 function ocultarLoja(uid,sim){resOcultas=resOcultas.filter(function(x){return x!==uid;});if(sim)resOcultas.push(uid);try{localStorage.setItem("mcp_res_ocultas",JSON.stringify(resOcultas));}catch(e){}desenharResultados();}
@@ -478,20 +489,22 @@ function desenharResultados(){
   var info=document.getElementById("res-info"),tiles=document.getElementById("res-tiles"),tab=document.getElementById("res-tabela"),oc=document.getElementById("res-ocultas");
   var per=d.periodo||{},todas=d.lojas||[];
   var vis=todas.filter(function(l){return resOcultas.indexOf(l.uid)<0;}),esc=todas.filter(function(l){return resOcultas.indexOf(l.uid)>-1;});
-  var t=vis.reduce(function(a,l){a.gasto+=l.gasto;a.receita+=l.receita;a.compras+=l.compras;a.conversas+=l.conversas;if(l.faturamento_total!=null){a.total+=l.faturamento_total;a.comCrm++;}return a;},{gasto:0,receita:0,compras:0,conversas:0,total:0,comCrm:0});
+  var t=vis.reduce(function(a,l){a.gasto+=l.gasto;a.receita+=l.receita;a.compras+=l.compras;a.conversas+=l.conversas;if(l.faturamento_total!=null){a.total+=l.faturamento_total;a.comCrm++;a.crmVendas+=l.crm_vendas||0;a.crmReceita+=l.receita;a.crmCompras+=l.compras;}return a;},{gasto:0,receita:0,compras:0,conversas:0,total:0,comCrm:0,crmVendas:0,crmReceita:0,crmCompras:0});
+  var tkT=ticketsAdm(t.receita,t.compras,t.comCrm?t.total:null,t.crmVendas,t.crmReceita,t.crmCompras),noMes=per.inicio&&per.fim&&per.inicio.slice(8)==="01"&&per.inicio.slice(0,7)===per.fim.slice(0,7);
+  document.getElementById("res-tickets").innerHTML=tkT.ads||tkT.total?'<div class="tk-faixa"><div class="tk-tit">Ticket médio · todas as lojas visíveis</div><div class="tk-grade">'+[["i-ads","Dos anúncios",tkT.ads,nBR(t.compras)+(t.compras===1?" compra":" compras")],["i-loja","Da loja",tkT.loja,tkT.nLoja!=null?nBR(tkT.nLoja)+" vendas sem anúncio":""],["i-total","Total",tkT.total,t.comCrm?nBR(t.crmVendas)+" vendas "+(noMes?"no mês":"no período"):""]].map(function(x){return '<div class="tk"><div class="tk-l"><i class="'+x[0]+'"></i>'+x[1]+'</div><div class="tk-v">'+(x[2]!=null?brlAdm(x[2]):"-")+'</div><div class="tk-s">'+(x[2]!=null?x[3]:"&nbsp;")+'</div></div>';}).join("")+'</div></div>':"";
   t.roas=t.gasto>0?Math.round(t.receita/t.gasto*100)/100:null;
   info.textContent=(per.maximo?"Período máximo"+(per.inicio?": desde "+dataBR(per.inicio):"")+" até "+dataBR(per.fim):"De "+dataBR(per.inicio)+" a "+dataBR(per.fim))+" · "+vis.length+(vis.length===1?" loja":" lojas")+(esc.length?" ("+esc.length+" oculta"+(esc.length===1?"":"s")+")":"")+" · consultado agora na Meta";
   tiles.innerHTML=[["Investido",brlAdm(t.gasto),""],["Vendas de anúncios",brlAdm(t.receita),"var(--ok)"]].concat(t.comCrm?[["Faturamento total",brlAdm(t.total),""]]:[]).concat([["Retorno (ROAS)",t.roas!=null?String(t.roas).replace(".",",")+"x":"-",t.roas>=1?"var(--ok)":""],["Compras",nBR(t.compras),""],["Conversas iniciadas",nBR(t.conversas),""]]).map(function(x){return '<div class="tile"><div class="tile-l">'+x[0]+'</div><div class="tile-v"'+(x[2]?' style="color:'+x[2]+'"':'')+'>'+x[1]+'</div></div>';}).join("");
-  var html='<table><thead><tr><th>Loja</th><th class="num-td">Investido</th><th class="num-td">Vendas de anúncios</th><th class="num-td">Faturamento total</th><th class="num-td">ROAS</th><th class="num-td">Compras</th><th class="num-td">Por compra</th><th class="num-td">Conversas</th><th class="num-td">Por conversa</th><th></th></tr></thead><tbody>';
+  var html='<table><thead><tr><th>Loja</th><th class="num-td">Investido</th><th class="num-td">Vendas de anúncios</th><th class="num-td">Faturamento total</th><th class="num-td tk-n"><span class="th-i i-ads"></span>Ticket anúncios</th><th class="num-td tk-n"><span class="th-i i-loja"></span>Ticket loja</th><th class="num-td tk-n"><span class="th-i i-total"></span>Ticket total</th><th class="num-td">ROAS</th><th class="num-td">Compras</th><th class="num-td">Por compra</th><th class="num-td">Conversas</th><th class="num-td">Por conversa</th><th></th></tr></thead><tbody>';
   vis.forEach(function(l){
     var roas=l.gasto>0&&l.receita>0?String(Math.round(l.receita/l.gasto*100)/100).replace(".",",")+"x":"-";
     html+='<tr><td><div class="loja-nome">'+escHtml(l.nome)+'</div><div class="mini">'+escHtml(l.conta||"")+(l.objetivo==="conversas_visitas"?" · medida por conversas":"")+'</div>'+(l.erro?'<div class="mini" style="color:var(--ac2)">Erro: '+escHtml(l.erro)+'</div>':'')+'</td>'
-      +'<td class="num-td">'+brlAdm(l.gasto)+'</td><td class="num-td" style="color:var(--ok)">'+(l.receita?brlAdm(l.receita):"-")+'</td><td class="num-td">'+(l.faturamento_total!=null?brlAdm(l.faturamento_total):'-')+'</td><td class="num-td">'+roas+'</td>'
+      +'<td class="num-td">'+brlAdm(l.gasto)+'</td><td class="num-td" style="color:var(--ok)">'+(l.receita?brlAdm(l.receita):"-")+'</td><td class="num-td">'+(l.faturamento_total!=null?brlAdm(l.faturamento_total):'-')+'</td>'+celulasTicket(ticketsAdm(l.receita,l.compras,l.faturamento_total,l.crm_vendas,l.receita,l.compras))+'<td class="num-td">'+roas+'</td>'
       +'<td class="num-td">'+(l.compras?nBR(l.compras):"-")+'</td><td class="num-td">'+(l.compras?brlAdm(l.gasto/l.compras):"-")+'</td>'
       +'<td class="num-td">'+(l.conversas?nBR(l.conversas):"-")+'</td><td class="num-td">'+(l.conversas?brlAdm(l.gasto/l.conversas):"-")+'</td>'
       +'<td class="num-td"><button class="btn-olho" data-ocultar="'+escHtml(l.uid)+'" title="Tirar esta loja da tabela e das somas">Ocultar</button></td></tr>';
   });
-  html+='<tr class="total"><td>Total'+(esc.length?' <span class="mini">(sem as ocultas)</span>':'')+'</td><td class="num-td">'+brlAdm(t.gasto)+'</td><td class="num-td" style="color:var(--ok)">'+brlAdm(t.receita)+'</td><td class="num-td">'+(t.comCrm?brlAdm(t.total):'-')+'</td><td class="num-td">'+(t.roas!=null?String(t.roas).replace(".",",")+"x":"-")+'</td><td class="num-td">'+nBR(t.compras)+'</td><td class="num-td">'+(t.compras?brlAdm(t.gasto/t.compras):"-")+'</td><td class="num-td">'+nBR(t.conversas)+'</td><td class="num-td">'+(t.conversas?brlAdm(t.gasto/t.conversas):"-")+'</td><td></td></tr>';
+  html+='<tr class="total"><td>Total'+(esc.length?' <span class="mini">(sem as ocultas)</span>':'')+'</td><td class="num-td">'+brlAdm(t.gasto)+'</td><td class="num-td" style="color:var(--ok)">'+brlAdm(t.receita)+'</td><td class="num-td">'+(t.comCrm?brlAdm(t.total):'-')+'</td>'+celulasTicket(tkT)+'<td class="num-td">'+(t.roas!=null?String(t.roas).replace(".",",")+"x":"-")+'</td><td class="num-td">'+nBR(t.compras)+'</td><td class="num-td">'+(t.compras?brlAdm(t.gasto/t.compras):"-")+'</td><td class="num-td">'+nBR(t.conversas)+'</td><td class="num-td">'+(t.conversas?brlAdm(t.gasto/t.conversas):"-")+'</td><td></td></tr>';
   tab.innerHTML=html+'</tbody></table>';
   document.getElementById("res-crm-erro").textContent=d.crm_erro||"";
   oc.innerHTML=esc.length?'<span>Ocultas:</span>'+esc.map(function(l){return '<button class="btn-olho" data-mostrar="'+escHtml(l.uid)+'" title="Voltar com esta loja para a tabela">'+escHtml(l.nome)+' · mostrar</button>';}).join("")+(esc.length>1?'<button class="btn-olho" data-mostrar="*">Mostrar todas</button>':''):"";

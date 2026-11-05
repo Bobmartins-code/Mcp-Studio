@@ -364,7 +364,7 @@ module.exports = async function handler(req, res) {
             if (crm.disponivel() && lista.some(function (c) { return (porId[c.user_id].crm_tenants || []).length; })) {
                 try {
                     const porConta = await crm.faturamentoPorConta(faixa.maximo ? null : faixa.inicio, faixa.fim);
-                    linhas.forEach(function (x) { const f = crm.somaDaLoja(porConta, porId[x.uid].crm_tenants); if (f) { x.faturamento_total = f.faturamento; x.crm_ultima_venda = f.ultima_venda; } });
+                    linhas.forEach(function (x) { const f = crm.somaDaLoja(porConta, porId[x.uid].crm_tenants); if (f) { x.faturamento_total = f.faturamento; x.crm_vendas = f.vendas; x.crm_ultima_venda = f.ultima_venda; } });
                 } catch (e) { crmErro = "Não consegui ler o CRM agora."; console.error("[resultados] crm: " + e.message); }
             }
             linhas.sort(function (a, c) { return c.gasto - a.gasto; });

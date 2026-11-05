@@ -11,6 +11,7 @@
 
 const { banco } = require("./_seguranca.js");
 const meta = require("./_meta-leitura.js");
+const crm = require("./_crm.js");
 
 const TIPOS_COMPRA = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "onsite_web_purchase"];
 const TIPO_CONVERSA = ["onsite_conversion.messaging_conversation_started_7d"];
@@ -73,6 +74,18 @@ function visitasDosAnuncios(linhas, conta) {
     const acoes = ((conta && conta[0] && conta[0].actions) || []).filter(function (x) { return RE_VISITA.test(x.action_type || ""); });
     return acoes.length ? acoes.reduce(function (s, x) { return s + num(x.value); }, 0) : null;
 }
+// ticket medio: dos anuncios (Meta), da loja (o que vendeu sem anuncio) e total (CRM). A loja recebe so os tickets
+// e as quantidades, nunca o faturamento do CRM
+function ticketsDe(a, v) {
+    const div = function (valor, n) { return n > 0 && valor > 0 ? centavos(valor / n) : null; };
+    const out = { anuncios: a && a.compras > 0 ? { valor: div(a.receita, a.compras), compras: a.compras } : null, loja: null, total: null };
+    if (v && v.vendas > 0) {
+        out.total = { valor: div(v.faturamento, v.vendas), vendas: v.vendas };
+        const n = v.vendas - (a ? a.compras : 0), fat = v.faturamento - (a ? a.receita : 0);
+        if (n > 0 && fat > 0) out.loja = { valor: div(fat, n), vendas: n };
+    }
+    return out.anuncios || out.total ? out : null;
+}
 async function parte(nome, avisos, fn) {
     try { return await fn(); } catch (e) {
         if (e instanceof meta.MetaPausada) throw e;
@@ -86,13 +99,14 @@ async function lojaDe(uid) {
     const id = encodeURIComponent(uid);
     const [contas, lojas] = await Promise.all([
         banco("contas_meta?user_id=eq." + id + "&select=ig_id,ad_account_id"),
-        banco("lojas?user_id=eq." + id + "&select=objetivo_anuncios").catch(function () { return []; })
+        banco("lojas?user_id=eq." + id + "&select=objetivo_anuncios,crm_tenants").catch(function () { return []; })
     ]);
     const c = (contas && contas[0]) || {};
     return {
         ig: /^\d{8,}$/.test(String(c.ig_id || "")) ? String(c.ig_id) : null,
         act: /^\d{5,}$/.test(String(c.ad_account_id || "").replace(/^act_/, "")) ? "act_" + String(c.ad_account_id).replace(/^act_/, "") : null,
-        objetivo: (lojas && lojas[0] && lojas[0].objetivo_anuncios) || "auto"
+        objetivo: (lojas && lojas[0] && lojas[0].objetivo_anuncios) || "auto",
+        crm: (lojas && lojas[0] && lojas[0].crm_tenants) || []
     };
 }
 async function tokenOuErro() {
@@ -135,7 +149,7 @@ async function painel(uid, per) {
         const token = await tokenOuErro(), avisos = [];
         const ins = function (p) { return meta.g("/" + loja.act + "/insights", Object.assign({ time_range: intervalo(f), limit: 200 }, p), token).then(function (d) { return (d && d.data) || []; }); };
 
-        const [conta, porIdade, porRegiao, porConjunto, porPlataforma, ig, visitasAds] = await Promise.all([
+        const [conta, porIdade, porRegiao, porConjunto, porPlataforma, ig, visitasAds, vendasCrm] = await Promise.all([
             loja.act ? parte("anúncios", avisos, function () { return ins({ level: "account", fields: "spend,impressions,reach,clicks,inline_link_clicks,actions,action_values" }); }) : null,
             loja.act ? parte("idade", avisos, function () { return ins({ level: "account", fields: "actions", breakdowns: "age" }); }) : null,
             loja.act ? parte("região", avisos, function () { return ins({ level: "account", fields: "actions", breakdowns: "region" }); }) : null,
@@ -144,7 +158,9 @@ async function painel(uid, per) {
             loja.ig ? parte("instagram", avisos, function () { return instagramDoPeriodo(loja.ig, f, token); }) : null,
             // visitas ao perfil vindas dos anuncios: metrica nova da Meta (dez/2025), ainda nao liberada em toda conta;
             // se a Meta recusar, a tela fica so com o total (sem aviso)
-            loja.act && loja.ig ? ins({ level: "account", fields: "instagram_profile_visits" }).catch(function (e) { if (e instanceof meta.MetaPausada) throw e; console.error("[painel] visitas dos anuncios: " + (e && e.message)); return null; }) : null
+            loja.act && loja.ig ? ins({ level: "account", fields: "instagram_profile_visits" }).catch(function (e) { if (e instanceof meta.MetaPausada) throw e; console.error("[painel] visitas dos anuncios: " + (e && e.message)); return null; }) : null,
+            // vendas da loja no CRM (so para o ticket medio): em paralelo com a Meta e com tempo curto; se falhar, fica so o ticket dos anuncios
+            loja.crm.length && crm.disponivel() ? crm.faturamentoPorConta(f.inicio, f.fim, 6000).then(function (porConta) { return crm.somaDaLoja(porConta, loja.crm); }).catch(function (e) { console.error("[painel] crm: " + (e && e.message)); return null; }) : null
         ]);
 
         if (conta) {
@@ -201,6 +217,7 @@ async function painel(uid, per) {
             o.total_instagram = { impressoes: ig.views, alcance: ig.alcance, anuncios_impressoes: noIg ? num(noIg.impressions) : null, anuncios_alcance: noIg ? num(noIg.reach) : null };
             out.organico = o;
         }
+        out.ticket = ticketsDe(out.anuncios, vendasCrm);
         if (avisos.length) out.faltou = avisos;
         console.log("[painel] " + uid.slice(0, 8) + " " + f.per + " " + JSON.stringify({ anuncios: out.anuncios, conversas: out.conversas, novos_contatos: out.novos_contatos, visitas_anuncios: out.organico ? out.organico.visitas_anuncios : null, ig: out.organico && out.organico.total_instagram, faltou: out.faltou || [] }));
         return out;
@@ -359,4 +376,4 @@ async function anuncio(uid, adId, per) {
     });
 }
 
-module.exports = { painel, ativos, anuncio, _interno: { faixaDoPeriodo, janelas, destinoDe, faixasDe, objetivoDe, orcamentoDe, situacaoDe, foraDoAr, guardados } };
+module.exports = { painel, ativos, anuncio, _interno: { faixaDoPeriodo, janelas, destinoDe, faixasDe, objetivoDe, orcamentoDe, situacaoDe, foraDoAr, ticketsDe, guardados } };

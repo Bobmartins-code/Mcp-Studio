@@ -18,10 +18,10 @@ const DIA = 864e5;
 const VENDAS_MS = 12 * 3600 * 1000;   // padroes de venda recalculados 2 vezes por dia
 
 function disponivel() { return !!(process.env.CRM_URL && process.env.CRM_CHAVE && process.env.CRM_SEGREDO); }
-async function rpc(nome, corpo) {
+async function rpc(nome, corpo, ms) {
     const k = process.env.CRM_CHAVE, headers = { apikey: k, "Content-Type": "application/json" };
     if (k.indexOf("sb_") !== 0) headers.Authorization = "Bearer " + k; // chave antiga (JWT) vai tambem no Authorization
-    const r = await fetch(process.env.CRM_URL + "/rest/v1/rpc/" + nome, { method: "POST", headers: headers, body: JSON.stringify(Object.assign({ p_segredo: process.env.CRM_SEGREDO }, corpo)), signal: AbortSignal.timeout(20000) });
+    const r = await fetch(process.env.CRM_URL + "/rest/v1/rpc/" + nome, { method: "POST", headers: headers, body: JSON.stringify(Object.assign({ p_segredo: process.env.CRM_SEGREDO }, corpo)), signal: AbortSignal.timeout(ms || 20000) });
     const txt = await r.text();
     if (!r.ok) throw new Error("CRM: " + txt.slice(0, 200));
     return txt ? JSON.parse(txt) : null;
@@ -32,8 +32,8 @@ function diaSP(d) { return new Intl.DateTimeFormat("en-CA", { timeZone: "America
 function mediana(v) { const a = v.slice().sort(function (x, y) { return x - y; }); if (!a.length) return 0; const m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
 
 // faturamento de cada conta do CRM no periodo (inicio nulo = desde a primeira venda)
-async function faturamentoPorConta(inicio, fim) {
-    const lista = await rpc("mcp_faturamento", { p_inicio: inicio || null, p_fim: fim });
+async function faturamentoPorConta(inicio, fim, ms) {
+    const lista = await rpc("mcp_faturamento", { p_inicio: inicio || null, p_fim: fim }, ms);
     const out = {};
     (lista || []).forEach(function (x) { out[x.tenant] = x; });
     return out;

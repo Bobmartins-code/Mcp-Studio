@@ -326,6 +326,8 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .rs-nota{font-size:11.5px;color:var(--mu);line-height:1.5;margin-top:10px}
 .rs-vazio{font-size:13.5px;color:var(--mu2);line-height:1.5}
 .rs-din{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tk-faixa{background:rgba(255,138,80,.10);border:1px solid rgba(255,138,80,.40);border-radius:18px;padding:14px 16px;margin-bottom:14px}.tk-tit{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--ac2);margin:0 0 10px}.tk-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.tk{background:var(--sur2);border:1px solid var(--bo);border-radius:12px;padding:12px 14px;min-width:0;display:flex;flex-direction:column;gap:2px}.tk-l{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--mu2)}.tk-l i{width:9px;height:9px;border-radius:3px;flex-shrink:0}.tk-v{font-weight:700;font-size:clamp(18px,2.2vw,24px);letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s{font-size:12px;color:var(--mu)}.tk-grade.um{grid-template-columns:1fr}
+@media(max-width:768px){.tk-faixa{padding:12px}.tk-grade{grid-template-columns:1fr;gap:6px}.tk{flex-direction:row;justify-content:space-between;align-items:center;padding:10px 12px}.tk-v{font-size:17px}.tk-s{display:none}}
 .rs-din .l{font-size:13px;color:var(--mu2)}.rs-din .v{font-size:24px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}.rs-din .v.ok{color:var(--ok)}
 .rs-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .rs-tile{background:var(--sur2);border-radius:14px;padding:13px 14px;min-width:0}
@@ -1756,7 +1758,14 @@ function App(){
       ce("h2",{className:"rs-t",style:{marginBottom:4}},pub.tipo==="compras"?"Quem compra":"Quem chama no direct"),
       ce("div",{className:"rs-sub",style:{marginBottom:14}},(pub.tipo==="compras"?"Quem comprou":"Quem começou uma conversa")+" depois de ver um anúncio. A Meta mostra só os totais, nunca quem é cada pessoa."),
       ce("div",{className:"rs-quem"},idade?ce("div",null,ce("div",{className:"rs-st"},"Idade"),idade):null,regiao?ce("div",null,ce("div",{className:"rs-st"},"Região"),regiao):null)):null;
-    return ce("div",null,topo,din,
+    // ticket medio: dos anuncios, da loja (vendas sem anuncio) e total; os dois ultimos so para loja ligada ao CRM
+    var tk=d.ticket,noMes=d.periodo&&(d.periodo.per==="mes"||d.periodo.per==="mes_ant");
+    var tickets=tk?ce("section",{className:"tk-faixa","aria-label":"Ticket médio"},ce("h2",{className:"tk-tit"},"Ticket médio"),
+      ce("div",{className:"tk-grade"+(tk.total?"":" um")},[["#FF8A50","Dos anúncios",tk.anuncios,function(x){return numBR(x.compras)+(x.compras===1?" compra":" compras");}],
+        ["#4FD1C5","Da loja",tk.loja,function(x){return numBR(x.vendas)+" vendas sem anúncio";}],
+        ["var(--tx)","Total",tk.total,function(x){return numBR(x.vendas)+" vendas "+(noMes?"no mês":"no período");}]]
+        .filter(function(x){return x[2]||tk.total;}).map(function(x){return ce("div",{key:x[1],className:"tk"},ce("span",{className:"tk-l"},ce("i",{style:{background:x[0]}}),x[1]),ce("span",{className:"tk-v"},x[2]?brl(x[2].valor):"-"),ce("span",{className:"tk-s"},x[2]?x[3](x[2]):" "));}))):null;
+    return ce("div",null,topo,din,tickets,
       ce("div",{className:"rs-grid"},ce("div",null,ads,comp),ce("div",null,conv,vis,quem)),
       ehAdmin&&d.faltou?ce("div",{className:"rs-nota"},"Só você vê: a Meta não entregou agora "+d.faltou.join(", ")+"."):null);
   }
