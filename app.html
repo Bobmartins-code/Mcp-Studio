@@ -409,6 +409,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'DM Sans'
 .tr-pl-base div{flex:1;background:rgba(255,255,255,.08);border-radius:10px;padding:8px 10px;font-size:11.5px;color:var(--mu2)}
 .tr-pl-base b{display:block;font-size:15px;color:#fff}
 .tr-pl-meio{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;color:var(--mu2)}
+.tr-selo{position:absolute;left:0;right:0;bottom:0;text-align:center;font-size:9.5px;font-weight:700;color:#fff;background:rgba(255,77,0,.92);padding:2px 0;white-space:nowrap;line-height:1.3;letter-spacing:.1px}
 .ok-t{color:var(--ok)}.ruim-t{color:#FF6B5A}
 .ad-capa{position:relative;height:min(380px,55vh);border-radius:18px;overflow:hidden;background:var(--sur2);margin-bottom:14px}
 .ad-capa img{width:100%;height:100%;object-fit:cover;display:block}
@@ -832,13 +833,15 @@ function App(){
   },[view,resAba,adAberto,uidLojaAberta]);
   useEffect(function(){if(view==="resultados"&&adAberto)carregarAd();},[view,adAberto,perRes]);
   // historico de troca de criativo do anuncio aberto
-  function carregarVersoes(forcar){
-    if(!adAberto||!adAberto.troca)return;var k=uidLojaAberta+"|"+adAberto.id,at=versoesAd[k];
+  function carregarVersoes(adId,forcar){
+    if(!adId)return;var k=uidLojaAberta+"|"+adId,at=versoesAd[k];
     if(!forcar&&at&&(at.carregando||at.dados))return;
     setVersoesAd(function(m){var n=Object.assign({},m);n[k]={carregando:true};return n;});
-    pedirPainel({acao:"versoes_anuncio",ad_id:adAberto.id}).then(function(d){setVersoesAd(function(m){var n=Object.assign({},m);n[k]={dados:d};return n;});},function(e){setVersoesAd(function(m){var n=Object.assign({},m);n[k]={erro:e.message};return n;});});
+    pedirPainel({acao:"versoes_anuncio",ad_id:adId}).then(function(d){setVersoesAd(function(m){var n=Object.assign({},m);n[k]={dados:d};return n;});},function(e){setVersoesAd(function(m){var n=Object.assign({},m);n[k]={erro:e.message};return n;});});
   }
-  useEffect(function(){if(view==="resultados"&&adAberto&&adAberto.troca)carregarVersoes();},[view,adAberto]);
+  useEffect(function(){if(view==="resultados"&&adAberto&&adAberto.troca)carregarVersoes(adAberto.id);},[view,adAberto]);
+  // aba Videos: anuncio que teve troca de criativo (selo "2 criativos")
+  useEffect(function(){if(videoSel&&videoSel.tipo==="ad"&&videoSel.item&&videoSel.item.criativos>1)carregarVersoes(videoSel.item.id);},[videoSel]);
   // "ver o anterior": abre o anuncio ja no antes e depois
   useEffect(function(){
     if(!adAberto||!adAberto.irTroca)return;
@@ -850,8 +853,8 @@ function App(){
     function esc(e){if(e.key==="Escape")setVideoTroca(null);}
     document.addEventListener("keydown",esc);return function(){document.removeEventListener("keydown",esc);};
   },[videoTroca]);
-  function assistirVersao(x,v,rotulo){
-    var base={titulo:rotulo,periodo:v.inicio,fim:v.fim,v:v,conv:convDe(x,v)};
+  function assistirVersao(x,v,rotulo,conv){
+    var base={titulo:rotulo,periodo:v.inicio,fim:v.fim,v:v,conv:!!conv};
     setVideoTroca(Object.assign({carregando:true},base));
     pedirPainel({acao:"video_versao",ad_id:x.id,versao:v.versao}).then(function(d){setVideoTroca(function(c){return c&&c.periodo===base.periodo&&c.titulo===base.titulo?Object.assign({},base,d):c;});},function(e){setVideoTroca(function(c){return c&&c.periodo===base.periodo&&c.titulo===base.titulo?Object.assign({},base,{erro:e.message}):c;});});
   }
@@ -1866,21 +1869,22 @@ function App(){
     return conv?[conversas,[x.sete.conversas?brl(x.sete.gasto/x.sete.conversas):"—","por conversa (7 dias)"],compras]:[compras,[x.sete.compras?brl(x.sete.gasto/x.sete.compras):"—","por compra (7 dias)"],conversas];
   }
   // trocas de criativo: medir por compra ou por conversa (como o resto do cartao)
-  function convDe(x,v){return x.objetivo==="Mensagens"||(v&&!v.compras&&v.conversas>0);}
+  // mede por conversa so quando nenhuma versao trouxe compra
+  function soConversas(vs){return !vs.some(function(v){return v.compras>0;})&&vs.some(function(v){return v.conversas>0;});}
   function diasEntre(a,b){return Math.round((new Date(b+"T12:00:00Z")-new Date(a+"T12:00:00Z"))/864e5)+1;}
   function chaveLemb(x){return "mcp_lemb_"+uidLojaAberta+"_"+x.id+"_"+x.troca.em;}
   function lembVisto(x){try{return localStorage.getItem(chaveLemb(x))==="1";}catch(e){return false;}}
   function fecharLemb(x){try{localStorage.setItem(chaveLemb(x),"1");}catch(e){}setLembVersao(lembVersao+1);}
   function abrirTroca(x){setAdAberto(Object.assign({},x,{irTroca:true}));}
-  function capaTroca(v,rotulo,x,mini){
+  function capaTroca(v,rotulo,x,mini,conv){
     var toca=v.video;
-    return ce(toca?"button":"div",{className:"tr-capa"+(toca?" toca":""),onClick:toca?function(e){e.stopPropagation();assistirVersao(x,v,rotulo);}:undefined,"aria-label":toca?"Assistir o criativo "+rotulo.toLowerCase():undefined},
+    return ce(toca?"button":"div",{className:"tr-capa"+(toca?" toca":""),onClick:toca?function(e){e.stopPropagation();assistirVersao(x,v,rotulo,conv);}:undefined,"aria-label":toca?"Assistir o criativo "+rotulo.toLowerCase():undefined},
       v.capa?ce("img",{src:v.capa,alt:"",loading:"lazy",referrerPolicy:"no-referrer",onError:function(e){e.target.style.display="none";}}):ce("span",{className:"sem"},mini?"sem imagem":"A Meta já apagou esta capa"),
       !mini?ce("span",{className:"etq"},rotulo):null,
       toca?ce("span",{className:"play"},ce("span",null,play(mini?9:14))):(v.capa&&!mini?ce("span",{className:"foto"},"FOTO"):null));
   }
   function cartaoLembrete(x){
-    var l=x.troca.lembrete,conv=x.objetivo==="Mensagens"||(!(l.antes.compras+l.depois.compras)&&(l.antes.conversas+l.depois.conversas)>0);
+    var l=x.troca.lembrete,conv=soConversas([l.antes,l.depois]);
     var a=conv?l.antes.conversas:l.antes.compras,b=conv?l.depois.conversas:l.depois.compras,nome=conv?(b===1?"conversa":"conversas"):(b===1?"compra":"compras");
     var dias=Math.max(7,Math.floor((Date.now()-new Date(x.troca.em).getTime())/864e5));
     return ce("div",{key:"l"+x.id,className:"tr-lemb"},
@@ -1892,18 +1896,19 @@ function App(){
   }
   function blocoTroca(x){
     var st=versoesAd[uidLojaAberta+"|"+x.id]||{},d=st.dados;
-    if(st.erro)return ce("div",{id:"tr-bloco",className:"tr-bloco"},ce("span",{className:"tr-tit"},"Antes e depois da troca"),ce("div",{className:"rs-sub"},st.erro),ce("button",{className:"link-mini",onClick:function(){carregarVersoes(true);}},"Tentar de novo"));
+    if(st.erro)return ce("div",{id:"tr-bloco",className:"tr-bloco"},ce("span",{className:"tr-tit"},"Antes e depois da troca"),ce("div",{className:"rs-sub"},st.erro),ce("button",{className:"link-mini",onClick:function(){carregarVersoes(x.id,true);}},"Tentar de novo"));
     if(!d)return ce("div",{id:"tr-bloco",className:"esqueleto",style:{height:300,marginBottom:14}});
     var vs=d.versoes||[];if(vs.length<2)return null;
-    var atual=vs[vs.length-1],ant=vs[vs.length-2],conv=convDe(x,atual)||convDe(x,ant);
+    var atual=vs[vs.length-1],ant=vs[vs.length-2],conv=soConversas(vs),temConv=vs.some(function(v){return v.conversas>0;});
     function porRes(v){var n=conv?v.conversas:v.compras;return n?v.gasto/n:null;}
     function lado(v,rot){
-      return ce("div",{className:"tr-lado"+(v.atual?" atual":"")},capaTroca(v,rot,x),
+      return ce("div",{className:"tr-lado"+(v.atual?" atual":"")},capaTroca(v,rot,x,false,conv),
         ce("span",{className:"tr-quando"},v.curta?"ficou menos de 1 dia":v.atual?"desde "+dataBR(v.inicio)+" · "+diasEntre(v.inicio,v.fim)+(diasEntre(v.inicio,v.fim)===1?" dia":" dias"):dataBR(v.inicio)+" a "+dataBR(v.fim)+" · "+diasEntre(v.inicio,v.fim)+(diasEntre(v.inicio,v.fim)===1?" dia":" dias")),
         ce("div",{className:"tr-dl"},
           ce("div",null,ce("span",null,"Investido"),ce("b",null,brl(v.gasto))),
           conv?ce("div",null,ce("span",null,"Conversas"),ce("b",null,numBR(v.conversas))):ce("div",null,ce("span",null,"Compras"),ce("b",null,numBR(v.compras))),
           conv?null:ce("div",null,ce("span",null,"Vendas"),ce("b",{className:"ok-t"},brl(v.receita))),
+          !conv&&temConv?ce("div",null,ce("span",null,"Conversas"),ce("b",null,numBR(v.conversas))):null,
           ce("div",null,ce("span",null,conv?"Por conversa":"Por compra"),ce("b",null,porRes(v)!=null?brl(porRes(v)):"-"))));
     }
     var pa=porRes(ant),pb=porRes(atual),ver=null,coisa=conv?"conversa":"compra";
@@ -1913,7 +1918,7 @@ function App(){
     var lista=vs.length>2?ce("div",null,ce("span",{className:"tr-tit"},"Todas as versões ("+vs.length+")"),
       ce("div",{className:"tr-lista",style:{marginTop:6}},vs.slice().reverse().map(function(v,i){
         var rot=v.atual?"Atual":(vs.length-i)+"ª versão",n=conv?v.conversas:v.compras;
-        return ce("div",{key:v.versao,className:"tr-it"},capaTroca(v,rot,x,true),
+        return ce("div",{key:v.versao,className:"tr-it"},capaTroca(v,rot,x,true,conv),
           ce("div",{className:"tx"},ce("b",null,rot),ce("span",{className:"rs-sub"},v.curta?"menos de 1 dia":v.atual?"desde "+dataBR(v.inicio):dataBR(v.inicio)+" a "+dataBR(v.fim))),
           ce("div",{className:"nm"},ce("b",null,numBR(n)+" "+(conv?(n===1?"conversa":"conversas"):(n===1?"compra":"compras"))),ce("div",{className:"rs-sub"},porRes(v)!=null?brl(porRes(v))+" cada":"")));
       }))):null;
@@ -2131,7 +2136,7 @@ function App(){
       chipsPeriodo(),ce("div",{className:"qtd"},ap.per!==periodo?ce("span",{style:{color:"var(--gold)"}},typeof periodo==="string"?"Os números do mês chegam na próxima atualização. Mostrando os últimos "+ap.per+" dias":"Mostrando os últimos "+ap.per+" dias"):null),
       lista.length
         ?ce("div",null,mostrar.map(function(x,i){return ce("button",{key:(x.id||x.nome)+i,className:"arow",onClick:function(){setVideoSel({tipo:"ad",item:x,ads:a});}},
-          ce("span",{className:"thumb",style:{width:58,height:78,borderRadius:8}},img(x.miniatura)),
+          ce("span",{className:"thumb",style:{width:58,height:78,borderRadius:8}},img(x.miniatura),x.criativos>1?ce("span",{className:"tr-selo"},x.criativos+" criativos"):null),
           ce("span",{style:{flex:1,display:"flex",flexDirection:"column",gap:3,minWidth:0}},
             ce("span",{style:{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},x.nome),
             ce("span",{style:{fontSize:20,fontWeight:800}},numBR(x.resultados||0)+" "+rotRes(tr,x.resultados,x.res_nome)),
@@ -2216,6 +2221,7 @@ function App(){
         ce("div",null,ce("div",{style:{fontSize:13,color:"var(--mu2)"}},"Resultado"),ce("div",{style:{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:28}},numBR(v.resultados||0)+" "+rotRes(tr,v.resultados,v.res_nome))),
         v.custo_por_resultado?ce("div",{style:{textAlign:"right"}},ce("div",{style:{fontSize:13,color:"var(--mu2)"}},"Por "+rotRes(tr,1,v.res_nome)),ce("div",{style:{fontWeight:800,fontSize:20}},brl(v.custo_por_resultado))):null),
       ce("div",{className:"mgrid"},grade.map(function(c){return ce("div",{key:c[0],className:"mcell"},ce("div",{className:"mcell-l"},c[0]),ce("div",{className:"mcell-v"},c[1]));})),
+      v.criativos>1?blocoTroca(v):null,
       barras.length?ce("div",{style:{marginBottom:16}},ce("div",{className:"sec-h"},"Onde o vídeo ganha ou perde"),
         barras.map(function(b){var max=Math.max(b[1],b[2])*1.3||1,bom=b[1]>=b[2];return ce("div",{key:b[0],style:{marginBottom:12}},ce("div",{style:{display:"flex",justifyContent:"space-between",gap:8,fontSize:13.5}},ce("span",null,b[0]),ce("span",{style:{fontWeight:700,color:bom?"var(--ok)":"var(--ac2)"}},String(b[1]).replace(".",",")+"%")),ce("div",{className:"bar"},ce("i",{style:{width:Math.min(100,b[1]/max*100)+"%",background:bom?"var(--ok)":"var(--ac2)"}}),ce("b",{style:{left:Math.min(99,b[2]/max*100)+"%"}})));}),
         ce("div",{style:{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--mu2)"}},ce("span",{style:{width:2,height:12,background:"var(--tx)"}}),"média da sua conta")):null,
