@@ -494,10 +494,32 @@ function juntarMeta(atual, novo) {
     const out = Object.assign({}, atual, novo);
     ["posts", "anuncios"].forEach(function (k) {
         const o = Object.assign({}, atual[k]);
-        Object.keys(novo[k] || {}).forEach(function (id) { o[id] = Object.assign({}, atual[k] && atual[k][id], novo[k][id]); });
+        Object.keys(novo[k] || {}).forEach(function (id) {
+            const a = atual[k] && atual[k][id], n = novo[k][id];
+            // anuncio cujo criativo foi trocado e relido depois (trocado_em, api/_trocas.js): nada do que veio de uma leitura
+            // anterior (ex.: a fala lida pela analise que comecou antes da troca) volta a valer para o criativo novo
+            o[id] = k === "anuncios" && a && n && a.trocado_em && n.em && a.trocado_em > n.em ? Object.assign({}, a) : Object.assign({}, a, n);
+        });
         out[k] = o;
     });
+    if (atual.trocas || novo.trocas) out.trocas = juntarTrocas(atual.trocas, novo.trocas);
     return out;
+}
+// historico de trocas de criativo (api/_trocas.js): soma as trocas dos dois lados, sem repetir (a chave e a hora da troca)
+const MAX_TROCAS_ANUNCIO = 20;
+function juntarTrocas(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    const novo = String(b.em || "") >= String(a.em || ""), ads = {};
+    [a.ads || {}, b.ads || {}].forEach(function (fonte) {
+        Object.keys(fonte).forEach(function (id) {
+            const m = {};
+            (ads[id] || []).concat(fonte[id] || []).forEach(function (x) { if (x && x.em) m[x.em] = Object.assign({}, m[x.em], x); });
+            ads[id] = Object.keys(m).sort().map(function (k) { return m[k]; }).slice(-MAX_TROCAS_ANUNCIO);
+        });
+    });
+    const desde = [a.desde, b.desde].filter(Boolean).sort()[0] || null;
+    return Object.assign({}, novo ? a : b, novo ? b : a, { desde: desde, ads: ads });
 }
 async function salvarMeta(userId, cache) {
     const id = encodeURIComponent(userId);
@@ -576,4 +598,4 @@ function comentariosDaLoja(met, cache) {
     return out.slice(0, 60);
 }
 
-module.exports = { g, conexao, limparEstado, enriquecerLoja, capasNovas, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia, transcrever, fichasDaLoja, salvarMeta, juntarMeta, MetaPausada, _interno: { usoDe, ehLimite, falaInventada, faixasDasVisitas, alvosDaLoja } };
+module.exports = { lerCriativo, juntarTrocas, MAX_TROCAS_ANUNCIO, g, conexao, limparEstado, enriquecerLoja, capasNovas, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia, transcrever, fichasDaLoja, salvarMeta, juntarMeta, MetaPausada, _interno: { usoDe, ehLimite, falaInventada, faixasDasVisitas, alvosDaLoja } };

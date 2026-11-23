@@ -12,6 +12,7 @@
 const { banco } = require("./_seguranca.js");
 const meta = require("./_meta-leitura.js");
 const crm = require("./_crm.js");
+const trocas = require("./_trocas.js");
 
 const TIPOS_COMPRA = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "onsite_web_purchase"];
 const TIPO_CONVERSA = ["onsite_conversion.messaging_conversation_started_7d"];
@@ -347,6 +348,7 @@ async function ativos(uid) {
                 hoje: resumoDe(porHoje[a.id]), sete: resumoDe(porSete[a.id])
             };
         });
+        await marcarTrocas(uid, loja.act, lista, token);
         // ativos primeiro, depois em analise e com problema; dentro de cada um, quem mais gastou hoje
         const peso = { ativo: 0, analise: 1, problema: 2 };
         lista.sort(function (x, y) { return peso[x.situacao] - peso[y.situacao] || y.hoje.gasto - x.hoje.gasto || y.sete.gasto - x.sete.gasto; });
@@ -355,6 +357,121 @@ async function ativos(uid) {
         tot.orcamento_dia = centavos(Object.keys(orcamentos).reduce(function (s, k) { return s + orcamentos[k]; }, 0));
         return { lista: lista, hoje: tot, em: new Date().toISOString() };
     });
+}
+
+// ---------- TROCAS DE CRIATIVO (api/_trocas.js) ----------
+const AVISO_TROCA_MS = 30 * DIA, LEMBRETE_DE_MS = 7 * DIA, LEMBRETE_ATE_MS = 21 * DIA;
+async function trocasDe(uid) {
+    const r = await banco("contas_meta?user_id=eq." + encodeURIComponent(uid) + "&select=trocas:meta->trocas,anuncios:meta->anuncios");
+    return { trocas: (r && r[0] && r[0].trocas) || {}, anuncios: (r && r[0] && r[0].anuncios) || {} };
+}
+function porData(lista) { return (lista || []).slice().sort(function (a, b) { return a.em < b.em ? -1 : 1; }); }
+function somaLinhas(linhas, ini, fim) {
+    const t = { gasto: 0, compras: 0, conversas: 0, receita: 0 };
+    (linhas || []).forEach(function (r) {
+        if (r.date_start < ini || r.date_start > fim) return;
+        const x = resumoDe(r);
+        t.gasto += x.gasto; t.compras += x.compras; t.conversas += x.conversas; t.receita += x.receita;
+    });
+    t.gasto = centavos(t.gasto); t.receita = centavos(t.receita);
+    return t;
+}
+// cartao do anuncio ativo: o historico de trocas (a faixa "criativo trocado em" so ate 30 dias) e, de 7 a 21 dias depois da troca, o lembrete
+// (7 dias antes contra 7 dias depois). Falha aqui nao derruba a lista.
+async function marcarTrocas(uid, act, lista, token) {
+    try {
+        if (!lista.length) return;
+        const t = (await trocasDe(uid)).trocas, ads = t.ads || {}, agora = Date.now(), lembrar = [];
+        lista.forEach(function (x) {
+            const l = porData(ads[x.id]);
+            if (!l.length) return;
+            const ult = l[l.length - 1], idade = agora - new Date(ult.em).getTime();
+            x.troca = { em: ult.em, capa_anterior: ult.capa || "", versoes: l.length + 1, recente: idade <= AVISO_TROCA_MS };
+            if (idade >= LEMBRETE_DE_MS && idade <= LEMBRETE_ATE_MS) lembrar.push(x);
+        });
+        if (!lembrar.length) return;
+        const jan = {};
+        lembrar.forEach(function (x) { jan[x.id] = trocas.janelasDoLembrete(x.troca.em); });
+        const ini = lembrar.map(function (x) { return jan[x.id].antes.inicio; }).sort()[0];
+        const d = await meta.g("/" + act + "/insights", {
+            level: "ad", fields: "ad_id,spend,actions,action_values", time_increment: 1, limit: 500,
+            time_range: JSON.stringify({ since: ini, until: diaSP(new Date()) }),
+            filtering: JSON.stringify([{ field: "ad.id", operator: "IN", value: lembrar.map(function (x) { return x.id; }) }])
+        }, token);
+        const porAd = {};
+        ((d && d.data) || []).forEach(function (r) { (porAd[r.ad_id] = porAd[r.ad_id] || []).push(r); });
+        lembrar.forEach(function (x) {
+            const j = jan[x.id];
+            x.troca.lembrete = { antes: somaLinhas(porAd[x.id], j.antes.inicio, j.antes.fim), depois: somaLinhas(porAd[x.id], j.depois.inicio, j.depois.fim), dias: 7 };
+        });
+    } catch (e) {
+        if (e instanceof meta.MetaPausada) throw e;
+        console.error("[painel] trocas " + uid.slice(0, 8) + ": " + (e && e.message));
+    }
+}
+
+// todas as versoes de um anuncio trocado, cada uma com os numeros do periodo em que ficou no ar
+async function versoes(uid, adId) {
+    if (!/^\d{6,}$/.test(String(adId || ""))) throw Object.assign(new Error("Anúncio inválido."), { status: 400 });
+    return guardado(uid + "|versoes|" + adId, GUARDA_ANUNCIO_MS, async function () {
+        const loja = await lojaDe(uid);
+        if (!loja.act) throw Object.assign(new Error("Esta loja ainda não tem conta de anúncios."), { status: 404 });
+        const token = await tokenOuErro();
+        const [ad, guardadas] = await Promise.all([
+            meta.g("/" + adId, { fields: "account_id,created_time,creative.thumbnail_width(600).thumbnail_height(600){thumbnail_url,image_url,video_id,effective_instagram_media_id}" }, token),
+            trocasDe(uid)
+        ]);
+        if (!ad || "act_" + String(ad.account_id || "") !== loja.act) throw Object.assign(new Error("Este anúncio não é desta loja."), { status: 403 });
+        const lista = porData((guardadas.trocas.ads || {})[adId]);
+        const per = trocas.versoesDe(lista, ad.created_time, guardadas.trocas.desde, diaSP(new Date())).slice(-10);
+        if (!per.length) return { versoes: [], em: new Date().toISOString() };
+        const validos = per.filter(function (p) { return p.inicio <= p.fim; });
+        let linhas = [];
+        if (validos.length) {
+            const d = await meta.g("/" + adId + "/insights", { fields: "spend,actions,action_values", time_ranges: JSON.stringify(validos.map(function (p) { return { since: p.inicio, until: p.fim }; })), limit: 50 }, token);
+            linhas = (d && d.data) || [];
+        }
+        const c = ad.creative || {}, atual = guardadas.anuncios[adId] || {};
+        const out = per.map(function (p) {
+            const ok = p.inicio <= p.fim;
+            const r = ok ? linhas.find(function (l) { return l.date_start === p.inicio && l.date_stop === p.fim; }) : null;
+            const item = p.troca == null ? null : lista[p.troca];
+            return Object.assign({
+                inicio: p.inicio, fim: p.fim, atual: p.troca == null, versao: p.troca == null ? "atual" : String(p.troca),
+                capa: item ? (item.capa || "") : (c.image_url || c.thumbnail_url || atual.miniatura || ""),
+                video: item ? !!(item.video_id || item.ig_media_id) : !!(c.video_id || c.effective_instagram_media_id),
+                link: item ? (item.post_link || "") : (atual.post_link || "")
+            }, resumoDe(r), ok ? {} : { curta: true });
+        });
+        return { versoes: out, desde: guardadas.trocas.desde || null, em: new Date().toISOString() };
+    });
+}
+
+// link para assistir uma versao (o video nao e guardado: a Meta da um link novo na hora)
+async function videoVersao(uid, adId, versao) {
+    if (!/^\d{6,}$/.test(String(adId || ""))) throw Object.assign(new Error("Anúncio inválido."), { status: 400 });
+    const loja = await lojaDe(uid);
+    if (!loja.act) throw Object.assign(new Error("Esta loja ainda não tem conta de anúncios."), { status: 404 });
+    const token = await tokenOuErro();
+    let alvo;
+    if (versao === "atual") {
+        const ad = await meta.g("/" + adId, { fields: "account_id,creative{video_id,effective_instagram_media_id}" }, token);
+        if (!ad || "act_" + String(ad.account_id || "") !== loja.act) throw Object.assign(new Error("Este anúncio não é desta loja."), { status: 403 });
+        alvo = { video_id: ad.creative && ad.creative.video_id, ig_media_id: ad.creative && ad.creative.effective_instagram_media_id };
+    } else {
+        // so o que esta guardado para esta loja (nunca um codigo mandado pelo app)
+        if (!/^\d{1,3}$/.test(String(versao))) throw Object.assign(new Error("Versão não encontrada."), { status: 404 });
+        alvo = porData((((await trocasDe(uid)).trocas.ads) || {})[adId])[Number(versao)];
+        if (!alvo) throw Object.assign(new Error("Versão não encontrada."), { status: 404 });
+    }
+    let url = "";
+    if (alvo.video_id) { try { url = (await meta.g("/" + alvo.video_id, { fields: "source" }, token)).source || ""; } catch (e) { if (e instanceof meta.MetaPausada) throw e; } }
+    if (!url && alvo.ig_media_id) {
+        try { const m = await meta.g("/" + alvo.ig_media_id, { fields: "media_url,media_type" }, token); if (m.media_type === "VIDEO") url = m.media_url || ""; } catch (e) { if (e instanceof meta.MetaPausada) throw e; }
+    }
+    if (url) return { url: url };
+    if (alvo.post_link) return { link: alvo.post_link };
+    throw Object.assign(new Error("A Meta não tem mais este vídeo."), { status: 404 });
 }
 
 // ---------- UM ANUNCIO, NO PERIODO ESCOLHIDO ----------
@@ -376,4 +493,4 @@ async function anuncio(uid, adId, per) {
     });
 }
 
-module.exports = { painel, ativos, anuncio, _interno: { faixaDoPeriodo, janelas, destinoDe, faixasDe, objetivoDe, orcamentoDe, situacaoDe, foraDoAr, ticketsDe, guardados } };
+module.exports = { painel, ativos, anuncio, versoes, videoVersao, _interno: { somaLinhas, faixaDoPeriodo, janelas, destinoDe, faixasDe, objetivoDe, orcamentoDe, situacaoDe, foraDoAr, ticketsDe, guardados } };

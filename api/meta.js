@@ -243,7 +243,7 @@ module.exports = async function handler(req, res) {
     const jwt = (auth && auth.indexOf("Bearer ") === 0) ? auth.slice(7) : "";
     const b0 = req.body || {};
     // aba Resultados do app: a loja ve os numeros dela; o admin pode abrir a de qualquer loja
-    if (b0.acao === "painel" || b0.acao === "ativos" || b0.acao === "anuncio_ativo") {
+    if (b0.acao === "painel" || b0.acao === "ativos" || b0.acao === "anuncio_ativo" || b0.acao === "versoes_anuncio" || b0.acao === "video_versao") {
         let uid;
         try { uid = await acessoLiberado(jwt); } catch (e) { return res.status(500).json({ error: "Não consegui confirmar o seu acesso. Tente de novo." }); }
         if (!uid) return res.status(jwt ? 403 : 401).json({ error: jwt ? SEM_ACESSO : "Entre na sua conta de novo." });
@@ -256,6 +256,8 @@ module.exports = async function handler(req, res) {
             const painel = require("./_painel.js");
             if (b0.acao === "painel") return res.status(200).json(await painel.painel(alvo, b0.periodo));
             if (b0.acao === "ativos") return res.status(200).json(await painel.ativos(alvo));
+            if (b0.acao === "versoes_anuncio") return res.status(200).json(await painel.versoes(alvo, b0.ad_id));
+            if (b0.acao === "video_versao") return res.status(200).json(await painel.videoVersao(alvo, b0.ad_id, String(b0.versao || "")));
             return res.status(200).json(await painel.anuncio(alvo, b0.ad_id, b0.periodo));
         } catch (e) {
             if (e instanceof require("./_meta-leitura.js").MetaPausada) return res.status(503).json({ error: "A Meta pediu uma pausa nas consultas. Tente de novo em alguns minutos." });

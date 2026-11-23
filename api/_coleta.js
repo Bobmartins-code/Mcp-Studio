@@ -558,6 +558,16 @@ async function atualizarLoja(userId) {
         const leitura = require("./_meta-leitura.js"), novas = await leitura.capasNovas(met, meta);
         if (novas) meta = await leitura.salvarMeta(userId, novas);
     } catch (e) { console.error("[coleta] capas novas: " + (e && e.message)); }
+    // trocas de criativo (api/_trocas.js): no maximo 1 leitura a cada 2 horas por loja
+    try {
+        const act = antes && /^\d{5,}$/.test(String(antes.ad_account_id || "").replace(/^act_/, "")) ? "act_" + String(antes.ad_account_id).replace(/^act_/, "") : null;
+        const tr = await require("./_trocas.js").trocasDaLoja(userId, act, meta, met);
+        if (tr) meta = await require("./_meta-leitura.js").salvarMeta(userId, tr);
+    } catch (e) {
+        console.error("[coleta] trocas de criativo: " + (e && e.message));
+        // erro da Meta (ex.: sem permissao): tenta de novo so daqui a 2 horas
+        if (!(e instanceof require("./_meta-leitura.js").MetaPausada)) await require("./_meta-leitura.js").salvarMeta(userId, { trocas: { em: new Date().toISOString() } }).then(function (m) { meta = m; }).catch(function () {});
+    }
     try { aplicarMeta(met, meta); } catch (e) { console.error("[coleta] meta: " + e.message); }
     await salvarMetricas(userId, met);
     return resumoDaColeta(met);
