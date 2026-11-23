@@ -48,6 +48,8 @@ module.exports = async function handler(req, res) {
     const inicio = Date.now();
     const passou = function () { return Date.now() - inicio; };
     try {
+        // TESTE TEMPORARIO (23/11/2026): historico de atividades da Meta, no comeco da rodada e com no maximo 60 s; remover depois de ler
+        try { await require("./_teste-atividades.js").testeAtividades(inicio + 60000); } catch (e) { console.log("[teste-atividades] " + (e && e.message)); }
         // lojas com Instagram ou conta de anuncios escolhidos (Painel Admin) e a conta do admin, se tiver
         const [cadastros, contas, acessosRows] = await Promise.all([
             banco("lojas?select=user_id,criado_em"),
@@ -160,11 +162,6 @@ module.exports = async function handler(req, res) {
                     analises.push({ oque: "cerebro central", status: rc.ok ? rc.licoes + " licoes de " + rc.lojas_lidas + " lojas" : rc.motivo });
                 }
             } catch (e) { falhasAnalise.push({ oque: "cerebro central", erro: (e && e.message) || "erro" }); }
-        }
-
-        // TESTE TEMPORARIO (23/11/2026): historico de atividades da Meta, 1 vez por hora; remover depois de ler o log
-        if (new Date().getMinutes() < 5 && passou() < 180000) {
-            try { await require("./_teste-atividades.js").testeAtividades(inicio + 250000); } catch (e) { console.log("[teste-atividades] " + (e && e.message)); }
         }
 
         return res.status(200).json({ ok: true, atualizadas: feitos.length, falhas: falhas, puladas: puladas.length, analises: analises, falhas_analise: falhasAnalise, na_fila_agora: Math.max(0, agora.length - 1), olhos: require("./_olhos.js").disponivel(), ms: passou() });
