@@ -552,7 +552,13 @@ async function atualizarLoja(userId) {
         objetivo = (lj && lj[0] && lj[0].objetivo_anuncios) || null;
     } catch (e) { console.error("[coleta] leitura anterior: " + e.message); }
     const met = await coletarLoja(userId, antes, objetivo);
-    try { aplicarMeta(met, antes && antes.meta); } catch (e) { console.error("[coleta] meta: " + e.message); }
+    // anuncio novo ganha capa e texto ja nesta atualizacao (toda loja, mesmo sem analise; so leitura, sem IA)
+    let meta = antes && antes.meta;
+    try {
+        const leitura = require("./_meta-leitura.js"), novas = await leitura.capasNovas(met, meta);
+        if (novas) meta = await leitura.salvarMeta(userId, novas);
+    } catch (e) { console.error("[coleta] capas novas: " + (e && e.message)); }
+    try { aplicarMeta(met, meta); } catch (e) { console.error("[coleta] meta: " + e.message); }
     await salvarMetricas(userId, met);
     return resumoDaColeta(met);
 }

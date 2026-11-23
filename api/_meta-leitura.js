@@ -152,6 +152,72 @@ async function transcrever(url, buf) {
 // ---------- o que falta de uma loja ----------
 // met = contas_meta.metricas (numeros do Reportei); anterior = contas_meta.meta (o que ja veio da Meta)
 // Devolve o cache atualizado. Se a Meta nao estiver conectada ou estiver pausada, devolve o anterior.
+// sem permissao para esse Instagram ou conta de anuncios (10, 190, 2xx ou 100/33 "objeto nao existe ou sem permissao")
+function semPermissaoMeta(e) {
+    const m = (e && e.meta) || {}, c = Number(m.code);
+    return c === 10 || c === 190 || (c >= 200 && c < 300) || (c === 100 && Number(m.error_subcode) === 33);
+}
+// capa, texto e titulo de 1 anuncio; se ele veio de um post, a capa e o link do post
+// (estado.tamanhoOk: a capa em 600 px; se a Meta nao aceitar o tamanho, segue com a capa padrao)
+const CAMPOS_CRIATIVO = "thumbnail_url,image_url,video_id,body,title,object_story_spec,effective_instagram_media_id";
+async function lerCriativo(adId, token, postsDaLoja, antes, estado, agora) {
+    antes = antes || {};
+    let d;
+    if (estado.tamanhoOk) {
+        try { d = await g("/" + adId, { fields: "creative.thumbnail_width(600).thumbnail_height(600){" + CAMPOS_CRIATIVO + "}" }, token); }
+        catch (e) { if (e instanceof MetaPausada || semPermissaoMeta(e)) throw e; estado.tamanhoOk = false; }
+    }
+    if (!d) d = await g("/" + adId, { fields: "creative{" + CAMPOS_CRIATIVO + "}" }, token);
+    const c = (d && d.creative) || {}, oss = c.object_story_spec || {}, vd = oss.video_data || {}, ld = oss.link_data || {};
+    const x = Object.assign({}, antes, {
+        em: agora,
+        miniatura: c.image_url || vd.image_url || c.thumbnail_url || antes.miniatura || "",
+        texto: corta(c.body || vd.message || ld.message || "", 600),
+        titulo: corta(c.title || vd.title || ld.name || "", 140),
+        video_id: c.video_id || vd.video_id || "",
+        ig_media_id: c.effective_instagram_media_id || ""
+    });
+    // anuncio feito a partir de um post: capa e link do post (da coleta quando o post e da loja; senao, 1 consulta na primeira vez)
+    const ig = x.ig_media_id, doPost = ig && postsDaLoja[ig];
+    if (doPost) {
+        if (doPost.miniatura) x.miniatura = doPost.miniatura;
+        if (doPost.link) x.post_link = doPost.link;
+    } else if (ig && !antes.post_link) {
+        try {
+            const m = await g("/" + ig, { fields: "thumbnail_url,media_url,media_type,permalink" }, token);
+            x.miniatura = m.thumbnail_url || (m.media_type === "IMAGE" ? m.media_url : "") || x.miniatura;
+            x.post_link = m.permalink || "";
+        } catch (e) { if (e instanceof MetaPausada) throw e; console.error("[meta] post do anuncio " + adId + ": " + (e && e.message)); }
+    }
+    return x;
+}
+
+// Na atualizacao dos numeros (a cada 30 min, toda loja, mesmo a que esta sem analise): capa e texto so dos
+// anuncios NOVOS, que ainda nao tem nada guardado. So leitura na Meta, sem IA. O resto (capas que vencem,
+// falas, comentarios, tempo assistido) continua com a analise do time.
+const MAX_CAPAS_NOVAS = 10;
+async function capasNovas(met, anterior) {
+    const ja = (anterior && anterior.anuncios) || {};
+    const novos = ((met && met.anuncios && met.anuncios.p90 && met.anuncios.p90.anuncios) || [])
+        .filter(function (a) { return ehCodigo(a.id) && !(ja[a.id] && ja[a.id].em); })
+        .sort(function (a, b) { return num(b.gasto) - num(a.gasto); }).slice(0, MAX_CAPAS_NOVAS);
+    if (!novos.length) return null;
+    const con = await conexao();
+    if (!con || con.pausada) return null;
+    const postsDaLoja = {};
+    ((met.organico && met.organico.posts) || []).forEach(function (p) { postsDaLoja[p.id] = p; });
+    const estado = { tamanhoOk: true }, agora = new Date().toISOString(), out = { anuncios: {} };
+    for (const a of novos) {
+        try { out.anuncios[a.id] = await lerCriativo(a.id, con.token, postsDaLoja, ja[a.id], estado, agora); }
+        catch (e) {
+            if (e instanceof MetaPausada) throw e;
+            console.error("[meta] capa nova " + a.id + ": " + (e && e.message));
+            if (semPermissaoMeta(e)) break;
+        }
+    }
+    return Object.keys(out.anuncios).length ? out : null;
+}
+
 async function enriquecerLoja(met, anterior, userId, opcoes) {
     const objetivo = opcoes && opcoes.objetivo;
     const cache = Object.assign({}, anterior || {}, { em: (anterior && anterior.em) || null, erro: (anterior && anterior.erro) || null, sem_pulo: !!(anterior && anterior.sem_pulo), posts: Object.assign({}, anterior && anterior.posts), anuncios: Object.assign({}, anterior && anterior.anuncios), ig_id: (anterior && anterior.ig_id) || "", demografia: (anterior && anterior.demografia) || null });
@@ -164,11 +230,7 @@ async function enriquecerLoja(met, anterior, userId, opcoes) {
     const ads = ((met && met.anuncios && met.anuncios.p90 && met.anuncios.p90.anuncios) || []).filter(function (a) { return ehCodigo(a.id); });
     function post(id) { return cache.posts[id] || (cache.posts[id] = {}); }
     const sem = { ig: false, ads: false };
-    // sem permissao para esse Instagram ou conta de anuncios (10, 190, 2xx ou 100/33 "objeto nao existe ou sem permissao")
-    function semPermissao(e) {
-        const m = (e && e.meta) || {}, c = Number(m.code);
-        return c === 10 || c === 190 || (c >= 200 && c < 300) || (c === 100 && Number(m.error_subcode) === 33);
-    }
+    const semPermissao = semPermissaoMeta;
     function falhou(onde, e, qual) {
         if (e instanceof MetaPausada) throw e;
         if (semPermissao(e)) sem[qual] = true;
@@ -185,41 +247,11 @@ async function enriquecerLoja(met, anterior, userId, opcoes) {
             .slice(0, MAX_ANUNCIOS_RODADA);
         const postsDaLoja = {};
         posts.forEach(function (p) { postsDaLoja[p.id] = p; });
-        const campos = "thumbnail_url,image_url,video_id,body,title,object_story_spec,effective_instagram_media_id";
-        let tamanhoOk = true;
+        const estado = { tamanhoOk: true };
         for (const a of adsPedir) {
             if (sem.ads) break;
-            try {
-                // capa em tamanho maior; se a Meta nao aceitar o tamanho, pede a capa padrao
-                let d;
-                if (tamanhoOk) {
-                    try { d = await g("/" + a.id, { fields: "creative.thumbnail_width(600).thumbnail_height(600){" + campos + "}" }, token); }
-                    catch (e) { if (e instanceof MetaPausada || semPermissao(e)) throw e; tamanhoOk = false; }
-                }
-                if (!d) d = await g("/" + a.id, { fields: "creative{" + campos + "}" }, token);
-                const c = (d && d.creative) || {}, oss = c.object_story_spec || {}, vd = oss.video_data || {}, ld = oss.link_data || {};
-                const antes = cache.anuncios[a.id] || {};
-                const x = cache.anuncios[a.id] = Object.assign({}, antes, {
-                    em: agora,
-                    miniatura: c.image_url || vd.image_url || c.thumbnail_url || antes.miniatura || "",
-                    texto: corta(c.body || vd.message || ld.message || "", 600),
-                    titulo: corta(c.title || vd.title || ld.name || "", 140),
-                    video_id: c.video_id || vd.video_id || "",
-                    ig_media_id: c.effective_instagram_media_id || ""
-                });
-                // anuncio feito a partir de um post: capa e link do post (do Reportei quando o post e da loja; senao, 1 consulta na primeira vez)
-                const ig = x.ig_media_id, doPost = ig && postsDaLoja[ig];
-                if (doPost) {
-                    if (doPost.miniatura) x.miniatura = doPost.miniatura;
-                    if (doPost.link) x.post_link = doPost.link;
-                } else if (ig && !antes.post_link) {
-                    try {
-                        const m = await g("/" + ig, { fields: "thumbnail_url,media_url,media_type,permalink" }, token);
-                        x.miniatura = m.thumbnail_url || (m.media_type === "IMAGE" ? m.media_url : "") || x.miniatura;
-                        x.post_link = m.permalink || "";
-                    } catch (e) { falhou("post do anuncio " + a.id, e, "nenhum"); }
-                }
-            } catch (e) { falhou("anuncio " + a.id, e, "ads"); }
+            try { cache.anuncios[a.id] = await lerCriativo(a.id, token, postsDaLoja, cache.anuncios[a.id], estado, agora); }
+            catch (e) { falhou("anuncio " + a.id, e, "ads"); }
         }
 
         if (objetivo === "conversas_visitas" && !sem.ads) {
@@ -544,4 +576,4 @@ function comentariosDaLoja(met, cache) {
     return out.slice(0, 60);
 }
 
-module.exports = { g, conexao, limparEstado, enriquecerLoja, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia, transcrever, fichasDaLoja, salvarMeta, juntarMeta, MetaPausada, _interno: { usoDe, ehLimite, falaInventada, faixasDasVisitas, alvosDaLoja } };
+module.exports = { g, conexao, limparEstado, enriquecerLoja, capasNovas, esperarFalas, aplicarMeta, comentariosDaLoja, textoDemografia, transcrever, fichasDaLoja, salvarMeta, juntarMeta, MetaPausada, _interno: { usoDe, ehLimite, falaInventada, faixasDasVisitas, alvosDaLoja } };

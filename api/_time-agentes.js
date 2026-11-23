@@ -1540,12 +1540,13 @@ function precisaAnalisarAgora(c, agora, acessoEm, ativaDesde) {
     if (s.acessouAgora && s.idade >= SEM_NOVIDADE_MS + 4 * HORA_MS) return true;  // voltou depois de parada: atualiza enquanto ela usa
     return s.ativa && s.idade >= SEM_NOVIDADE_MS + 8 * HORA_MS;                    // ativa e o lote da madrugada nao rodou
 }
-// entra no lote da madrugada? loja ativa e: produtos novos (desde ontem), novidade (a cada 2 noites) ou 3 noites sem analise
+// entra no lote da madrugada? loja ativa: produtos novos (desde ontem), novidade (a cada 2 noites) ou 1 semana sem analise;
+// loja parada (dona sem abrir o app ha 14 dias): 1 vez por semana, para as descobertas nunca ficarem velhas (decisao do dono, 23/11/2026)
 function entraNoLote(c, agora, acessoEm, ativaDesde) {
     if (!c || !c.assinatura || c.tem_job || /^Analisando/.test(c.status || "")) return false;
     if (String(c.dossie_versao) !== String(VERSAO) || aindaEsperandoErro(c, agora)) return false;
     const s = situacao(c, agora, acessoEm, ativaDesde);
-    if (!s.ativa) return false;
+    if (!s.ativa) return s.idade >= SEM_NOVIDADE_MS;
     return s.idade >= SEM_NOVIDADE_MS || (s.idade >= NOVIDADE_MS && temNovidade(c)) || (s.idade >= 20 * HORA_MS && produtosNovos(c));
 }
 

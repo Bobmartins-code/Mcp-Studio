@@ -4,15 +4,17 @@
 //  e, de reserva, pelo Vercel Cron uma vez por dia. So quem tem o CRON_SECRET chama.
 //
 //  1. Numeros (direto da Meta): cada loja a cada 30 minutos; a cada 5 minutos
-//     enquanto a dona estiver usando o app.
+//     enquanto a dona estiver usando o app. Anuncio novo ja ganha capa e texto aqui
+//     (toda loja, mesmo parada; so leitura, sem IA).
 //  2. Analises em andamento (contas_meta.dossie_job): confere o lote da
 //     Anthropic ou roda a proxima etapa na hora.
 //  3. Madrugada (3h as 7h): as lojas ativas (acesso nos ultimos 14 dias)
 //     entram no lote, pela metade do preco, quando o caderno da loja mudou
 //     de verdade ou ha produto novo (no maximo a cada 2 noites), ou 1 vez por semana.
+//     Loja parada (sem acesso da dona ha 14 dias) tambem entra, 1 vez por semana.
 //  4. Na hora: primeira analise, versao nova do time, loja que voltou depois
 //     de parada (a dona abriu o app) ou loja ativa que ficou sem o lote.
-//  5. Cerebro (lojas ativas, ate 2 por rodada, cada uma a cada 15 minutos no maximo):
+//  5. Cerebro (ate 2 por rodada; loja ativa a cada 15 minutos no maximo, parada 1 vez por dia):
 //     fichas dos videos campeoes (fala lida e video assistido, uma vez so) e,
 //     quando entra campeao novo, o Agente do Caderno atualiza o que a loja ja sabe.
 //  5b. Vendas do CRM (lojas ligadas ao CRM): a calculadora refaz os padroes de venda
@@ -35,6 +37,7 @@ const LOTE_ATE_MS = 200000;             // preparar o lote (consulta a Meta) lev
 const CEREBRO_ATE_MS = 150000;          // so comeca o cerebro de uma loja se ainda houver tempo para as fichas e o caderno
 const CEREBRO_MS = 14 * 60000;          // cada loja passa pelo cerebro no maximo a cada 15 minutos (rodadas de 5 em 5)
 const CEREBRO_POR_RODADA = 2;
+const CEREBRO_PARADA_MS = 20 * 3600000;  // loja parada: cerebro 1 vez por dia
 
 function horaSP(d) { return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }).format(d)) % 24; }
 
@@ -121,9 +124,10 @@ module.exports = async function handler(req, res) {
             });
         }
 
-        // 5) cerebro: fichas dos campeoes e caderno das lojas ativas (quem esta usando o app primeiro, depois quem esta ha mais tempo sem)
+        // 5) cerebro: fichas dos campeoes e caderno (quem esta usando o app primeiro, depois quem esta ha mais tempo sem);
+        //    loja parada (dona sem abrir o app ha 14 dias) 1 vez por dia, para a analise semanal dela usar o cerebro em dia
         const idadeCerebro = function (c) { return c.cerebro_em ? inicio - new Date(c.cerebro_em).getTime() : Infinity; };
-        const cerebroFila = lojas.filter(function (c) { return !c.tem_job && c.assinatura && idadeCerebro(c) >= CEREBRO_MS && lojaAtiva(inicio, acesso[c.user_id], entrou[c.user_id]); })
+        const cerebroFila = lojas.filter(function (c) { return !c.tem_job && c.assinatura && idadeCerebro(c) >= (lojaAtiva(inicio, acesso[c.user_id], entrou[c.user_id]) ? CEREBRO_MS : CEREBRO_PARADA_MS); })
             .sort(function (a, b) { return (usando(b.user_id) ? 1 : 0) - (usando(a.user_id) ? 1 : 0) || idadeCerebro(b) - idadeCerebro(a); });
         for (const c of cerebroFila.slice(0, CEREBRO_POR_RODADA)) {
             if (passou() > CEREBRO_ATE_MS) break;
