@@ -48,8 +48,6 @@ module.exports = async function handler(req, res) {
     const inicio = Date.now();
     const passou = function () { return Date.now() - inicio; };
     try {
-        // TESTE TEMPORARIO (23/11/2026): historico de atividades da Meta, no comeco da rodada e com no maximo 60 s; remover depois de ler
-        try { await require("./_teste-atividades.js").testeAtividades(inicio + 60000); } catch (e) { console.log("[teste-atividades] " + (e && e.message)); }
         // lojas com Instagram ou conta de anuncios escolhidos (Painel Admin) e a conta do admin, se tiver
         const [cadastros, contas, acessosRows] = await Promise.all([
             banco("lojas?select=user_id,criado_em"),
