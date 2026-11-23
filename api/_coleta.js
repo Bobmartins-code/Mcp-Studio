@@ -563,6 +563,9 @@ async function atualizarLoja(userId) {
         const act = antes && /^\d{5,}$/.test(String(antes.ad_account_id || "").replace(/^act_/, "")) ? "act_" + String(antes.ad_account_id).replace(/^act_/, "") : null;
         const tr = await require("./_trocas.js").trocasDaLoja(userId, act, meta, met);
         if (tr) meta = await require("./_meta-leitura.js").salvarMeta(userId, tr);
+        // qual era o video do criativo anterior (pela capa); no maximo 1 vez a cada 2 horas
+        const rv = await require("./_trocas.js").recuperarVideos(userId, act, meta);
+        if (rv) meta = await require("./_meta-leitura.js").salvarMeta(userId, rv);
     } catch (e) {
         console.error("[coleta] trocas de criativo: " + (e && e.message));
         // erro da Meta (ex.: sem permissao): tenta de novo so daqui a 2 horas

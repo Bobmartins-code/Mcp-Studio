@@ -89,6 +89,9 @@ async function trocasDaLoja(userId, act, anterior, met) {
             CAMPOS_DO_CRIATIVO.forEach(function (k) { if (c[k]) item[k] = c[k]; });
         }
         const links = capasDoEvento(e.extra_data);
+        // nome do arquivo da capa: serve para achar depois qual era o video (recuperarVideos)
+        const chaves = links.map(chaveDaCapa).filter(Boolean).slice(0, 3);
+        if (chaves.length) item.chaves = chaves;
         if (usouCache[id] === 1 && c && c.miniatura) links.push(c.miniatura);
         if (usouCache[id] === 1) usouCache[id] = 2;
         item.capa = capas < MAX_CAPAS_RODADA ? await copiarCapa(userId, id, em, links) : "";
@@ -124,6 +127,90 @@ async function trocasDaLoja(userId, act, anterior, met) {
     return out;
 }
 
+// ---------- qual era o video do criativo anterior ----------
+// A Meta so manda a capa do criativo que saiu. O criativo antigo continua na biblioteca da conta de anuncios
+// (adcreatives) com o video dele; a capa e o mesmo arquivo. Compara pelo nome do arquivo da capa.
+const BUSCA_MS = 2 * 3600e3, MAX_PAGINAS_CRIATIVOS = 15, MAX_POSTS_RODADA = 25;
+function chaveDaCapa(u) {
+    // capa servida por outro endereco da Meta (safe_image): o arquivo de verdade vem no parametro url
+    try { const dentro = new URL(String(u || "")).searchParams.get("url"); if (dentro) { const k = chaveDaCapa(dentro); if (k) return k; } } catch (e) { /* nao e um endereco */ }
+    const m = /\/([^\/?#]+\.(?:jpe?g|png|webp|heic))(?:[?#]|$)/i.exec(String(u || "")); return m ? m[1].toLowerCase() : ""; }
+function semVideo(x) { return x && !x.video_id && !x.ig_media_id; }
+async function recuperarVideos(userId, act, anterior) {
+    if (!act) return null;
+    const t = (anterior && anterior.trocas) || {}, ads = t.ads || {};
+    if (!t.ate || (t.busca_em && Date.now() - new Date(t.busca_em).getTime() < BUSCA_MS)) return null;
+    const faltam = [];
+    Object.keys(ads).forEach(function (id) { (ads[id] || []).forEach(function (x) { if (semVideo(x) && !x.busca) faltam.push({ id: id, x: x }); }); });
+    if (!faltam.length) return null;
+    const con = await meta.conexao();
+    if (!con || con.pausada) return null;
+    const agoraIso = new Date().toISOString();
+
+    // trocas guardadas antes de existir a "chave" da capa: rele as atividades do periodo para pegar a capa de novo
+    if (faltam.some(function (f) { return !f.x.chaves; })) {
+        const porTroca = {};
+        let d = await meta.g("/" + act + "/activities", { fields: "event_time,event_type,object_id,extra_data", since: Math.floor(new Date(t.desde || Date.now() - 60 * DIA).getTime() / 1000), until: Math.floor(new Date(t.ate).getTime() / 1000), limit: 500 }, con.token);
+        let paginas = 0;
+        while (d) {
+            paginas++;
+            (d.data || []).forEach(function (e) {
+                if (e.event_type !== "update_ad_creative" || !e.event_time) return;
+                porTroca[String(e.object_id) + "|" + new Date(e.event_time).toISOString()] = capasDoEvento(e.extra_data).map(chaveDaCapa).filter(Boolean).slice(0, 3);
+            });
+            if (!(d.paging && d.paging.next) || paginas >= MAX_PAGINAS) break;
+            d = await meta.g(d.paging.next, null, null);
+        }
+        faltam.forEach(function (f) { if (!f.x.chaves) f.x.chaves = porTroca[f.id + "|" + f.x.em] || []; });
+    }
+
+    // os criativos da conta (mais novos primeiro), so os que tem video ou vem de um post
+    const procura = {};
+    faltam.forEach(function (f) { (f.x.chaves || []).forEach(function (k) { procura[k] = 1; }); });
+    const achados = {};
+    let falta = Object.keys(procura).length, paginas = 0;
+    if (falta) {
+        let d = await meta.g("/" + act + "/adcreatives", { fields: "video_id,effective_instagram_media_id,thumbnail_url,image_url,object_story_spec{video_data{video_id,image_url}}", limit: 200 }, con.token);
+        while (d && falta > 0) {
+            paginas++;
+            (d.data || []).forEach(function (c) {
+                const vd = (c.object_story_spec && c.object_story_spec.video_data) || {};
+                const v = { video_id: c.video_id || vd.video_id || "", ig_media_id: c.effective_instagram_media_id || "" };
+                if (!v.video_id && !v.ig_media_id) return;
+                [c.thumbnail_url, c.image_url, vd.image_url].map(chaveDaCapa).forEach(function (k) { if (k && procura[k] && !achados[k]) { achados[k] = v; falta--; } });
+            });
+            if (!(d.paging && d.paging.next) || paginas >= MAX_PAGINAS_CRIATIVOS) break;
+            d = await meta.g(d.paging.next, null, null);
+        }
+    }
+
+    // criativo que veio de um post: so vale se o post for video (foto continua sem play); o link do post vai junto
+    const posts = {};
+    let consultas = 0;
+    const out = {};
+    let comVideo = 0;
+    for (const f of faltam) {
+        const v = (f.x.chaves || []).map(function (k) { return achados[k]; }).find(Boolean);
+        const item = { em: f.x.em, busca: v ? "achou" : "nao", chaves: f.x.chaves || [] };
+        if (v && v.video_id) item.video_id = v.video_id;
+        if (v && v.ig_media_id) {
+            if (!(v.ig_media_id in posts) && consultas < MAX_POSTS_RODADA) {
+                consultas++;
+                try { posts[v.ig_media_id] = await meta.g("/" + v.ig_media_id, { fields: "media_type,permalink" }, con.token); }
+                catch (e) { if (e instanceof meta.MetaPausada) throw e; posts[v.ig_media_id] = null; }
+            }
+            const p = posts[v.ig_media_id];
+            if (p && p.permalink) item.post_link = p.permalink;
+            if (p && p.media_type === "VIDEO") item.ig_media_id = v.ig_media_id;
+            if (!(v.ig_media_id in posts)) item.busca = "";   // ficou para a proxima rodada
+        }
+        if (item.video_id || item.ig_media_id) comVideo++;
+        (out[f.id] = out[f.id] || []).push(item);
+    }
+    console.log("[trocas] " + userId.slice(0, 8) + ": video anterior achado em " + comVideo + " de " + faltam.length + " trocas (" + paginas + " paginas de criativos)");
+    return { trocas: { em: t.em, busca_em: agoraIso, ads: out } };
+}
+
 // ---------- periodos de cada versao do anuncio (para a tela) ----------
 function diaSP(ms) { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(ms)); }
 function somaDia(dia, n) { return new Date(new Date(dia + "T12:00:00Z").getTime() + n * DIA).toISOString().slice(0, 10); }
@@ -147,4 +234,4 @@ function janelasDoLembrete(em) {
     return { antes: { inicio: somaDia(d, -7), fim: somaDia(d, -1) }, depois: { inicio: d, fim: somaDia(d, 6) } };
 }
 
-module.exports = { trocasDaLoja, versoesDe, janelasDoLembrete, _interno: { capasDoEvento, diaSP, somaDia } };
+module.exports = { trocasDaLoja, recuperarVideos, versoesDe, janelasDoLembrete, _interno: { capasDoEvento, chaveDaCapa, diaSP, somaDia } };
